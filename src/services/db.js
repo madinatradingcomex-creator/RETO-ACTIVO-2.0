@@ -277,6 +277,10 @@ export const dbService = {
     return getLocalData('ra_challenges', INITIAL_CHALLENGES);
   },
 
+  async getRewards() {
+    return getLocalData('ra_rewards', INITIAL_REWARDS);
+  },
+
   async getUserChallenges(userId) {
     const userChallenges = getLocalData('ra_user_challenges', []);
     return userChallenges.filter(uc => uc.user_id === userId);
