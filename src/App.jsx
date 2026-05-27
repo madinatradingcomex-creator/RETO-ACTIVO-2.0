@@ -338,22 +338,24 @@ function App() {
 
     // Paso 2: Simular la lectura de la API de Google Fit (espera 1.2s)
     await new Promise(r => setTimeout(r, 1200));
-    const simulatedSteps = Math.floor(Math.random() * 4000) + 7000; // 7k–11k pasos
+    // Generar pasos diarios simulados para 7 días
+    const simulatedDaily = Array.from({ length: 7 }, () => Math.floor(Math.random() * 4000) + 7000);
+    const simulatedTotal = simulatedDaily.reduce((a, b) => a + b, 0);
 
     // Guardar token de demo (válido por 1 hora)
     dbService.saveGoogleFitToken('DEMO_TOKEN_' + Date.now(), 3600);
     setGFitConnected(true);
 
-    // Paso 3: Sincronizar
-    await performGFitSync(currentUser, simulatedSteps);
+    // Paso 3: Sincronizar con objeto {dailySteps, totalSteps}
+    await performGFitSync(currentUser, { dailySteps: simulatedDaily, totalSteps: simulatedTotal });
   };
 
   // Ejecutar la sincronización real después de recibir el token OAuth
   const handleGFitSyncAfterConnect = async (user, token) => {
     setGFitSyncing(true);
     try {
-      const steps = await dbService.fetchTodayStepsFromGoogleFit(token);
-      await performGFitSync(user, steps);
+      const fitData = await dbService.fetchWeeklyStepsFromGoogleFit(token);
+      await performGFitSync(user, fitData);
     } catch (err) {
       console.error('Error fetching Google Fit steps:', err);
       showToastMessage('⚠️ No se pudieron leer los pasos de Google Fit. Intenta de nuevo.', 'error');
@@ -372,9 +374,10 @@ function App() {
 
     setGFitSyncing(true);
     if (token.startsWith('DEMO_TOKEN_')) {
-      // Demo: generar pasos nuevos
-      const steps = Math.floor(Math.random() * 4000) + 7000;
-      await performGFitSync(currentUser, steps);
+      // Demo: generar pasos diarios simulados para 7 días
+      const simulatedDaily = Array.from({ length: 7 }, () => Math.floor(Math.random() * 4000) + 7000);
+      const simulatedTotal = simulatedDaily.reduce((a, b) => a + b, 0);
+      await performGFitSync(currentUser, { dailySteps: simulatedDaily, totalSteps: simulatedTotal });
     } else {
       await handleGFitSyncAfterConnect(currentUser, token);
     }
@@ -389,12 +392,13 @@ function App() {
   };
 
   // Lógica central: tomar los pasos y actualizar todo
-  const performGFitSync = async (user, steps) => {
+  const performGFitSync = async (user, fitData) => {
     const challengeId = gFitSelectedChallenge || null;
-    const result = await dbService.syncGoogleFitSteps(user.id, challengeId, steps);
-    dbService.saveLastSync(user.id, steps);
+    const result = await dbService.syncGoogleFitSteps(user.id, challengeId, fitData);
+    const totalSteps = fitData.totalSteps || 0;
+    dbService.saveLastSync(user.id, totalSteps);
 
-    const syncInfo = { steps, syncedAt: new Date().toISOString() };
+    const syncInfo = { steps: totalSteps, syncedAt: new Date().toISOString() };
     setGFitLastSync(syncInfo);
     setGFitSyncing(false);
 
@@ -405,7 +409,7 @@ function App() {
     if (result.completed) {
       showToastMessage(`🏆 ¡Sincronizado y reto completado! +${result.pointsAwarded} puntos ganados desde Google Fit.`);
     } else {
-      showToastMessage(`🌱 ¡Sincronizado! ${steps.toLocaleString()} pasos${kmText} importados desde Google Fit.`);
+      showToastMessage(`🌱 ¡Sincronizado! ${totalSteps.toLocaleString()} pasos${kmText} importados desde Google Fit.`);
     }
   };
 

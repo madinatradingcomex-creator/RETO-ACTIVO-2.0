@@ -1212,12 +1212,12 @@ export const dbService = {
           if (pointsAwarded > 0) {
             await this.updateUserStats(userId, pointsAwarded);
           }
-          return { steps, kmEquivalent, completed: completedNow, pointsAwarded };
+          return { totalSteps, kmEquivalent, completed: completedNow, pointsAwarded };
         }
       }
     }
 
-    return { steps, kmEquivalent, completed: false, pointsAwarded: 0 };
+    return { totalSteps, kmEquivalent, completed: false, pointsAwarded: 0 };
   },
 
   // Guardar la última sincronización para mostrarlo en la UI
