@@ -32,6 +32,12 @@ import {
 import { dbService } from './services/db';
 import './App.css';
 
+// === GOOGLE FIT OAUTH CONFIG ===
+// Cuando tengas tu CLIENT_ID de Google Cloud Console, reemplaza el string de abajo.
+// Por ahora usamos un valor de demostración que activa el flujo simulado.
+const GOOGLE_FIT_CLIENT_ID = import.meta.env.VITE_GOOGLE_FIT_CLIENT_ID || 'DEMO_MODE';
+const REDIRECT_URI = window.location.origin + window.location.pathname;
+
 function App() {
   // Authentication State
   const [currentUser, setCurrentUser] = useState(null);
@@ -104,6 +110,13 @@ function App() {
   // Notifications/Toast
   const [toast, setToast] = useState(null);
 
+  // === GOOGLE FIT STATE ===
+  const [gFitConnected, setGFitConnected] = useState(false);
+  const [gFitSyncing, setGFitSyncing] = useState(false);
+  const [gFitLastSync, setGFitLastSync] = useState(null);
+  const [gFitSelectedChallenge, setGFitSelectedChallenge] = useState(null);
+  const [showGFitPanel, setShowGFitPanel] = useState(false);
+
   // Load initial session
   useEffect(() => {
     checkActiveSession();
@@ -111,13 +124,34 @@ function App() {
 
   const checkActiveSession = async () => {
     const active = await dbService.getCurrentUser();
-    if (active) {
+
+    // Detectar si Google redirigió de vuelta con un token OAuth
+    const oauthResult = dbService.extractTokenFromUrl();
+    if (oauthResult) {
+      dbService.saveGoogleFitToken(oauthResult.token, oauthResult.expiresIn);
+      setGFitConnected(true);
+      // Si hay un usuario activo, sincronizar inmediatamente
+      if (active) {
+        setCurrentUser(active);
+        setLandingView(false);
+        loadViewData(active);
+        handleGFitSyncAfterConnect(active, oauthResult.token);
+      }
+    } else if (active) {
       setCurrentUser(active);
       setLandingView(false);
       loadViewData(active);
+      // Verificar si ya tiene token guardado válido
+      const connected = dbService.isGoogleFitConnected();
+      setGFitConnected(connected);
+      if (connected && active.role === 'employee') {
+        const lastSync = dbService.getLastSync(active.id);
+        setGFitLastSync(lastSync);
+      }
     } else {
       setLandingView(true);
     }
+
     const presets = await dbService.getPresetUsers();
     setPresetUsers(presets);
   };
@@ -234,6 +268,101 @@ function App() {
     setCurrentUser(null);
     setLandingView(true);
     showToastMessage("Sesión cerrada. ¡Vuelve pronto!");
+  };
+
+  // --- ACTIONS: GOOGLE FIT INTEGRATION ---
+
+  // Iniciar el flujo OAuth de Google (redirige a Google para autorización)
+  const handleConnectGoogleFit = () => {
+    if (GOOGLE_FIT_CLIENT_ID === 'DEMO_MODE') {
+      // Modo demostración sin credenciales reales → simular el flujo completo
+      handleGFitDemoFlow();
+      return;
+    }
+    const url = dbService.buildGoogleOAuthUrl(GOOGLE_FIT_CLIENT_ID, REDIRECT_URI);
+    window.location.href = url;
+  };
+
+  // Demo flow: simular el proceso completo de OAuth + lectura de API
+  const handleGFitDemoFlow = async () => {
+    setGFitSyncing(true);
+    showToastMessage('🔄 Conectando con Google Fit...');
+
+    // Paso 1: Simular la pantalla de autorización de Google (espera 1.5s)
+    await new Promise(r => setTimeout(r, 1500));
+    showToastMessage('✅ Autorización concedida por Google');
+
+    // Paso 2: Simular la lectura de la API de Google Fit (espera 1.2s)
+    await new Promise(r => setTimeout(r, 1200));
+    const simulatedSteps = Math.floor(Math.random() * 4000) + 7000; // 7k–11k pasos
+
+    // Guardar token de demo (válido por 1 hora)
+    dbService.saveGoogleFitToken('DEMO_TOKEN_' + Date.now(), 3600);
+    setGFitConnected(true);
+
+    // Paso 3: Sincronizar
+    await performGFitSync(currentUser, simulatedSteps);
+  };
+
+  // Ejecutar la sincronización real después de recibir el token OAuth
+  const handleGFitSyncAfterConnect = async (user, token) => {
+    setGFitSyncing(true);
+    try {
+      const steps = await dbService.fetchTodayStepsFromGoogleFit(token);
+      await performGFitSync(user, steps);
+    } catch (err) {
+      console.error('Error fetching Google Fit steps:', err);
+      showToastMessage('⚠️ No se pudieron leer los pasos de Google Fit. Intenta de nuevo.', 'error');
+      setGFitSyncing(false);
+    }
+  };
+
+  // Sincronizar manualmente (ya conectado)
+  const handleGFitResync = async () => {
+    const token = dbService.getGoogleFitToken();
+    if (!token) {
+      setGFitConnected(false);
+      showToastMessage('La sesión de Google Fit expiró. Vuelve a conectar.', 'error');
+      return;
+    }
+
+    setGFitSyncing(true);
+    if (token.startsWith('DEMO_TOKEN_')) {
+      // Demo: generar pasos nuevos
+      const steps = Math.floor(Math.random() * 4000) + 7000;
+      await performGFitSync(currentUser, steps);
+    } else {
+      await handleGFitSyncAfterConnect(currentUser, token);
+    }
+  };
+
+  // Desconectar Google Fit
+  const handleDisconnectGoogleFit = () => {
+    dbService.clearGoogleFitToken();
+    setGFitConnected(false);
+    setGFitLastSync(null);
+    showToastMessage('Google Fit desconectado.');
+  };
+
+  // Lógica central: tomar los pasos y actualizar todo
+  const performGFitSync = async (user, steps) => {
+    const challengeId = gFitSelectedChallenge || null;
+    const result = await dbService.syncGoogleFitSteps(user.id, challengeId, steps);
+    dbService.saveLastSync(user.id, steps);
+
+    const syncInfo = { steps, syncedAt: new Date().toISOString() };
+    setGFitLastSync(syncInfo);
+    setGFitSyncing(false);
+
+    // Refrescar datos de la vista
+    await loadViewData(user);
+
+    const kmText = result.kmEquivalent ? ` (≈ ${result.kmEquivalent} km)` : '';
+    if (result.completed) {
+      showToastMessage(`🏆 ¡Sincronizado y reto completado! +${result.pointsAwarded} puntos ganados desde Google Fit.`);
+    } else {
+      showToastMessage(`🌱 ¡Sincronizado! ${steps.toLocaleString()} pasos${kmText} importados desde Google Fit.`);
+    }
   };
 
   // --- ACTIONS: EMPLEADO (HEALTH APP INTEGRATION) ---
@@ -1277,8 +1406,175 @@ function App() {
                   </div>
                 </section>
 
+                {/* ===== PANEL GOOGLE FIT ===== */}
+                <section style={{ marginBottom: '2rem' }}>
+                  <div style={{
+                    background: gFitConnected
+                      ? 'linear-gradient(135deg, #F0FBF6, #EAF5FF)'
+                      : 'linear-gradient(135deg, #F8F9FF, #F0F7FF)',
+                    border: gFitConnected
+                      ? '1px solid rgba(28,188,140,0.2)'
+                      : '1px solid var(--border-color)',
+                    borderRadius: '20px',
+                    padding: '1.75rem 2rem',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '1.5rem',
+                    alignItems: 'center',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    boxShadow: 'var(--shadow-sm)',
+                  }}>
+                    {/* Decoración de fondo */}
+                    <div style={{
+                      position: 'absolute', right: '-20px', top: '-20px',
+                      width: '160px', height: '160px',
+                      borderRadius: '50%',
+                      background: gFitConnected
+                        ? 'radial-gradient(circle, rgba(28,188,140,0.07), transparent 70%)'
+                        : 'radial-gradient(circle, rgba(82,130,255,0.06), transparent 70%)',
+                      pointerEvents: 'none'
+                    }} />
+
+                    {/* Ícono principal */}
+                    <div style={{
+                      width: '54px', height: '54px', borderRadius: '16px', flexShrink: 0,
+                      background: gFitConnected
+                        ? 'linear-gradient(135deg, #34C97B, #1CBC8C)'
+                        : 'linear-gradient(135deg, #4285F4, #34A853)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: 'white',
+                      boxShadow: gFitConnected
+                        ? '0 8px 20px rgba(28,188,140,0.25)'
+                        : '0 8px 20px rgba(66,133,244,0.25)',
+                      fontSize: '1.5rem'
+                    }}>
+                      {gFitConnected ? <CheckCircle2 size={26} /> : <Activity size={26} />}
+                    </div>
+
+                    {/* Texto de estado */}
+                    <div style={{ flexGrow: 1, minWidth: '200px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                        <h3 style={{ fontFamily: 'Outfit', fontSize: '1.1rem', fontWeight: 700 }}>
+                          Google Fit
+                        </h3>
+                        {gFitConnected && (
+                          <span style={{
+                            backgroundColor: 'var(--mint-bg)',
+                            color: 'var(--mint-dark)',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '0.2rem 0.6rem',
+                            borderRadius: '20px',
+                            border: '1px solid rgba(28,188,140,0.15)'
+                          }}>● CONECTADO</span>
+                        )}
+                      </div>
+
+                      {gFitConnected ? (
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                          {gFitLastSync
+                            ? `Última sincronización: ${gFitLastSync.steps?.toLocaleString()} pasos · ${new Date(gFitLastSync.syncedAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`
+                            : 'Cuenta conectada · Presiona "Sincronizar" para importar tus pasos de hoy.'}
+                        </p>
+                      ) : (
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                          Conecta tu cuenta de Google Fit para importar tus pasos automáticamente. Los datos se aprueban solos, ¡sin captura manual!
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Selector de reto (cuando está conectado) */}
+                    {gFitConnected && (
+                      <div style={{ minWidth: '200px' }}>
+                        <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>
+                          Aplicar pasos a reto:
+                        </label>
+                        <select
+                          value={gFitSelectedChallenge || ''}
+                          onChange={e => setGFitSelectedChallenge(e.target.value || null)}
+                          style={{
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '10px',
+                            padding: '0.5rem 0.75rem',
+                            fontSize: '0.85rem',
+                            backgroundColor: 'white',
+                            color: 'var(--text-main)',
+                            width: '100%',
+                            outline: 'none',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <option value="">Solo actualizar pasos del día</option>
+                          {userChallenges.filter(uc => uc.status === 'active').map(uc => {
+                            const ch = challenges.find(c => c.id === uc.challenge_id);
+                            return ch ? (
+                              <option key={uc.challenge_id} value={uc.challenge_id}>
+                                {ch.image} {ch.title}
+                              </option>
+                            ) : null;
+                          })}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Botones de acción */}
+                    <div style={{ display: 'flex', gap: '0.75rem', flexShrink: 0, flexWrap: 'wrap' }}>
+                      {gFitConnected ? (
+                        <>
+                          <button
+                            className="btn btn-primary"
+                            style={{ width: 'auto', padding: '0.6rem 1.4rem', fontSize: '0.88rem' }}
+                            onClick={handleGFitResync}
+                            disabled={gFitSyncing}
+                          >
+                            {gFitSyncing ? (
+                              <><span className="spin-animation" style={{ display: 'inline-block' }}>🔄</span> Sincronizando...</>
+                            ) : (
+                              <><RefreshCw size={15} /> Sincronizar Ahora</>
+                            )}
+                          </button>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ width: 'auto', padding: '0.6rem 1rem', fontSize: '0.82rem' }}
+                            onClick={handleDisconnectGoogleFit}
+                          >
+                            Desconectar
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          className="btn btn-primary"
+                          style={{
+                            width: 'auto', padding: '0.7rem 1.5rem', fontSize: '0.9rem',
+                            background: 'linear-gradient(135deg, #4285F4, #34A853)',
+                            display: 'flex', alignItems: 'center', gap: '0.5rem'
+                          }}
+                          onClick={handleConnectGoogleFit}
+                          disabled={gFitSyncing}
+                        >
+                          {gFitSyncing ? (
+                            <><span className="spin-animation">🔄</span> Conectando...</>
+                          ) : (
+                            <>
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+                                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                              </svg>
+                              Conectar Google Fit
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </section>
+
                 <section>
                   <h3 style={{ fontSize: '1.4rem', marginBottom: '1.25rem' }}>Mis Retos en Progreso</h3>
+
                   {userChallenges.filter(uc => uc.status === 'active').length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'white', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-sm)' }}>
                       <p style={{ color: 'var(--text-muted)', marginBottom: '1.25rem' }}>No tienes retos activos en este momento. ¡Anotate a uno y empieza a sumar!</p>

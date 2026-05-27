@@ -595,5 +595,187 @@ export const dbService = {
       deptChartData,
       totalEmployeesCount
     };
-  }
+  },
+
+  // --- GOOGLE FIT INTEGRATION (FASE 1: OAUTH 2.0 + REST API) ---
+
+  // Construir la URL de autorización de Google OAuth 2.0
+  buildGoogleOAuthUrl(clientId, redirectUri) {
+    const scopes = [
+      'https://www.googleapis.com/auth/fitness.activity.read',
+      'https://www.googleapis.com/auth/fitness.body.read',
+    ].join(' ');
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'token',
+      scope: scopes,
+      prompt: 'consent',
+      access_type: 'online',
+    });
+
+    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  },
+
+  // Extraer el token de acceso del hash de la URL (después del redirect de Google)
+  extractTokenFromUrl() {
+    const hash = window.location.hash;
+    if (!hash) return null;
+    const params = new URLSearchParams(hash.substring(1));
+    const token = params.get('access_token');
+    const expiresIn = params.get('expires_in');
+    if (token) {
+      // Limpiar la URL para que quede limpia
+      window.history.replaceState({}, document.title, window.location.pathname);
+      return { token, expiresIn: parseInt(expiresIn || '3600') };
+    }
+    return null;
+  },
+
+  // Guardar y recuperar el token de Google Fit
+  saveGoogleFitToken(token, expiresIn) {
+    const expiresAt = Date.now() + expiresIn * 1000;
+    localStorage.setItem('ra_gfit_token', token);
+    localStorage.setItem('ra_gfit_expires_at', expiresAt.toString());
+  },
+
+  getGoogleFitToken() {
+    const token = localStorage.getItem('ra_gfit_token');
+    const expiresAt = parseInt(localStorage.getItem('ra_gfit_expires_at') || '0');
+    if (!token || Date.now() > expiresAt) {
+      this.clearGoogleFitToken();
+      return null;
+    }
+    return token;
+  },
+
+  clearGoogleFitToken() {
+    localStorage.removeItem('ra_gfit_token');
+    localStorage.removeItem('ra_gfit_expires_at');
+  },
+
+  isGoogleFitConnected() {
+    return !!this.getGoogleFitToken();
+  },
+
+  // Consultar pasos de hoy (últimas 24h) a Google Fit REST API
+  async fetchTodayStepsFromGoogleFit(token) {
+    const now = Date.now();
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const body = {
+      aggregateBy: [{
+        dataTypeName: 'com.google.step_count.delta',
+        dataSourceId: 'derived:com.google.step_count.delta:com.google.android.gms:estimated_steps',
+      }],
+      bucketByTime: { durationMillis: 86400000 },
+      startTimeMillis: startOfDay.getTime(),
+      endTimeMillis: now,
+    };
+
+    const response = await fetch(
+      'https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      }
+    );
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error?.message || 'Error al consultar Google Fit');
+    }
+
+    const data = await response.json();
+    let totalSteps = 0;
+    if (data.bucket && data.bucket.length > 0) {
+      data.bucket.forEach(bucket => {
+        if (bucket.dataset && bucket.dataset.length > 0) {
+          bucket.dataset.forEach(ds => {
+            if (ds.point && ds.point.length > 0) {
+              ds.point.forEach(pt => {
+                if (pt.value && pt.value.length > 0) {
+                  totalSteps += pt.value[0].intVal || 0;
+                }
+              });
+            }
+          });
+        }
+      });
+    }
+    return totalSteps;
+  },
+
+  // Sincronizar pasos de Google Fit: actualiza usuario + crea evidencia auto-aprobada
+  async syncGoogleFitSteps(userId, challengeId, steps) {
+    const kmEquivalent = parseFloat((steps / 1312).toFixed(2)); // 1312 pasos ≈ 1 km
+
+    // Actualizar historial de pasos del usuario
+    const users = getLocalData('ra_users', INITIAL_PRESET_USERS);
+    const userIdx = users.findIndex(u => u.id === userId);
+    if (userIdx !== -1) {
+      const lastIdx = users[userIdx].daily_steps_history.length - 1;
+      users[userIdx].daily_steps_history[lastIdx] = steps;
+      setLocalData('ra_users', users);
+      const cu = getLocalData('ra_current_user', null);
+      if (cu && cu.id === userId) {
+        cu.daily_steps_history = users[userIdx].daily_steps_history;
+        setLocalData('ra_current_user', cu);
+      }
+    }
+
+    // Si hay un reto seleccionado, crear evidencia auto-aprobada con badge de Google Fit
+    if (challengeId) {
+      const challenges = getLocalData('ra_challenges', INITIAL_CHALLENGES);
+      const challengeObj = challenges.find(c => c.id === challengeId);
+      const currentUser = getLocalData('ra_current_user', null);
+
+      if (challengeObj && currentUser) {
+        // Aprobar directo sin pasar por bandeja de revisión (fuente confiable: Google)
+        const userChallenges = getLocalData('ra_user_challenges', []);
+        const enrollment = userChallenges.find(uc => uc.user_id === userId && uc.challenge_id === challengeId);
+
+        const amount = challengeObj.unit === 'pasos' ? steps : kmEquivalent;
+
+        if (enrollment) {
+          enrollment.progress += parseFloat(amount);
+          let pointsAwarded = 0;
+          let completedNow = false;
+          if (enrollment.progress >= challengeObj.target && enrollment.status !== 'completed') {
+            enrollment.status = 'completed';
+            enrollment.progress = challengeObj.target;
+            pointsAwarded = challengeObj.points;
+            completedNow = true;
+          }
+          setLocalData('ra_user_challenges', userChallenges);
+          if (pointsAwarded > 0) {
+            await this.updateUserStats(userId, pointsAwarded);
+          }
+          return { steps, kmEquivalent, completed: completedNow, pointsAwarded };
+        }
+      }
+    }
+
+    return { steps, kmEquivalent, completed: false, pointsAwarded: 0 };
+  },
+
+  // Guardar la última sincronización para mostrarlo en la UI
+  saveLastSync(userId, steps) {
+    localStorage.setItem(`ra_gfit_last_sync_${userId}`, JSON.stringify({
+      steps,
+      syncedAt: new Date().toISOString(),
+    }));
+  },
+
+  getLastSync(userId) {
+    const raw = localStorage.getItem(`ra_gfit_last_sync_${userId}`);
+    return raw ? JSON.parse(raw) : null;
+  },
 };
+
