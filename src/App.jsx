@@ -1637,6 +1637,9 @@ function App() {
               <div className="view-container">
                 <header className="view-header">
                   <div className="view-title-group">
+                    <button className="btn btn-secondary view-back-btn" onClick={() => setActiveTab('dashboard')}>
+                      ← Volver al Dashboard
+                    </button>
                     <h1>Retos de Bienestar Corporativo</h1>
                     <p>Únete a las iniciativas activas de la empresa, acumula actividad y desbloquea recompensas saludables.</p>
                   </div>
@@ -1753,6 +1756,9 @@ function App() {
               <div className="view-container">
                 <header className="view-header">
                   <div className="view-title-group">
+                    <button className="btn btn-secondary view-back-btn" onClick={() => setActiveTab('dashboard')}>
+                      ← Volver al Dashboard
+                    </button>
                     <h1>Tienda de Recompensas y Canjes</h1>
                     <p>Canjea tus puntos wellness acumulados por desayunos saludables, días libres y equipamiento deportivo.</p>
                   </div>
@@ -1821,6 +1827,9 @@ function App() {
               <div className="view-container">
                 <header className="view-header">
                   <div className="view-title-group">
+                    <button className="btn btn-secondary view-back-btn" onClick={() => setActiveTab('dashboard')}>
+                      ← Volver al Dashboard
+                    </button>
                     <h1>Tabla de Posiciones Wellness</h1>
                     <p>Conoce a los colaboradores más activos del mes. ¡Suma puntos participando en retos para escalar puestos!</p>
                   </div>
@@ -1931,6 +1940,9 @@ function App() {
               <div className="view-container">
                 <header className="view-header">
                   <div className="view-title-group">
+                    <button className="btn btn-secondary view-back-btn" onClick={() => setActiveTab('dashboard')}>
+                      ← Volver al Dashboard
+                    </button>
                     <h1>Mi Perfil de Bienestar</h1>
                     <p>Revisa tus estadísticas globales, logros desbloqueados y cupones de premios canjeados.</p>
                   </div>
@@ -2112,30 +2124,37 @@ function App() {
 
                 <section className="activity-section" style={{ marginBottom: '2.5rem' }}>
                   <h3 style={{ fontSize: '1.25rem', marginBottom: '1.5rem' }}>📊 Rendimiento Medio por Departamento</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {companyStats.deptChartData.map((dept, idx) => {
                       const maxStepsVal = Math.max(...companyStats.deptChartData.map(d=>d.avgSteps), 1000);
                       const barPercent = Math.min((dept.avgSteps / maxStepsVal) * 100, 100);
-                      
+                      const colors = [
+                        { from: '#4285F4', to: '#1CBC8C' },
+                        { from: '#FC8B72', to: '#F7C59F' },
+                        { from: '#9B8EFF', to: '#C3B9FF' },
+                        { from: '#1CBC8C', to: '#70D9BF' },
+                      ];
+                      const color = colors[idx % colors.length];
                       return (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                          <span style={{ width: '150px', fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                        <div key={idx} className="dept-bar-row">
+                          <span style={{ width: '160px', fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)', flexShrink: 0 }}>
                             {dept.name}
                           </span>
-                          <div style={{ flexGrow: 1, height: '24px', backgroundColor: 'var(--bg-app)', borderRadius: '12px', overflow: 'hidden', position: 'relative' }}>
+                          <div className="dept-bar-track">
                             <div 
+                              className="dept-bar-fill"
                               style={{ 
-                                width: `${barPercent}%`, 
-                                height: '100%', 
-                                background: `linear-gradient(90deg, var(--sky-accent), var(--mint-accent))`, 
-                                borderRadius: '12px',
-                                transition: 'width 0.8s ease'
+                                width: `${barPercent}%`,
+                                background: `linear-gradient(90deg, ${color.from}, ${color.to})`,
                               }}
                             />
-                            <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                            <span className="dept-bar-label">
                               {dept.avgSteps.toLocaleString()} pasos prom.
                             </span>
                           </div>
+                          <span className="dept-bar-pts">
+                            🪙 {dept.points} pts
+                          </span>
                         </div>
                       );
                     })}
@@ -2175,6 +2194,9 @@ function App() {
               <div className="view-container">
                 <header className="view-header">
                   <div className="view-title-group">
+                    <button className="btn btn-secondary view-back-btn" onClick={() => setActiveTab('dashboard')}>
+                      ← Volver al Dashboard
+                    </button>
                     <h1>Verificación y Aprobación de Evidencias</h1>
                     <p>Revisa y valida las capturas de pantalla de actividades que los empleados suben o sincronizan para desbloquear sus puntos.</p>
                   </div>
@@ -2265,6 +2287,9 @@ function App() {
               <div className="view-container">
                 <header className="view-header">
                   <div className="view-title-group">
+                    <button className="btn btn-secondary view-back-btn" onClick={() => setActiveTab('dashboard')}>
+                      ← Volver al Dashboard
+                    </button>
                     <h1>Lanzar Nuevo Reto de Bienestar</h1>
                     <p>Propón una nueva campaña de hábitos saludables o movilidad para que los empleados se anoten desde su dashboard.</p>
                   </div>
@@ -2386,6 +2411,9 @@ function App() {
               <div className="view-container">
                 <header className="view-header">
                   <div className="view-title-group">
+                    <button className="btn btn-secondary view-back-btn" onClick={() => setActiveTab('dashboard')}>
+                      ← Volver al Dashboard
+                    </button>
                     <h1>Agregar Nuevo Premio a la Tienda</h1>
                     <p>Incorpora más premios para incentivar la participación y motivar a tus empleados con cupones especiales.</p>
                   </div>
@@ -2569,7 +2597,15 @@ function App() {
                       type="file" 
                       accept="image/*" 
                       style={{ display: 'none' }}
-                      onChange={handleFileChange}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setScreenshot(file);
+                          const reader = new FileReader();
+                          reader.onloadend = () => setScreenshotPreview(reader.result);
+                          reader.readAsDataURL(file);
+                        }
+                      }}
                     />
                     <Upload size={24} style={{ margin: '0 auto 0.5rem', color: 'var(--mint-accent)' }} />
                     <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600 }}>Selecciona o arrastra una imagen manual</span>
