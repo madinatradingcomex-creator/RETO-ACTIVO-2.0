@@ -659,11 +659,11 @@ export const dbService = {
     return !!this.getGoogleFitToken();
   },
 
-  // Consultar pasos de hoy (últimas 24h) a Google Fit REST API
-  async fetchTodayStepsFromGoogleFit(token) {
-    const now = Date.now();
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+  // Consultar pasos de los últimos 7 días a Google Fit REST API
+  async fetchWeeklyStepsFromGoogleFit(token) {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(startOfToday.getTime() - 6 * 24 * 60 * 60 * 1000); // 7 días incluyendo hoy
 
     const body = {
       aggregateBy: [{
@@ -671,8 +671,8 @@ export const dbService = {
         dataSourceId: 'derived:com.google.step_count.delta:com.google.android.gms:estimated_steps',
       }],
       bucketByTime: { durationMillis: 86400000 },
-      startTimeMillis: startOfDay.getTime(),
-      endTimeMillis: now,
+      startTimeMillis: startOfWeek.getTime(),
+      endTimeMillis: now.getTime(),
     };
 
     const response = await fetch(
@@ -693,39 +693,49 @@ export const dbService = {
     }
 
     const data = await response.json();
+    const dailySteps = [];
     let totalSteps = 0;
+    
     if (data.bucket && data.bucket.length > 0) {
       data.bucket.forEach(bucket => {
+        let bucketSteps = 0;
         if (bucket.dataset && bucket.dataset.length > 0) {
           bucket.dataset.forEach(ds => {
             if (ds.point && ds.point.length > 0) {
               ds.point.forEach(pt => {
                 if (pt.value && pt.value.length > 0) {
-                  totalSteps += pt.value[0].intVal || 0;
+                  bucketSteps += pt.value[0].intVal || 0;
                 }
               });
             }
           });
         }
+        dailySteps.push(bucketSteps);
+        totalSteps += bucketSteps;
       });
     }
-    return totalSteps;
+    
+    // Asegurar que sean exactamente 7 días para el gráfico
+    while (dailySteps.length < 7) { dailySteps.unshift(0); }
+    if (dailySteps.length > 7) { dailySteps.splice(0, dailySteps.length - 7); }
+
+    return { dailySteps, totalSteps };
   },
 
   // Sincronizar pasos de Google Fit: actualiza usuario + crea evidencia auto-aprobada
-  async syncGoogleFitSteps(userId, challengeId, steps) {
-    const kmEquivalent = parseFloat((steps / 1312).toFixed(2)); // 1312 pasos ≈ 1 km
+  async syncGoogleFitSteps(userId, challengeId, fitData) {
+    const { dailySteps, totalSteps } = fitData;
+    const kmEquivalent = parseFloat((totalSteps / 1312).toFixed(2)); // 1312 pasos ≈ 1 km
 
-    // Actualizar historial de pasos del usuario
+    // Actualizar historial de pasos de la semana del usuario
     const users = getLocalData('ra_users', INITIAL_PRESET_USERS);
     const userIdx = users.findIndex(u => u.id === userId);
     if (userIdx !== -1) {
-      const lastIdx = users[userIdx].daily_steps_history.length - 1;
-      users[userIdx].daily_steps_history[lastIdx] = steps;
+      users[userIdx].daily_steps_history = dailySteps;
       setLocalData('ra_users', users);
       const cu = getLocalData('ra_current_user', null);
       if (cu && cu.id === userId) {
-        cu.daily_steps_history = users[userIdx].daily_steps_history;
+        cu.daily_steps_history = dailySteps;
         setLocalData('ra_current_user', cu);
       }
     }
@@ -738,10 +748,28 @@ export const dbService = {
 
       if (challengeObj && currentUser) {
         // Aprobar directo sin pasar por bandeja de revisión (fuente confiable: Google)
+        const evidenceId = 'ev_gfit_' + Date.now();
+        const pts = Math.floor(kmEquivalent * 10);
+        
+        const newEvidence = {
+          id: evidenceId,
+          challengeId,
+          userId,
+          userName: currentUser.name,
+          type: challengeObj.type,
+          activityType: 'google_fit_sync',
+          date: new Date().toISOString(),
+          status: 'approved',
+          pointsAwarded: pts,
+          value: totalSteps,
+          metrics: { km: kmEquivalent },
+          source: 'google_fit'
+        };
+
         const userChallenges = getLocalData('ra_user_challenges', []);
         const enrollment = userChallenges.find(uc => uc.user_id === userId && uc.challenge_id === challengeId);
 
-        const amount = challengeObj.unit === 'pasos' ? steps : kmEquivalent;
+        const amount = challengeObj.unit === 'pasos' ? totalSteps : kmEquivalent;
 
         if (enrollment) {
           enrollment.progress += parseFloat(amount);
