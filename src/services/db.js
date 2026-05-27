@@ -347,21 +347,70 @@ export const dbService = {
   },
 
   async getChallenges() {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('retos').select('*');
+        if (!error && data) return data;
+      } catch (err) {
+        console.error("Error al obtener retos de Supabase:", err);
+      }
+    }
     return getLocalData('ra_challenges', INITIAL_CHALLENGES);
   },
 
   async getRewards() {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('rewards').select('*');
+        if (!error && data) return data;
+      } catch (err) {
+        console.error("Error al obtener premios de Supabase:", err);
+      }
+    }
     return getLocalData('ra_rewards', INITIAL_REWARDS);
   },
 
   async getUserChallenges(userId) {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('user_challenges').select('*').eq('user_id', userId);
+        if (!error && data) return data;
+      } catch (err) {
+        console.error("Error al obtener retos del usuario de Supabase:", err);
+      }
+    }
     const userChallenges = getLocalData('ra_user_challenges', []);
     return userChallenges.filter(uc => uc.user_id === userId);
   },
 
   async enrollInChallenge(userId, challengeId) {
+    if (isSupabaseConfigured) {
+      try {
+        const newEnrollment = {
+          user_id: userId,
+          challenge_id: challengeId,
+          progress: 0,
+          status: 'active'
+        };
+
+        const { error } = await supabase.from('user_challenges').insert(newEnrollment);
+        if (!error) {
+          // Incrementar contador de participantes
+          const { data: challenge } = await supabase.from('retos').select('participantsCount').eq('id', challengeId).single();
+          if (challenge) {
+            await supabase.from('retos').update({ 
+              participantsCount: (challenge.participantsCount || 0) + 1 
+            }).eq('id', challengeId);
+          }
+        }
+        const { data } = await supabase.from('user_challenges').select('*').eq('user_id', userId);
+        return data || [];
+      } catch (err) {
+        console.error("Error al inscribirse en Supabase:", err);
+      }
+    }
+
     const userChallenges = getLocalData('ra_user_challenges', []);
-    
     if (userChallenges.some(uc => uc.user_id === userId && uc.challenge_id === challengeId)) {
       return userChallenges.filter(uc => uc.user_id === userId);
     }
@@ -390,6 +439,81 @@ export const dbService = {
 
   // Registrar progreso con evidencia
   async logChallengeProgress(userId, challengeId, amount, screenshotFile = null, screenshotUrlMock = '') {
+    const currentUser = getLocalData('ra_current_user', null);
+    const userFullName = currentUser ? `${currentUser.name} ${currentUser.lastname || ''}` : 'Usuario Anónimo';
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data: enrollment } = await supabase
+          .from('user_challenges')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('challenge_id', challengeId)
+          .single();
+
+        if (!enrollment) return { error: "No estás inscrito en este reto." };
+
+        const { data: challengeObj } = await supabase.from('retos').select('*').eq('id', challengeId).single();
+        if (!challengeObj) return { error: "Reto no encontrado." };
+
+        // Si tiene evidencia visual, entra al flujo de aprobación (va a evidencias)
+        if (screenshotFile || screenshotUrlMock) {
+          const newEvidence = {
+            id: `ev_${Math.random().toString(36).substr(2, 9)}`,
+            challenge_id: challengeId,
+            user_id: userId,
+            user_name: userFullName,
+            type: challengeObj.category,
+            activity_type: 'manual',
+            status: 'pending',
+            points_awarded: challengeObj.points,
+            value: parseFloat(amount),
+            screenshot_url: screenshotUrlMock || 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&q=80&w=300'
+          };
+
+          await supabase.from('evidencias').insert(newEvidence);
+          return {
+            pendingApproval: true,
+            message: "Tu actividad y captura (o sincronización de salud) han sido enviadas para aprobación. RRHH validará tus pasos a la brevedad. 🕒"
+          };
+        }
+
+        // Sin captura (directo, ej. vasos de agua)
+        const newProgress = parseFloat(enrollment.progress) + parseFloat(amount);
+        let completedNow = false;
+        let pointsAdded = 0;
+
+        if (newProgress >= challengeObj.target && enrollment.status !== 'completed') {
+          await supabase.from('user_challenges')
+            .update({ progress: challengeObj.target, status: 'completed' })
+            .eq('user_id', userId)
+            .eq('challenge_id', challengeId);
+          
+          completedNow = true;
+          pointsAdded = challengeObj.points;
+          await this.updateUserStats(userId, pointsAdded, challengeObj.unit === 'pasos' ? amount : 0);
+        } else {
+          await supabase.from('user_challenges')
+            .update({ progress: newProgress })
+            .eq('user_id', userId)
+            .eq('challenge_id', challengeId);
+
+          if (challengeObj.unit === 'pasos') {
+            await this.updateUserStats(userId, 0, amount);
+          }
+        }
+
+        return {
+          enrollment: { ...enrollment, progress: newProgress, status: completedNow ? 'completed' : 'active' },
+          completed: completedNow,
+          pointsAwarded: pointsAdded
+        };
+      } catch (err) {
+        console.error("Error al registrar actividad en Supabase:", err);
+      }
+    }
+
+    // FALLBACK LOCALSTORAGE
     const userChallenges = getLocalData('ra_user_challenges', []);
     const enrollment = userChallenges.find(uc => uc.user_id === userId && uc.challenge_id === challengeId);
     
@@ -398,9 +522,6 @@ export const dbService = {
     const challenges = getLocalData('ra_challenges', INITIAL_CHALLENGES);
     const challengeObj = challenges.find(c => c.id === challengeId);
     if (!challengeObj) return { error: "Reto no encontrado." };
-
-    const currentUser = getLocalData('ra_current_user', null);
-    const userFullName = `${currentUser.name} ${currentUser.lastname || ''}`;
 
     // Si tiene captura de pantalla, pasa por flujo de aprobación por RRHH
     if (screenshotFile || screenshotUrlMock) {
@@ -457,6 +578,60 @@ export const dbService = {
   },
 
   async redeemReward(userId, rewardId) {
+    if (isSupabaseConfigured) {
+      try {
+        const { data: reward } = await supabase.from('rewards').select('*').eq('id', rewardId).single();
+        const { data: user } = await supabase.from('usuarios').select('*').eq('id', userId).single();
+
+        if (!reward) return { error: "El premio no existe." };
+        if (!user) return { error: "Usuario no encontrado." };
+
+        if (user.points < reward.points_cost) return { error: "No tienes suficientes puntos." };
+        if (reward.stock <= 0) return { error: "Este premio se encuentra agotado." };
+
+        const newPoints = user.points - reward.points_cost;
+        const newStock = reward.stock - 1;
+
+        // Actualizar puntos del usuario y stock del premio
+        await supabase.from('usuarios').update({ points: newPoints }).eq('id', userId);
+        await supabase.from('rewards').update({ stock: newStock }).eq('id', rewardId);
+
+        const newRedemption = {
+          id: `red_${Math.random().toString(36).substr(2, 9)}`,
+          user_id: userId,
+          reward_id: rewardId,
+          code: `RETO-${Math.floor(1000 + Math.random() * 9000)}`,
+          status: 'active'
+        };
+
+        await supabase.from('redeemed_rewards').insert(newRedemption);
+
+        // Actualizar sesión activa
+        const currentUser = getLocalData('ra_current_user', null);
+        if (currentUser && currentUser.id === userId) {
+          currentUser.points = newPoints;
+          setLocalData('ra_current_user', currentUser);
+        }
+
+        return {
+          success: true,
+          newPoints,
+          redemption: {
+            id: newRedemption.id,
+            user_id: userId,
+            reward_id: rewardId,
+            reward_title: reward.title,
+            reward_icon: reward.icon,
+            points_cost: reward.points_cost,
+            status: 'approved'
+          }
+        };
+      } catch (err) {
+        console.error("Error al canjear en Supabase:", err);
+      }
+    }
+
+    // FALLBACK LOCAL STORAGE
     const rewards = getLocalData('ra_rewards', INITIAL_REWARDS);
     const rewardIdx = rewards.findIndex(r => r.id === rewardId);
     if (rewardIdx === -1) return { error: "El premio no existe." };
@@ -511,11 +686,59 @@ export const dbService = {
   },
 
   async getRedeemedRewards(userId) {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('redeemed_rewards')
+          .select('*, rewards(title, icon, points_cost)')
+          .eq('user_id', userId);
+        
+        if (!error && data) {
+          // Normalizar formato
+          return data.map(item => ({
+            id: item.id,
+            user_id: item.user_id,
+            reward_id: item.reward_id,
+            reward_title: item.rewards?.title || 'Premio',
+            reward_icon: item.rewards?.icon || '🎁',
+            points_cost: item.rewards?.points_cost || 0,
+            redeemed_at: item.redeemed_at,
+            status: 'approved'
+          }));
+        }
+      } catch (err) {
+        console.error("Error al obtener canjes de Supabase:", err);
+      }
+    }
     const redeemed = getLocalData('ra_redeemed_rewards', []);
     return redeemed.filter(r => r.user_id === userId);
   },
 
   async getLeaderboard() {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('usuarios')
+          .select('*')
+          .eq('status', 'approved')
+          .eq('role', 'employee')
+          .order('points', { ascending: false });
+
+        if (!error && data) {
+          return data.map((u, idx) => ({
+            id: u.id,
+            name: `${u.name} ${u.lastname || ''}`,
+            avatar: u.avatar,
+            points: u.points,
+            department: u.department,
+            rank: idx + 1
+          }));
+        }
+      } catch (err) {
+        console.error("Error al obtener ranking de Supabase:", err);
+      }
+    }
+
     const users = getLocalData('ra_users', INITIAL_PRESET_USERS);
     const sorted = [...users].sort((a, b) => b.points - a.points);
     return sorted.map((u, idx) => ({
@@ -531,10 +754,99 @@ export const dbService = {
   // --- PORTAL DE EMPRESAS (MÉTODOS ADMINISTRATIVOS) ---
 
   async getPendingEvidences() {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('evidencias')
+          .select('*, usuarios(avatar, department)')
+          .eq('status', 'pending');
+        
+        if (!error && data) {
+          // Obtener los títulos de los retos para completar el objeto
+          const { data: challenges } = await supabase.from('retos').select('id, title');
+          return data.map(item => {
+            const challenge = challenges?.find(c => c.id === item.challenge_id);
+            return {
+              id: item.id,
+              user_id: item.user_id,
+              user_name: item.user_name,
+              user_avatar: item.usuarios?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120',
+              user_department: item.usuarios?.department || 'Tecnología',
+              challenge_id: item.challenge_id,
+              challenge_title: challenge?.title || 'Reto de Movilidad',
+              amount: parseFloat(item.value),
+              unit: item.type === 'mobility' ? 'pasos' : 'unidades',
+              screenshot: 'evidencia_salud.png',
+              screenshot_preview: item.screenshot_url,
+              submitted_at: item.date
+            };
+          });
+        }
+      } catch (err) {
+        console.error("Error al obtener evidencias de Supabase:", err);
+      }
+    }
     return getLocalData('ra_pending_evidences', INITIAL_PENDING_EVIDENCES);
   },
 
   async approveEvidence(evidenceId) {
+    if (isSupabaseConfigured) {
+      try {
+        const { data: evidence } = await supabase.from('evidencias').select('*').eq('id', evidenceId).single();
+        if (!evidence) return { error: "Evidencia no encontrada." };
+
+        const { data: enrollment } = await supabase
+          .from('user_challenges')
+          .select('*')
+          .eq('user_id', evidence.user_id)
+          .eq('challenge_id', evidence.challenge_id)
+          .single();
+
+        const { data: challengeObj } = await supabase.from('retos').select('*').eq('id', evidence.challenge_id).single();
+
+        let completedNow = false;
+        let pointsAwarded = 0;
+
+        if (enrollment && challengeObj) {
+          const newProgress = parseFloat(enrollment.progress) + parseFloat(evidence.value);
+          if (newProgress >= challengeObj.target && enrollment.status !== 'completed') {
+            await supabase.from('user_challenges')
+              .update({ progress: challengeObj.target, status: 'completed' })
+              .eq('user_id', evidence.user_id)
+              .eq('challenge_id', evidence.challenge_id);
+            
+            completedNow = true;
+            pointsAwarded = challengeObj.points;
+            await this.updateUserStats(evidence.user_id, pointsAwarded, challengeObj.unit === 'pasos' ? evidence.value : 0);
+          } else {
+            await supabase.from('user_challenges')
+              .update({ progress: newProgress })
+              .eq('user_id', evidence.user_id)
+              .eq('challenge_id', evidence.challenge_id);
+
+            await this.updateUserStats(
+              evidence.user_id, 
+              0, 
+              challengeObj.unit === 'pasos' ? evidence.value : 0
+            );
+          }
+        }
+
+        // Marcar la evidencia como aprobada
+        await supabase.from('evidencias').update({ status: 'approved' }).eq('id', evidenceId);
+
+        return {
+          success: true,
+          user_id: evidence.user_id,
+          completed: completedNow,
+          pointsAwarded
+        };
+      } catch (err) {
+        console.error("Error al aprobar evidencia en Supabase:", err);
+      }
+    }
+
+    // FALLBACK LOCAL STORAGE
     const pending = getLocalData('ra_pending_evidences', INITIAL_PENDING_EVIDENCES);
     const idx = pending.findIndex(e => e.id === evidenceId);
     if (idx === -1) return { error: "Evidencia no encontrada." };
@@ -582,6 +894,14 @@ export const dbService = {
   },
 
   async rejectEvidence(evidenceId) {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('evidencias').update({ status: 'rejected' }).eq('id', evidenceId);
+        return { success: true };
+      } catch (err) {
+        console.error("Error al rechazar en Supabase:", err);
+      }
+    }
     const pending = getLocalData('ra_pending_evidences', INITIAL_PENDING_EVIDENCES);
     const idx = pending.findIndex(e => e.id === evidenceId);
     if (idx === -1) return { error: "Evidencia no encontrada." };
@@ -592,7 +912,6 @@ export const dbService = {
   },
 
   async createChallenge(title, description, points, category, target, unit, duration, image) {
-    const challenges = getLocalData('ra_challenges', INITIAL_CHALLENGES);
     const newChallenge = {
       id: `ch_${Math.random().toString(36).substr(2, 9)}`,
       title,
@@ -606,13 +925,22 @@ export const dbService = {
       image: image || '🏆'
     };
 
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('retos').insert(newChallenge);
+        return newChallenge;
+      } catch (err) {
+        console.error("Error al crear reto en Supabase:", err);
+      }
+    }
+
+    const challenges = getLocalData('ra_challenges', INITIAL_CHALLENGES);
     challenges.push(newChallenge);
     setLocalData('ra_challenges', challenges);
     return newChallenge;
   },
 
   async createReward(title, description, points_cost, category, icon, stock) {
-    const rewards = getLocalData('ra_rewards', INITIAL_REWARDS);
     const newReward = {
       id: `rw_${Math.random().toString(36).substr(2, 9)}`,
       title,
@@ -620,37 +948,63 @@ export const dbService = {
       points_cost: parseInt(points_cost),
       stock: parseInt(stock),
       category,
-      icon: icon || '🎁'
+      icon: icon || '🥑'
     };
 
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('rewards').insert(newReward);
+        return newReward;
+      } catch (err) {
+        console.error("Error al crear premio en Supabase:", err);
+      }
+    }
+
+    const rewards = getLocalData('ra_rewards', INITIAL_REWARDS);
     rewards.push(newReward);
     setLocalData('ra_rewards', rewards);
     return newReward;
   },
 
   async getCompanyStats() {
-    const users = getLocalData('ra_users', INITIAL_PRESET_USERS);
-    const userChallenges = getLocalData('ra_user_challenges', []);
+    let users = [];
+    let userChallenges = [];
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data: usrs } = await supabase.from('usuarios').select('*').eq('status', 'approved');
+        const { data: uChalls } = await supabase.from('user_challenges').select('*');
+        if (usrs) users = usrs;
+        if (uChalls) userChallenges = uChalls;
+      } catch (err) {
+        console.error("Error al obtener estadísticas de Supabase:", err);
+      }
+    }
+
+    if (users.length === 0) {
+      users = getLocalData('ra_users', INITIAL_PRESET_USERS);
+      userChallenges = getLocalData('ra_user_challenges', []);
+    }
     
-    const totalCompanySteps = users.reduce((sum, u) => sum + u.daily_steps_history.reduce((a,b)=>a+b, 0), 0);
+    const totalCompanySteps = users.reduce((sum, u) => sum + (u.daily_steps_history?.reduce((a,b)=>a+b, 0) || 0), 0);
     
-    const totalEmployeesCount = users.length;
+    const totalEmployeesCount = users.filter(u => u.role === 'employee').length || 1;
     const activeEmployeesCount = users.filter(u => {
       const enrolls = userChallenges.filter(uc => uc.user_id === u.id && uc.status === 'active');
       return enrolls.length > 0;
     }).length;
     
     const participationPercentage = Math.round((activeEmployeesCount / totalEmployeesCount) * 100) || 0;
-    const totalPointsAwarded = users.reduce((sum, u) => sum + u.points, 0);
+    const totalPointsAwarded = users.reduce((sum, u) => sum + (u.points || 0), 0);
 
     const deptStats = {};
-    users.forEach(u => {
-      const uSteps = u.daily_steps_history.reduce((a,b)=>a+b, 0);
+    users.filter(u => u.role === 'employee').forEach(u => {
+      const uSteps = u.daily_steps_history?.reduce((a,b)=>a+b, 0) || 0;
       if (!deptStats[u.department]) {
         deptStats[u.department] = { steps: 0, points: 0, members: 0 };
       }
       deptStats[u.department].steps += uSteps;
-      deptStats[u.department].points += u.points;
+      deptStats[u.department].points += (u.points || 0);
       deptStats[u.department].members += 1;
     });
 
@@ -658,7 +1012,7 @@ export const dbService = {
       name,
       steps: deptStats[name].steps,
       points: deptStats[name].points,
-      avgSteps: Math.round(deptStats[name].steps / deptStats[name].members)
+      avgSteps: Math.round(deptStats[name].steps / (deptStats[name].members || 1))
     }));
 
     return {
