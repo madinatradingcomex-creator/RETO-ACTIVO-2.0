@@ -68,6 +68,7 @@ function App() {
   
   // Admin Data States
   const [pendingEvidences, setPendingEvidences] = useState([]);
+  const [pendingUsers, setPendingUsers] = useState([]);
   const [companyStats, setCompanyStats] = useState(null);
   
   // Forms - Employee Log
@@ -162,8 +163,10 @@ function App() {
     try {
       if (userSession.role === 'company') {
         const pending = await dbService.getPendingEvidences();
+        const pendingUsrs = await dbService.getPendingUsers();
         const stats = await dbService.getCompanyStats();
         setPendingEvidences(pending);
+        setPendingUsers(pendingUsrs);
         setCompanyStats(stats);
         
         const challengesData = await dbService.getChallenges();
@@ -261,6 +264,47 @@ function App() {
     
     const presets = await dbService.getPresetUsers();
     setPresetUsers(presets);
+  };
+
+  const handleApproveUser = async (userId, userName) => {
+    try {
+      await dbService.approveUser(userId);
+      showToastMessage(`🎉 ¡${userName} ha sido aprobado correctamente! Ahora tiene acceso total.`);
+      // Actualizar estados locales de pendientes
+      const pending = await dbService.getPendingUsers();
+      setPendingUsers(pending);
+      
+      // Actualizar presetUsers si corresponde
+      const presets = await dbService.getPresetUsers();
+      setPresetUsers(presets);
+      
+      // Actualizar stats corporativas
+      const stats = await dbService.getCompanyStats();
+      setCompanyStats(stats);
+    } catch (err) {
+      console.error(err);
+      showToastMessage("Error al aprobar al colaborador.", "error");
+    }
+  };
+
+  const handleRejectUser = async (userId, userName) => {
+    try {
+      await dbService.rejectUser(userId);
+      showToastMessage(`🚫 Se ha rechazado el acceso de ${userName}.`, "error");
+      
+      // Actualizar estados locales
+      const pending = await dbService.getPendingUsers();
+      setPendingUsers(pending);
+      
+      const presets = await dbService.getPresetUsers();
+      setPresetUsers(presets);
+      
+      const stats = await dbService.getCompanyStats();
+      setCompanyStats(stats);
+    } catch (err) {
+      console.error(err);
+      showToastMessage("Error al rechazar al colaborador.", "error");
+    }
   };
 
   const handleLogout = async () => {
@@ -1117,6 +1161,74 @@ function App() {
     );
   }
 
+  // Interceptar si el usuario es empleado pero su cuenta está pendiente de aprobación (visto bueno)
+  if (currentUser && currentUser.role === 'employee' && currentUser.status === 'pending') {
+    return (
+      <div 
+        style={{ 
+          minHeight: '100vh', 
+          background: 'linear-gradient(135deg, #F0F7F4 0%, #E6EEF8 100%)', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          fontFamily: 'Inter, sans-serif',
+          color: 'var(--text-main)',
+          padding: '2rem'
+        }}
+      >
+        <div 
+          style={{ 
+            backgroundColor: 'white', 
+            borderRadius: '24px', 
+            padding: '3rem 2.5rem', 
+            maxWidth: '520px', 
+            width: '100%', 
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.05)', 
+            textAlign: 'center',
+            border: '1px solid var(--border-color)'
+          }}
+        >
+          <div 
+            style={{ 
+              width: '80px', 
+              height: '80px', 
+              borderRadius: '50%', 
+              backgroundColor: 'var(--sky-bg)', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              margin: '0 auto 1.5rem',
+              color: 'var(--sky-accent)'
+            }}
+          >
+            <Lock size={40} />
+          </div>
+          
+          <h2 style={{ fontFamily: 'Outfit', fontSize: '1.8rem', fontWeight: 800, marginBottom: '1rem', color: 'var(--text-main)' }}>
+            Cuenta en Espera de Visto Bueno
+          </h2>
+          
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.6, marginBottom: '2rem' }}>
+            ¡Hola, <strong style={{ color: 'var(--text-main)' }}>{currentUser.name}</strong>! Tu perfil de bienestar ha sido creado y guardado con éxito.
+            <br /><br />
+            Por seguridad, tu cuenta se encuentra en revisión. El **Administrador (RRHH)** debe otorgarte el visto bueno para que puedas acceder al portal, unirte a retos y sincronizar tus pasos de Google Fit.
+          </p>
+
+          <div style={{ backgroundColor: 'var(--sky-bg)', border: '1px solid rgba(66, 133, 244, 0.12)', borderRadius: '16px', padding: '1rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '0.75rem', textAlign: 'left' }}>
+            <span style={{ fontSize: '1.3rem' }}>🌱</span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--sky-dark)', fontWeight: 600, lineHeight: 1.4 }}>
+              ¡Ya te acreditamos tus 100 puntos de bienvenida! Estarán disponibles apenas tu administrador apruebe tu acceso.
+            </span>
+          </div>
+
+          <button className="btn btn-secondary" onClick={handleLogout} style={{ width: '100%', padding: '0.8rem 1.5rem', borderRadius: '12px', fontWeight: 700 }}>
+            Cerrar Sesión y Volver al Inicio
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Helpers for calculations
   const totalUserSteps = currentUser.role === 'employee' ? currentUser.daily_steps_history.reduce((a, b) => a + b, 0) : 0;
   const activeChallengesCount = userChallenges.filter(uc => uc.status === 'active').length;
@@ -1236,6 +1348,29 @@ function App() {
                   }}
                 >
                   {pendingEvidences.length}
+                </span>
+              )}
+            </div>
+
+            <div 
+              className={`nav-item ${activeTab === 'approvals' ? 'active' : ''}`}
+              onClick={() => setActiveTab('approvals')}
+            >
+              <ShieldCheck size={20} />
+              <span>Aprobaciones</span>
+              {pendingUsers.length > 0 && (
+                <span 
+                  style={{ 
+                    marginLeft: 'auto', 
+                    backgroundColor: 'var(--sky-accent)', 
+                    color: 'white', 
+                    fontSize: '0.75rem', 
+                    fontWeight: 700, 
+                    padding: '0.15rem 0.45rem', 
+                    borderRadius: '10px' 
+                  }}
+                >
+                  {pendingUsers.length}
                 </span>
               )}
             </div>
@@ -2500,6 +2635,100 @@ function App() {
                       Publicar Premio en la Tienda
                     </button>
                   </form>
+                </div>
+              </div>
+            )}
+
+            {/* VIEW: APROBACIÓN DE COLABORADORES */}
+            {activeTab === 'approvals' && (
+              <div className="view-container">
+                <header className="view-header">
+                  <div className="view-title-group">
+                    <button className="btn btn-secondary view-back-btn" onClick={() => setActiveTab('dashboard')}>
+                      ← Volver al Dashboard
+                    </button>
+                    <h1>Aprobación de Colaboradores</h1>
+                    <p>Gestiona los accesos de tus amigos y colaboradores a Reto Activo 2.0. Otorga el visto bueno para habilitar sus cuentas.</p>
+                  </div>
+                </header>
+
+                <div className="activity-section">
+                  <h3 style={{ fontSize: '1.25rem', marginBottom: '1.5rem' }}>
+                    🛡️ Registros Pendientes de Visto Bueno ({pendingUsers.length})
+                  </h3>
+
+                  {pendingUsers.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                      <span style={{ fontSize: '3rem', display: 'block', marginBottom: '1rem' }}>🎉</span>
+                      <p style={{ fontWeight: 600, fontSize: '1.1rem', color: 'var(--text-main)' }}>¡Todo al día!</p>
+                      <p style={{ fontSize: '0.88rem' }}>No hay solicitudes de registro pendientes de aprobación.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
+                      {pendingUsers.map(user => (
+                        <div 
+                          key={user.id} 
+                          style={{ 
+                            backgroundColor: 'var(--bg-app)', 
+                            border: '1px solid var(--border-color)', 
+                            borderRadius: '16px', 
+                            padding: '1.5rem', 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            gap: '1rem',
+                            position: 'relative',
+                            overflow: 'hidden'
+                          }}
+                        >
+                          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', backgroundColor: 'var(--sky-accent)' }} />
+                          
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <img 
+                              src={user.avatar} 
+                              alt={user.name} 
+                              style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover', border: '2px solid white', boxShadow: 'var(--shadow-sm)' }} 
+                            />
+                            <div>
+                              <h4 style={{ margin: 0, fontWeight: 700, color: 'var(--text-main)' }}>
+                                {user.name} {user.lastname || ''}
+                              </h4>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--sky-dark)', fontWeight: 700 }}>
+                                💼 {user.department || 'Sin Área'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div style={{ borderTop: '1px solid rgba(0,0,0,0.05)', paddingTop: '0.75rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                              <span>Email:</span>
+                              <strong style={{ color: 'var(--text-main)', wordBreak: 'break-all', marginLeft: '0.5rem' }}>{user.email}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span>Código:</span>
+                              <strong style={{ color: 'var(--text-main)' }}>{user.company_code}</strong>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '0.75rem', marginTop: 'auto', paddingTop: '0.5rem' }}>
+                            <button 
+                              className="btn btn-primary" 
+                              onClick={() => handleApproveUser(user.id, `${user.name} ${user.lastname || ''}`)}
+                              style={{ flexGrow: 1, padding: '0.5rem 1rem', fontSize: '0.82rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
+                            >
+                              <Check size={14} /> Aprobar
+                            </button>
+                            <button 
+                              className="btn btn-secondary" 
+                              onClick={() => handleRejectUser(user.id, `${user.name} ${user.lastname || ''}`)}
+                              style={{ padding: '0.5rem 1rem', fontSize: '0.82rem', color: 'var(--coral-accent)', borderColor: 'rgba(252,139,114,0.3)' }}
+                            >
+                              Rechazar
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

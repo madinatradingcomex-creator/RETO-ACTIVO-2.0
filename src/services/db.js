@@ -181,24 +181,42 @@ export const dbService = {
     return getLocalData('ra_current_user', null);
   },
 
-  // Login con validación de código de empresa
+  // Login con validación de código de empresa e integración Supabase real
   async loginWithCompanyCode(email, companyCode) {
     if (email === 'admin@acme.com' && companyCode === 'ACME2026') {
       setLocalData('ra_current_user', ADMIN_USER);
       return ADMIN_USER;
     }
 
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('usuarios')
+          .select('*')
+          .eq('email', email.toLowerCase())
+          .eq('company_code', companyCode.toUpperCase())
+          .single();
+        if (!error && data) {
+          setLocalData('ra_current_user', data);
+          return data;
+        }
+      } catch (err) {
+        console.error("Error al ingresar con Supabase:", err);
+      }
+    }
+
     const users = getLocalData('ra_users', INITIAL_PRESET_USERS);
     const user = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.company_code.toUpperCase() === companyCode.toUpperCase());
     
     if (user) {
+      if (!user.status) user.status = 'approved'; // Por defecto los presets están aprobados
       setLocalData('ra_current_user', user);
       return user;
     }
     return null;
   },
 
-  // Registrar un nuevo empleado con Nombre, Apellido, Email, Código Empresa y Departamento
+  // Registrar un nuevo empleado con Nombre, Apellido, Email, Código Empresa y Departamento (por defecto en estado 'pending')
   async registerUser(name, lastname, email, companyCode, department) {
     const users = getLocalData('ra_users', INITIAL_PRESET_USERS);
     const newId = `usr_${Math.random().toString(36).substr(2, 9)}`;
@@ -209,8 +227,6 @@ export const dbService = {
       'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=120'
     ];
     const randomAvatar = avatars[Math.floor(Math.random() * avatars.length)];
-
-    const fullName = `${name} ${lastname}`;
 
     const newUser = {
       id: newId,
@@ -224,7 +240,8 @@ export const dbService = {
       role: 'employee',
       level: 'Wellness Principiante 🌱',
       streak: 1,
-      daily_steps_history: [0, 0, 0, 0, 0, 0, 0]
+      daily_steps_history: [0, 0, 0, 0, 0, 0, 0],
+      status: 'pending' // Comienza en estado 'pending' por seguridad (requiere visto bueno del Admin)
     };
 
     users.push(newUser);
@@ -240,6 +257,62 @@ export const dbService = {
     }
 
     return newUser;
+  },
+
+  // Obtener lista de colaboradores pendientes de aprobación (visto bueno)
+  async getPendingUsers() {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('usuarios')
+          .select('*')
+          .eq('status', 'pending');
+        if (!error) return data;
+      } catch (err) {
+        console.error("Error al obtener pendientes de Supabase:", err);
+      }
+    }
+    const users = getLocalData('ra_users', INITIAL_PRESET_USERS);
+    return users.filter(u => u.status === 'pending');
+  },
+
+  // Aprobar un colaborador (Visto bueno)
+  async approveUser(userId) {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('usuarios')
+          .update({ status: 'approved' })
+          .eq('id', userId);
+      } catch (err) {
+        console.error("Error al aprobar en Supabase:", err);
+      }
+    }
+    const users = getLocalData('ra_users', INITIAL_PRESET_USERS);
+    const userIdx = users.findIndex(u => u.id === userId);
+    if (userIdx !== -1) {
+      users[userIdx].status = 'approved';
+      setLocalData('ra_users', users);
+    }
+    return true;
+  },
+
+  // Rechazar / Eliminar un colaborador
+  async rejectUser(userId) {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('usuarios')
+          .delete()
+          .eq('id', userId);
+      } catch (err) {
+        console.error("Error al rechazar en Supabase:", err);
+      }
+    }
+    const users = getLocalData('ra_users', INITIAL_PRESET_USERS);
+    const filtered = users.filter(u => u.id !== userId);
+    setLocalData('ra_users', filtered);
+    return true;
   },
 
   async logout() {
