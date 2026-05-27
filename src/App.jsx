@@ -425,7 +425,7 @@ function App() {
   // --- RENDERS ---
 
   // A. PANTALLA DE AUTENTICACIÓN ACTUALIZADA CON CÓDIGO DE EMPRESA Y PRESETS CLICKEABLES
-  if (!currentUser) {
+  if (!currentUser || landingView) {
     if (landingView) {
       // 1. PÁGINA DE INICIO / BIENVENIDA (LANDING PAGE CORPORATIVA DE BIENESTAR)
       return (
@@ -468,21 +468,40 @@ function App() {
                 Reto Activo 2.0
               </span>
             </div>
-            <div style={{ display: 'flex', gap: '1rem', marginLeft: 'auto' }}>
-              <button 
-                className="btn btn-secondary" 
-                style={{ width: 'auto', padding: '0.6rem 1.25rem', fontSize: '0.88rem' }}
-                onClick={() => { setLandingView(false); setShowRegisterForm(false); }}
-              >
-                Acceso Empleados
-              </button>
-              <button 
-                className="btn btn-lavender" 
-                style={{ width: 'auto', padding: '0.6rem 1.25rem', fontSize: '0.88rem' }}
-                onClick={() => { setLandingView(false); autoFillAdmin(); }}
-              >
-                Portal Empresa
-              </button>
+            
+            <div style={{ display: 'flex', gap: '1rem', marginLeft: 'auto', alignItems: 'center' }}>
+              {currentUser ? (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginRight: '0.5rem' }}>
+                    <img src={currentUser.avatar} alt="" style={{ width: '32px', height: '32px', borderRadius: '50%', border: '2px solid var(--mint-accent)' }} />
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{currentUser.name} {currentUser.lastname || ''}</span>
+                  </div>
+                  <button 
+                    className="btn btn-primary" 
+                    style={{ width: 'auto', padding: '0.5rem 1.25rem', fontSize: '0.85rem' }}
+                    onClick={() => setLandingView(false)}
+                  >
+                    Ir a mi Panel 🚀
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button 
+                    className="btn btn-secondary" 
+                    style={{ width: 'auto', padding: '0.6rem 1.25rem', fontSize: '0.88rem' }}
+                    onClick={() => { setLandingView(false); setShowRegisterForm(false); }}
+                  >
+                    Acceso Empleados
+                  </button>
+                  <button 
+                    className="btn btn-lavender" 
+                    style={{ width: 'auto', padding: '0.6rem 1.25rem', fontSize: '0.88rem' }}
+                    onClick={() => { setLandingView(false); autoFillAdmin(); }}
+                  >
+                    Portal Empresa
+                  </button>
+                </>
+              )}
             </div>
           </header>
 
@@ -520,14 +539,25 @@ function App() {
             <p style={{ color: 'var(--text-muted)', fontSize: '1.15rem', lineHeight: 1.5, maxWidth: '700px', margin: '0 auto 2.5rem' }}>
               Desafía a tus equipos a adoptar hábitos saludables cotidianos. Fomenta la movilidad activa, registra tus pasos y recompensa el esfuerzo diario con increíbles premios.
             </p>
+            
             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-              <button 
-                className="btn btn-primary" 
-                style={{ width: 'auto', padding: '0.9rem 2rem', fontSize: '1rem', borderRadius: '14px' }}
-                onClick={() => { setLandingView(false); setShowRegisterForm(false); }}
-              >
-                Comenzar mis Retos 🚀
-              </button>
+              {currentUser ? (
+                <button 
+                  className="btn btn-primary" 
+                  style={{ width: 'auto', padding: '0.9rem 2rem', fontSize: '1rem', borderRadius: '14px' }}
+                  onClick={() => setLandingView(false)}
+                >
+                  Ir a mi Panel de Control 🚀
+                </button>
+              ) : (
+                <button 
+                  className="btn btn-primary" 
+                  style={{ width: 'auto', padding: '0.9rem 2rem', fontSize: '1rem', borderRadius: '14px' }}
+                  onClick={() => { setLandingView(false); setShowRegisterForm(false); }}
+                >
+                  Comenzar mis Retos 🚀
+                </button>
+              )}
               <a 
                 href="#accesos"
                 className="btn btn-secondary" 
@@ -538,7 +568,7 @@ function App() {
             </div>
           </section>
 
-          {/* Características Clave */}
+          {/* Características Clave con Hover Animado (landing-feature-card) */}
           <section style={{ maxWidth: '1100px', margin: '0 auto 6rem' }}>
             <div 
               style={{ 
@@ -547,7 +577,7 @@ function App() {
                 gap: '2rem' 
               }}
             >
-              <div style={{ backgroundColor: 'white', border: '1px solid var(--border-color)', borderRadius: '24px', padding: '2rem', boxShadow: 'var(--shadow-sm)' }}>
+              <div className="landing-feature-card" style={{ backgroundColor: 'white', border: '1px solid var(--border-color)', borderRadius: '24px', padding: '2rem', boxShadow: 'var(--shadow-sm)' }}>
                 <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '1rem' }}>🚴‍♂️</span>
                 <h3 style={{ fontFamily: 'Outfit', fontSize: '1.25rem', marginBottom: '0.5rem' }}>Retos de Movilidad</h3>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.45 }}>
@@ -555,7 +585,7 @@ function App() {
                 </p>
               </div>
 
-              <div style={{ backgroundColor: 'white', border: '1px solid var(--border-color)', borderRadius: '24px', padding: '2rem', boxShadow: 'var(--shadow-sm)' }}>
+              <div className="landing-feature-card" style={{ backgroundColor: 'white', border: '1px solid var(--border-color)', borderRadius: '24px', padding: '2rem', boxShadow: 'var(--shadow-sm)' }}>
                 <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '1rem' }}>🥑</span>
                 <h3 style={{ fontFamily: 'Outfit', fontSize: '1.25rem', marginBottom: '0.5rem' }}>Premios Increíbles</h3>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.45 }}>
@@ -563,7 +593,7 @@ function App() {
                 </p>
               </div>
 
-              <div style={{ backgroundColor: 'white', border: '1px solid var(--border-color)', borderRadius: '24px', padding: '2rem', boxShadow: 'var(--shadow-sm)' }}>
+              <div className="landing-feature-card" style={{ backgroundColor: 'white', border: '1px solid var(--border-color)', borderRadius: '24px', padding: '2rem', boxShadow: 'var(--shadow-sm)' }}>
                 <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '1rem' }}>📲</span>
                 <h3 style={{ fontFamily: 'Outfit', fontSize: '1.25rem', marginBottom: '0.5rem' }}>Enlace de Salud Seguro</h3>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.45 }}>
@@ -609,12 +639,23 @@ function App() {
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.45, flexGrow: 1 }}>
                   Anotate a retos corporativos activos, sincroniza tus pasos diarios de forma automática, sube capturas de evidencias y canjea tus puntos acumulados por increíbles premios.
                 </p>
-                <button 
-                  className="btn btn-primary" 
-                  onClick={() => { setLandingView(false); setShowRegisterForm(false); }}
-                >
-                  Ingresar a mis Retos
-                </button>
+                
+                {currentUser && currentUser.role === 'employee' ? (
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={() => setLandingView(false)}
+                  >
+                    Ir a mi Panel de Retos 🚀
+                  </button>
+                ) : (
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={() => { setLandingView(false); setShowRegisterForm(false); }}
+                    disabled={currentUser && currentUser.role !== 'employee'}
+                  >
+                    Ingresar a mis Retos
+                  </button>
+                )}
               </div>
 
               {/* Acceso Empresas */}
@@ -640,12 +681,23 @@ function App() {
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.45, flexGrow: 1 }}>
                   Lanza retos y campañas activas corporativas en tiempo real, gestiona el stock de la tienda, audita y aprueba las evidencias cargadas y analiza las métricas de bienestar generales.
                 </p>
-                <button 
-                  className="btn btn-lavender" 
-                  onClick={() => { setLandingView(false); autoFillAdmin(); }}
-                >
-                  Ingresar al Panel Corporativo
-                </button>
+                
+                {currentUser && currentUser.role === 'company' ? (
+                  <button 
+                    className="btn btn-lavender" 
+                    onClick={() => setLandingView(false)}
+                  >
+                    Ir a mi Panel de RRHH 🚀
+                  </button>
+                ) : (
+                  <button 
+                    className="btn btn-lavender" 
+                    onClick={() => { setLandingView(false); autoFillAdmin(); }}
+                    disabled={currentUser && currentUser.role !== 'company'}
+                  >
+                    Ingresar al Panel Corporativo
+                  </button>
+                )}
               </div>
             </div>
           </section>
@@ -1011,6 +1063,20 @@ function App() {
               <User />
               <span>Mi Perfil</span>
             </div>
+
+            <div 
+              className="nav-item return-nav-item" 
+              onClick={() => setLandingView(true)}
+              style={{ 
+                borderTop: '1px dashed var(--border-color)', 
+                marginTop: '0.75rem', 
+                paddingTop: '0.75rem',
+                color: 'var(--mint-dark)'
+              }}
+            >
+              <HeartHandshake size={20} />
+              <span style={{ fontWeight: 600 }}>← Ir a Portada</span>
+            </div>
           </nav>
         ) : (
           <nav className="nav-menu">
@@ -1059,6 +1125,20 @@ function App() {
             >
               <Gift size={20} />
               <span>Agregar Premio</span>
+            </div>
+
+            <div 
+              className="nav-item return-nav-item" 
+              onClick={() => setLandingView(true)}
+              style={{ 
+                borderTop: '1px dashed var(--border-color)', 
+                marginTop: '0.75rem', 
+                paddingTop: '0.75rem',
+                color: 'var(--lavender-dark)'
+              }}
+            >
+              <HeartHandshake size={20} />
+              <span style={{ fontWeight: 600 }}>← Ir a Portada</span>
             </div>
           </nav>
         )}
@@ -2285,6 +2365,17 @@ function App() {
           </div>
           <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{toast.message}</span>
         </div>
+      )}
+
+      {/* Botón flotante para regresar a la portada principal */}
+      {currentUser && !landingView && (
+        <button
+          onClick={() => setLandingView(true)}
+          className="floating-back-button"
+          title="Volver a la Portada principal"
+        >
+          <span className="arrow">←</span> Volver a Portada
+        </button>
       )}
 
     </div>
