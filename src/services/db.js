@@ -146,7 +146,7 @@ const setLocalData = (key, data) => {
   localStorage.setItem(key, JSON.stringify(data));
 };
 
-// Inicializamos el storage v3
+  // Inicializamos el storage v3
 if (!localStorage.getItem('ra_initialized_v3')) {
   setLocalData('ra_users', INITIAL_PRESET_USERS);
   setLocalData('ra_challenges', INITIAL_CHALLENGES);
@@ -158,8 +158,8 @@ if (!localStorage.getItem('ra_initialized_v3')) {
   setLocalData('ra_redeemed_rewards', []);
   setLocalData('ra_pending_evidences', INITIAL_PENDING_EVIDENCES);
   
-  // Establecer sesión activa inicial (Sofía Martínez)
-  setLocalData('ra_current_user', INITIAL_PRESET_USERS[2]);
+  // Establecer sesión activa inicial vacía (sin login automático)
+  setLocalData('ra_current_user', null);
   
   localStorage.setItem('ra_initialized_v3', 'true');
 }
@@ -178,7 +178,7 @@ export const dbService = {
         console.error("Error cargando usuario de Supabase:", err);
       }
     }
-    return getLocalData('ra_current_user', INITIAL_PRESET_USERS[2]);
+    return getLocalData('ra_current_user', null);
   },
 
   // Login con validación de código de empresa

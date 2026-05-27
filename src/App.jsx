@@ -37,6 +37,7 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [presetUsers, setPresetUsers] = useState([]);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
+  const [landingView, setLandingView] = useState(true);
   
   // Login Form Inputs
   const [loginEmail, setLoginEmail] = useState('');
@@ -112,7 +113,10 @@ function App() {
     const active = await dbService.getCurrentUser();
     if (active) {
       setCurrentUser(active);
+      setLandingView(false);
       loadViewData(active);
+    } else {
+      setLandingView(true);
     }
     const presets = await dbService.getPresetUsers();
     setPresetUsers(presets);
@@ -169,6 +173,7 @@ function App() {
     const loggedUser = await dbService.loginWithCompanyCode(loginEmail, loginCompanyCode);
     if (loggedUser) {
       setCurrentUser(loggedUser);
+      setLandingView(false);
       setActiveTab('dashboard');
       showToastMessage(`¡Acceso correcto! Bienvenido, ${loggedUser.name} ${loggedUser.lastname || ''} 🌟`);
       loadViewData(loggedUser);
@@ -207,6 +212,7 @@ function App() {
     );
 
     setCurrentUser(registered);
+    setLandingView(false);
     setActiveTab('dashboard');
     setShowRegisterForm(false);
     
@@ -226,6 +232,7 @@ function App() {
   const handleLogout = async () => {
     await dbService.logout();
     setCurrentUser(null);
+    setLandingView(true);
     showToastMessage("Sesión cerrada. ¡Vuelve pronto!");
   };
 
@@ -419,6 +426,239 @@ function App() {
 
   // A. PANTALLA DE AUTENTICACIÓN ACTUALIZADA CON CÓDIGO DE EMPRESA Y PRESETS CLICKEABLES
   if (!currentUser) {
+    if (landingView) {
+      // 1. PÁGINA DE INICIO / BIENVENIDA (LANDING PAGE CORPORATIVA DE BIENESTAR)
+      return (
+        <div 
+          style={{ 
+            minHeight: '100vh', 
+            background: 'linear-gradient(135deg, #F3F8F5 0%, #EBF3FA 100%)', 
+            fontFamily: 'Inter, sans-serif',
+            color: 'var(--text-main)',
+            padding: '3rem 2rem'
+          }}
+        >
+          {/* Header de la Landing */}
+          <header 
+            style={{ 
+              maxWidth: '1100px', 
+              margin: '0 auto 4rem', 
+              display: 'flex', 
+              justifyContent: 'between', 
+              alignItems: 'center' 
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div 
+                style={{ 
+                  width: '42px', 
+                  height: '42px', 
+                  borderRadius: '12px', 
+                  background: 'linear-gradient(135deg, var(--mint-accent), var(--sky-accent))', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  color: 'white',
+                  boxShadow: '0 8px 16px rgba(28,188,140,0.15)'
+                }}
+              >
+                <HeartHandshake size={22} />
+              </div>
+              <span style={{ fontFamily: 'Outfit', fontSize: '1.4rem', fontWeight: 800, background: 'linear-gradient(135deg, var(--mint-dark), var(--sky-dark))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                Reto Activo 2.0
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '1rem', marginLeft: 'auto' }}>
+              <button 
+                className="btn btn-secondary" 
+                style={{ width: 'auto', padding: '0.6rem 1.25rem', fontSize: '0.88rem' }}
+                onClick={() => { setLandingView(false); setShowRegisterForm(false); }}
+              >
+                Acceso Empleados
+              </button>
+              <button 
+                className="btn btn-lavender" 
+                style={{ width: 'auto', padding: '0.6rem 1.25rem', fontSize: '0.88rem' }}
+                onClick={() => { setLandingView(false); autoFillAdmin(); }}
+              >
+                Portal Empresa
+              </button>
+            </div>
+          </header>
+
+          {/* Hero Section */}
+          <section style={{ maxWidth: '900px', margin: '0 auto 5rem', textAlign: 'center' }}>
+            <span 
+              style={{ 
+                backgroundColor: 'var(--mint-bg)', 
+                color: 'var(--mint-dark)', 
+                padding: '0.4rem 1rem', 
+                borderRadius: '30px', 
+                fontSize: '0.85rem', 
+                fontWeight: 700, 
+                display: 'inline-block',
+                marginBottom: '1.5rem',
+                border: '1px solid rgba(28,188,140,0.12)'
+              }}
+            >
+              🌱 Bienestar Corporativo Activo
+            </span>
+            <h1 
+              style={{ 
+                fontFamily: 'Outfit', 
+                fontSize: '3.6rem', 
+                fontWeight: 800, 
+                letterSpacing: '-1.5px', 
+                lineHeight: 1.15,
+                color: 'var(--text-main)',
+                marginBottom: '1.5rem'
+              }}
+            >
+              Tu empresa en movimiento, <br />
+              <span style={{ background: 'linear-gradient(135deg, var(--mint-accent), var(--sky-accent))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>saludable y feliz</span>
+            </h1>
+            <p style={{ color: 'var(--text-muted)', fontSize: '1.15rem', lineHeight: 1.5, maxWidth: '700px', margin: '0 auto 2.5rem' }}>
+              Desafía a tus equipos a adoptar hábitos saludables cotidianos. Fomenta la movilidad activa, registra tus pasos y recompensa el esfuerzo diario con increíbles premios.
+            </p>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+              <button 
+                className="btn btn-primary" 
+                style={{ width: 'auto', padding: '0.9rem 2rem', fontSize: '1rem', borderRadius: '14px' }}
+                onClick={() => { setLandingView(false); setShowRegisterForm(false); }}
+              >
+                Comenzar mis Retos 🚀
+              </button>
+              <a 
+                href="#accesos"
+                className="btn btn-secondary" 
+                style={{ width: 'auto', padding: '0.9rem 2rem', fontSize: '1rem', borderRadius: '14px', textDecoration: 'none' }}
+              >
+                Ver Portales de Acceso
+              </a>
+            </div>
+          </section>
+
+          {/* Características Clave */}
+          <section style={{ maxWidth: '1100px', margin: '0 auto 6rem' }}>
+            <div 
+              style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
+                gap: '2rem' 
+              }}
+            >
+              <div style={{ backgroundColor: 'white', border: '1px solid var(--border-color)', borderRadius: '24px', padding: '2rem', boxShadow: 'var(--shadow-sm)' }}>
+                <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '1rem' }}>🚴‍♂️</span>
+                <h3 style={{ fontFamily: 'Outfit', fontSize: '1.25rem', marginBottom: '0.5rem' }}>Retos de Movilidad</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.45 }}>
+                  Campañas corporativas personalizables (km en bici, running o 10k pasos diarios) donde los empleados participan de forma divertida e interactiva.
+                </p>
+              </div>
+
+              <div style={{ backgroundColor: 'white', border: '1px solid var(--border-color)', borderRadius: '24px', padding: '2rem', boxShadow: 'var(--shadow-sm)' }}>
+                <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '1rem' }}>🥑</span>
+                <h3 style={{ fontFamily: 'Outfit', fontSize: '1.25rem', marginBottom: '0.5rem' }}>Premios Increíbles</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.45 }}>
+                  Canjea tus puntos acumulados por desayunos saludables en la oficina, kits deportivos premium o incluso tu merecida tarde libre del viernes.
+                </p>
+              </div>
+
+              <div style={{ backgroundColor: 'white', border: '1px solid var(--border-color)', borderRadius: '24px', padding: '2rem', boxShadow: 'var(--shadow-sm)' }}>
+                <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '1rem' }}>📲</span>
+                <h3 style={{ fontFamily: 'Outfit', fontSize: '1.25rem', marginBottom: '0.5rem' }}>Enlace de Salud Seguro</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.45 }}>
+                  Sincroniza tus pasos de forma automática con Apple Health o Google Fit con un solo clic. Genera evidencias seguras auditables por RRHH.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Seccion de accesos dividida */}
+          <section id="accesos" style={{ maxWidth: '1000px', margin: '0 auto', borderTop: '1px solid var(--border-color)', paddingTop: '5rem' }}>
+            <h2 style={{ fontFamily: 'Outfit', fontSize: '1.8rem', textAlign: 'center', marginBottom: '3rem' }}>
+              🔑 Acceso a los Portales
+            </h2>
+
+            <div 
+              style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
+                gap: '2.5rem' 
+              }}
+            >
+              {/* Acceso Empleados */}
+              <div 
+                style={{ 
+                  backgroundColor: 'white', 
+                  border: '1px solid var(--border-color)', 
+                  borderRadius: '24px', 
+                  padding: '2.5rem', 
+                  boxShadow: 'var(--shadow-sm)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1rem'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <span style={{ fontSize: '2.2rem' }}>🚶‍♂️</span>
+                  <div>
+                    <h3 style={{ fontFamily: 'Outfit', fontSize: '1.25rem' }}>Portal del Colaborador</h3>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--mint-dark)', fontWeight: 700 }}>EMPLEADOS</span>
+                  </div>
+                </div>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.45, flexGrow: 1 }}>
+                  Anotate a retos corporativos activos, sincroniza tus pasos diarios de forma automática, sube capturas de evidencias y canjea tus puntos acumulados por increíbles premios.
+                </p>
+                <button 
+                  className="btn btn-primary" 
+                  onClick={() => { setLandingView(false); setShowRegisterForm(false); }}
+                >
+                  Ingresar a mis Retos
+                </button>
+              </div>
+
+              {/* Acceso Empresas */}
+              <div 
+                style={{ 
+                  backgroundColor: 'white', 
+                  border: '1px solid var(--border-color)', 
+                  borderRadius: '24px', 
+                  padding: '2.5rem', 
+                  boxShadow: 'var(--shadow-sm)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1rem'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <span style={{ fontSize: '2.2rem' }}>🏢</span>
+                  <div>
+                    <h3 style={{ fontFamily: 'Outfit', fontSize: '1.25rem' }}>Portal de la Empresa</h3>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--lavender-dark)', fontWeight: 700 }}>ADMINISTRACIÓN RRHH</span>
+                  </div>
+                </div>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.45, flexGrow: 1 }}>
+                  Lanza retos y campañas activas corporativas en tiempo real, gestiona el stock de la tienda, audita y aprueba las evidencias cargadas y analiza las métricas de bienestar generales.
+                </p>
+                <button 
+                  className="btn btn-lavender" 
+                  onClick={() => { setLandingView(false); autoFillAdmin(); }}
+                >
+                  Ingresar al Panel Corporativo
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* Footer */}
+          <footer style={{ marginTop: '6rem', borderTop: '1px solid var(--border-color)', paddingTop: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+            Reto Activo 2.0 - © 2026. Todos los derechos reservados. Diseñado para potenciar el bienestar y salud laboral de tus equipos.
+          </footer>
+        </div>
+      );
+    }
+
+    // 2. FORMULARIOS DE AUTENTICACIÓN (LOGIN/REGISTRO) CON BOTÓN "VOLVER AL INICIO"
     return (
       <div 
         style={{ 
@@ -428,9 +668,27 @@ function App() {
           alignItems: 'center', 
           justifyContent: 'center',
           padding: '2rem',
+          position: 'relative',
           fontFamily: 'Inter, sans-serif'
         }}
       >
+        {/* Botón flotante para regresar al inicio */}
+        <button 
+          className="btn btn-secondary"
+          onClick={() => setLandingView(true)}
+          style={{
+            position: 'absolute',
+            top: '2rem',
+            left: '2rem',
+            width: 'auto',
+            padding: '0.5rem 1.25rem',
+            fontSize: '0.85rem',
+            boxShadow: 'var(--shadow-sm)'
+          }}
+        >
+          ← Volver al inicio
+        </button>
+
         <div 
           style={{ 
             backgroundColor: 'white', 
