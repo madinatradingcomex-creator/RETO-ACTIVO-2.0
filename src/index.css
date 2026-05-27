@@ -1159,16 +1159,16 @@ h1, h2, h3, h4, h5, h6 {
   top: 0;
   left: 0;
   width: 100%;
-  height: 4px;
-  background: linear-gradient(90deg, var(--mint-accent), var(--sky-accent));
+  height: 6px;
+  background: linear-gradient(90deg, #ff4b4b, #ff0000);
   opacity: 0;
   transition: opacity 0.3s ease;
 }
 
 .landing-feature-card:hover {
-  transform: translateY(-8px) scale(1.02);
-  box-shadow: 0 20px 40px rgba(28,188,140,0.08) !important;
-  border-color: rgba(28,188,140,0.2) !important;
+  transform: translateY(-15px) scale(1.05);
+  box-shadow: 0 25px 50px rgba(255,0,0,0.15) !important;
+  border-color: rgba(255,0,0,0.4) !important;
 }
 
 .landing-feature-card:hover::before {
@@ -1176,12 +1176,12 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .landing-feature-card:hover span {
-  animation: bounceMini 0.6s ease;
+  animation: bounceMini 0.8s ease infinite;
 }
 
 @keyframes bounceMini {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
+  50% { transform: translateY(-15px) scale(1.15); }
 }
 
 /* Botón flotante para regresar a la portada desde el panel */
