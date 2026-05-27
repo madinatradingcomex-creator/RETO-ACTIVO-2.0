@@ -1234,12 +1234,16 @@ function App() {
   }
 
   // Helpers for calculations
-  const totalUserSteps = currentUser.role === 'employee' ? currentUser.daily_steps_history.reduce((a, b) => a + b, 0) : 0;
+  const totalUserSteps = (currentUser?.role === 'employee' && currentUser?.daily_steps_history) 
+    ? currentUser.daily_steps_history.reduce((a, b) => a + b, 0) 
+    : 0;
   const activeChallengesCount = userChallenges.filter(uc => uc.status === 'active').length;
   const completedChallengesCount = userChallenges.filter(uc => uc.status === 'completed').length;
   
   // Weekly steps maximum for chart rendering
-  const maxWeeklySteps = currentUser.role === 'employee' ? Math.max(...currentUser.daily_steps_history, 10000) : 0;
+  const maxWeeklySteps = (currentUser?.role === 'employee' && currentUser?.daily_steps_history) 
+    ? Math.max(...currentUser.daily_steps_history, 10000) 
+    : 10000;
   const weekDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
   const getCategoryTheme = (category) => {
@@ -1519,7 +1523,7 @@ function App() {
                   </div>
 
                   <div className="activity-chart-container">
-                    {currentUser.daily_steps_history.map((steps, index) => {
+                    {(currentUser.daily_steps_history || [0, 0, 0, 0, 0, 0, 0]).map((steps, index) => {
                       const percent = Math.min((steps / maxWeeklySteps) * 100, 100);
                       const isToday = index === 6;
                       return (

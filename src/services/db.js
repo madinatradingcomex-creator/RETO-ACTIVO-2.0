@@ -138,8 +138,13 @@ const INITIAL_PENDING_EVIDENCES = [
 
 // --- SISTEMA DE PERSISTENCIA LOCAL (LOCALSTORAGE) ---
 const getLocalData = (key, defaultValue) => {
-  const data = localStorage.getItem(key);
-  return data ? JSON.parse(data) : defaultValue;
+  try {
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : defaultValue;
+  } catch (err) {
+    console.error(`Error parsing localStorage key "${key}":`, err);
+    return defaultValue;
+  }
 };
 
 const setLocalData = (key, data) => {
@@ -331,6 +336,9 @@ export const dbService = {
     
     if (userIdx !== -1) {
       users[userIdx].points += pointsAdded;
+      if (!users[userIdx].daily_steps_history) {
+        users[userIdx].daily_steps_history = [0, 0, 0, 0, 0, 0, 0];
+      }
       if (stepsToday > 0) {
         const lastIdx = users[userIdx].daily_steps_history.length - 1;
         users[userIdx].daily_steps_history[lastIdx] += stepsToday;
