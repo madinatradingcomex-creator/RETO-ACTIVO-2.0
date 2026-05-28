@@ -57,7 +57,27 @@ function App() {
   const [regDept, setRegDept] = useState('Tecnología');
 
   // Navigation
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    const hash = window.location.hash.replace('#', '');
+    return hash || 'dashboard';
+  });
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      if (hash && hash !== activeTab) {
+        setActiveTab(hash);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (window.location.hash.replace('#', '') !== activeTab) {
+      window.location.hash = activeTab;
+    }
+  }, [activeTab]);
   
   // Data States
   const [challenges, setChallenges] = useState([]);
