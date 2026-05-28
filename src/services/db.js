@@ -1,6 +1,5 @@
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, deleteDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../firebase';
+import { db } from '../firebase';
 
 // --- MOCKS INITIAL DATA FOR SEEDING ---
 const INITIAL_PRESET_USERS = [
@@ -103,6 +102,32 @@ const INITIAL_REWARDS = [
     icon: '🥑'
   }
 ];
+
+const compressImage = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 600;
+        let scaleSize = 1;
+        if (img.width > MAX_WIDTH) {
+          scaleSize = MAX_WIDTH / img.width;
+        }
+        canvas.width = img.width * scaleSize;
+        canvas.height = img.height * scaleSize;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.5));
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+};
 
 const getLocalUser = () => {
   const u = localStorage.getItem('ra_current_user');
@@ -316,11 +341,9 @@ export const dbService = {
         let finalUrl = screenshotUrlMock || 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&q=80&w=300';
         if (screenshotFile) {
           try {
-            const storageRef = ref(storage, `evidencias/${Date.now()}_${screenshotFile.name}`);
-            await uploadBytes(storageRef, screenshotFile);
-            finalUrl = await getDownloadURL(storageRef);
+            finalUrl = await compressImage(screenshotFile);
           } catch(err) {
-            console.error("Error uploading image:", err);
+            console.error("Error compressing image:", err);
           }
         }
         const newEvidence = {
