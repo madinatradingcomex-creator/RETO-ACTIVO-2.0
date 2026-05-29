@@ -130,12 +130,12 @@ const compressImage = (file) => {
 };
 
 const getLocalUser = () => {
-  const u = localStorage.getItem('ra_current_user');
+  const u = sessionStorage.getItem('ra_current_user');
   return u ? JSON.parse(u) : null;
 };
 const setLocalUser = (u) => {
-  if (u) localStorage.setItem('ra_current_user', JSON.stringify(u));
-  else localStorage.removeItem('ra_current_user');
+  if (u) sessionStorage.setItem('ra_current_user', JSON.stringify(u));
+  else sessionStorage.removeItem('ra_current_user');
 };
 
 export const dbService = {

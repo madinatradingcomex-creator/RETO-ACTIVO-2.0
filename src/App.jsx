@@ -36,7 +36,10 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [presetUsers, setPresetUsers] = useState([]);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
-  const [landingView, setLandingView] = useState(true);
+  const [landingView, setLandingView] = useState(() => {
+    const hash = window.location.hash.replace('#', '');
+    return !hash || hash === 'landing';
+  });
   
   // Login Form Inputs
   const [loginEmail, setLoginEmail] = useState('');
@@ -52,14 +55,19 @@ function App() {
   // Navigation
   const [activeTab, setActiveTab] = useState(() => {
     const hash = window.location.hash.replace('#', '');
-    return hash || 'dashboard';
+    return (hash && hash !== 'landing') ? hash : 'dashboard';
   });
 
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '');
-      if (hash && hash !== activeTab) {
-        setActiveTab(hash);
+      if (!hash || hash === 'landing') {
+        setLandingView(true);
+      } else {
+        setLandingView(false);
+        if (hash !== activeTab) {
+          setActiveTab(hash);
+        }
       }
     };
     window.addEventListener('hashchange', handleHashChange);
@@ -67,10 +75,16 @@ function App() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (window.location.hash.replace('#', '') !== activeTab) {
-      window.location.hash = activeTab;
+    if (landingView) {
+      if (window.location.hash !== '#landing') {
+        window.location.hash = 'landing';
+      }
+    } else {
+      if (window.location.hash.replace('#', '') !== activeTab) {
+        window.location.hash = activeTab;
+      }
     }
-  }, [activeTab]);
+  }, [activeTab, landingView]);
   
   // Data States
   const [challenges, setChallenges] = useState([]);
