@@ -1075,6 +1075,11 @@ h1, h2, h3, h4, h5, h6 {
   animation: fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Mobile Header Profile (Oculto en Escritorio) */
+.mobile-header-profile {
+  display: none;
+}
+
 /* Responsividad General */
 @media (max-width: 1024px) {
   .app-container {
@@ -1088,9 +1093,74 @@ h1, h2, h3, h4, h5, h6 {
     border-right: none;
     border-bottom: 1px solid var(--border-color);
   }
+  
   .logo-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
     margin-bottom: 1.5rem;
+    padding: 0 0.5rem;
   }
+
+  .logo-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .mobile-header-profile {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .mobile-profile-avatar-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .mobile-profile-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid var(--mint-accent);
+    object-fit: cover;
+  }
+
+  .mobile-profile-pts-badge {
+    background-color: var(--mint-bg);
+    color: var(--mint-dark);
+    font-size: 0.75rem;
+    font-weight: 800;
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    border: 1px solid rgba(28, 188, 140, 0.15);
+    white-space: nowrap;
+  }
+
+  .mobile-logout-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50% !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-color) !important;
+    background-color: var(--bg-card) !important;
+    color: var(--text-muted) !important;
+    transition: all 0.2s ease;
+  }
+
+  .mobile-logout-btn:hover {
+    background-color: #FEE2E2 !important;
+    color: #DC2626 !important;
+    border-color: #FCA5A5 !important;
+  }
+
   .nav-menu {
     flex-direction: row;
     flex-wrap: wrap;
@@ -1367,4 +1437,33 @@ h1, h2, h3, h4, h5, h6 {
 
 .stat-card:hover::before {
   opacity: 1;
+}
+
+/* Soporte de Pantallas Ultra Angostas (<= 480px) */
+@media (max-width: 480px) {
+  .podium-column {
+    width: 85px !important;
+  }
+  .podium-avatar {
+    width: 60px !important;
+    height: 60px !important;
+  }
+  .podium-1st .podium-avatar {
+    width: 75px !important;
+    height: 75px !important;
+  }
+  .podium-name {
+    font-size: 0.75rem !important;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .podium-pts {
+    font-size: 0.75rem !important;
+  }
+  .podium-container {
+    padding-top: 1rem;
+    margin-bottom: 2rem;
+  }
 }

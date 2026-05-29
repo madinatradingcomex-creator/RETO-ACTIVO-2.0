@@ -1246,10 +1246,31 @@ function App() {
       {/* SIDEBAR */}
       <aside className="sidebar">
         <div className="logo-container">
-          <div className="logo-icon">
-            <HeartHandshake size={22} />
+          <div className="logo-brand">
+            <div className="logo-icon">
+              <HeartHandshake size={22} />
+            </div>
+            <span className="logo-text">Reto Activo 2.0</span>
           </div>
-          <span className="logo-text">Reto Activo 2.0</span>
+
+          {/* Perfil visible únicamente en móviles */}
+          <div className="mobile-header-profile">
+            <div className="mobile-profile-avatar-wrapper">
+              <img src={currentUser.avatar} alt={currentUser.name} className="mobile-profile-avatar" />
+              {currentUser.role === 'employee' && (
+                <span className="mobile-profile-pts-badge">
+                  {currentUser.points} pts
+                </span>
+              )}
+            </div>
+            <button 
+              className="btn btn-secondary mobile-logout-btn" 
+              onClick={handleLogout}
+              title="Cerrar Sesión"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
         </div>
 
         {currentUser.role === 'employee' ? (
