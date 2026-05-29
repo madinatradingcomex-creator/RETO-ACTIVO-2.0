@@ -572,13 +572,13 @@ export const dbService = {
   },
 
   // --- GOOGLE FIT INTEGRATION (MOCK SIMULATION) ---
-  buildGoogleOAuthUrl(clientId, redirectUri) {
+  buildGoogleOAuthUrl() {
     return '#connected'; 
   },
   extractTokenFromUrl() {
     return { token: 'DEMO', expiresIn: 3600 };
   },
-  saveGoogleFitToken(token, expiresIn) {
+  saveGoogleFitToken(token) {
     localStorage.setItem('ra_gfit_token', token);
   },
   getGoogleFitToken() {
@@ -591,9 +591,50 @@ export const dbService = {
     return !!localStorage.getItem('ra_gfit_token');
   },
   async fetchWeeklyStepsFromGoogleFit(token) {
-    const dailySteps = Array.from({ length: 7 }, () => Math.floor(Math.random() * 4000) + 7000);
-    const totalSteps = dailySteps.reduce((a, b) => a + b, 0);
-    return { dailySteps, totalSteps };
+    const endTime = Date.now();
+    const startTime = endTime - 7 * 24 * 60 * 60 * 1000;
+    
+    try {
+      const response = await fetch('https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          aggregateBy: [{
+            dataTypeName: 'com.google.step_count.delta',
+            dataSourceId: 'derived:com.google.step_count.delta:com.google.android.gms:estimated_steps'
+          }],
+          bucketByTime: { durationMillis: 86400000 },
+          startTimeMillis: startTime,
+          endTimeMillis: endTime
+        })
+      });
+
+      if (!response.ok) throw new Error('Network response was not ok');
+      const data = await response.json();
+      
+      const dailySteps = [];
+      let totalSteps = 0;
+      
+      data.bucket.forEach(bucket => {
+        let bucketSteps = 0;
+        if (bucket.dataset && bucket.dataset[0] && bucket.dataset[0].point && bucket.dataset[0].point[0]) {
+          bucketSteps = bucket.dataset[0].point[0].value[0].intVal || 0;
+        }
+        dailySteps.push(bucketSteps);
+        totalSteps += bucketSteps;
+      });
+
+      while (dailySteps.length < 7) dailySteps.unshift(0);
+      if (dailySteps.length > 7) dailySteps.splice(0, dailySteps.length - 7);
+
+      return { dailySteps, totalSteps };
+    } catch (err) {
+      console.error(err);
+      return { dailySteps: [0,0,0,0,0,0,0], totalSteps: 0 };
+    }
   },
   async syncGoogleFitSteps(userId, challengeId, fitData) {
     try {

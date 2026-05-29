@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useGoogleLogin, googleLogout } from '@react-oauth/google';
 import { 
   LayoutDashboard, 
   Trophy, 
   Gift, 
-  BarChart3, 
   User, 
   Flame, 
   Footprints, 
@@ -21,7 +21,6 @@ import {
   Building,
   ClipboardCheck,
   PlusCircle,
-  FileImage,
   Award,
   Smartphone,
   RefreshCw,
@@ -31,12 +30,6 @@ import {
 } from 'lucide-react';
 import { dbService } from './services/db';
 import './App.css';
-
-// === GOOGLE FIT OAUTH CONFIG ===
-// Cuando tengas tu CLIENT_ID de Google Cloud Console, reemplaza el string de abajo.
-// Por ahora usamos un valor de demostración que activa el flujo simulado.
-const GOOGLE_FIT_CLIENT_ID = import.meta.env.VITE_GOOGLE_FIT_CLIENT_ID || 'DEMO_MODE';
-const REDIRECT_URI = window.location.origin + window.location.pathname;
 
 function App() {
   // Authentication State
@@ -136,46 +129,6 @@ function App() {
   const [gFitSyncing, setGFitSyncing] = useState(false);
   const [gFitLastSync, setGFitLastSync] = useState(null);
   const [gFitSelectedChallenge, setGFitSelectedChallenge] = useState(null);
-  const [showGFitPanel, setShowGFitPanel] = useState(false);
-
-  // Load initial session
-  useEffect(() => {
-    checkActiveSession();
-  }, []);
-
-  const checkActiveSession = async () => {
-    const active = await dbService.getCurrentUser();
-
-    // Detectar si Google redirigió de vuelta con un token OAuth
-    const oauthResult = dbService.extractTokenFromUrl();
-    if (oauthResult) {
-      dbService.saveGoogleFitToken(oauthResult.token, oauthResult.expiresIn);
-      setGFitConnected(true);
-      // Si hay un usuario activo, sincronizar inmediatamente
-      if (active) {
-        setCurrentUser(active);
-        setLandingView(false);
-        loadViewData(active);
-        handleGFitSyncAfterConnect(active, oauthResult.token);
-      }
-    } else if (active) {
-      setCurrentUser(active);
-      setLandingView(false);
-      loadViewData(active);
-      // Verificar si ya tiene token guardado válido
-      const connected = dbService.isGoogleFitConnected();
-      setGFitConnected(connected);
-      if (connected && active.role === 'employee') {
-        const lastSync = dbService.getLastSync(active.id);
-        setGFitLastSync(lastSync);
-      }
-    } else {
-      setLandingView(true);
-    }
-
-    const presets = await dbService.getPresetUsers();
-    setPresetUsers(presets);
-  };
 
   const loadViewData = async (userSession) => {
     if (!userSession) return;
@@ -210,6 +163,35 @@ function App() {
       console.error("Error cargando información de la vista:", error);
     }
   };
+
+  const checkActiveSession = async () => {
+    const active = await dbService.getCurrentUser();
+
+    if (active) {
+      setCurrentUser(active);
+      setLandingView(false);
+      loadViewData(active);
+      // Verificar si ya tiene token guardado válido
+      const connected = dbService.isGoogleFitConnected();
+      setGFitConnected(connected);
+      if (connected && active.role === 'employee') {
+        const lastSync = dbService.getLastSync(active.id);
+        setGFitLastSync(lastSync);
+      }
+    } else {
+      setLandingView(true);
+    }
+
+    const presets = await dbService.getPresetUsers();
+    setPresetUsers(presets);
+  };
+
+  // Load initial session on mount
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    checkActiveSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const showToastMessage = (message, type = 'success') => {
     setToast({ message, type });
@@ -337,51 +319,29 @@ function App() {
   // --- ACTIONS: GOOGLE FIT INTEGRATION ---
 
   // Iniciar el flujo OAuth de Google (redirige a Google para autorización)
-  const handleConnectGoogleFit = () => {
-    if (GOOGLE_FIT_CLIENT_ID === 'DEMO_MODE') {
-      // Modo demostración sin credenciales reales → simular el flujo completo
-      handleGFitDemoFlow();
-      return;
-    }
-    const url = dbService.buildGoogleOAuthUrl(GOOGLE_FIT_CLIENT_ID, REDIRECT_URI);
-    window.location.href = url;
-  };
-
-  // Demo flow: simular el proceso completo de OAuth + lectura de API
-  const handleGFitDemoFlow = async () => {
-    setGFitSyncing(true);
-    showToastMessage('🔄 Conectando con Google Fit...');
-
-    // Paso 1: Simular la pantalla de autorización de Google (espera 1.5s)
-    await new Promise(r => setTimeout(r, 1500));
-    showToastMessage('✅ Autorización concedida por Google');
-
-    // Paso 2: Simular la lectura de la API de Google Fit (espera 1.2s)
-    await new Promise(r => setTimeout(r, 1200));
-    // Generar pasos diarios simulados para 7 días
-    const simulatedDaily = Array.from({ length: 7 }, () => Math.floor(Math.random() * 4000) + 7000);
-    const simulatedTotal = simulatedDaily.reduce((a, b) => a + b, 0);
-
-    // Guardar token de demo (válido por 1 hora)
-    dbService.saveGoogleFitToken('DEMO_TOKEN_' + Date.now(), 3600);
-    setGFitConnected(true);
-
-    // Paso 3: Sincronizar con objeto {dailySteps, totalSteps}
-    await performGFitSync(currentUser, { dailySteps: simulatedDaily, totalSteps: simulatedTotal });
-  };
-
-  // Ejecutar la sincronización real después de recibir el token OAuth
-  const handleGFitSyncAfterConnect = async (user, token) => {
-    setGFitSyncing(true);
-    try {
-      const fitData = await dbService.fetchWeeklyStepsFromGoogleFit(token);
-      await performGFitSync(user, fitData);
-    } catch (err) {
-      console.error('Error fetching Google Fit steps:', err);
-      showToastMessage('⚠️ No se pudieron leer los pasos de Google Fit. Intenta de nuevo.', 'error');
-      setGFitSyncing(false);
-    }
-  };
+  const handleConnectGoogleFit = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      showToastMessage('✅ Token obtenido de Google. Consultando pasos...');
+      setGFitSyncing(true);
+      try {
+        const token = tokenResponse.access_token;
+        const fitData = await dbService.fetchWeeklyStepsFromGoogleFit(token);
+        dbService.saveGoogleFitToken(token, 3600);
+        setGFitConnected(true);
+        await performGFitSync(currentUser, fitData);
+      } catch(err) {
+        console.error("Error connecting Google Fit:", err);
+        showToastMessage('⚠️ No se pudieron leer los pasos de Google Fit.', 'error');
+      } finally {
+        setGFitSyncing(false);
+      }
+    },
+    onError: error => {
+      console.error(error);
+      showToastMessage('Error al autorizar con Google.', 'error');
+    },
+    scope: 'https://www.googleapis.com/auth/fitness.activity.read',
+  });
 
   // Sincronizar manualmente (ya conectado)
   const handleGFitResync = async () => {
@@ -393,18 +353,19 @@ function App() {
     }
 
     setGFitSyncing(true);
-    if (token.startsWith('DEMO_TOKEN_')) {
-      // Demo: generar pasos diarios simulados para 7 días
-      const simulatedDaily = Array.from({ length: 7 }, () => Math.floor(Math.random() * 4000) + 7000);
-      const simulatedTotal = simulatedDaily.reduce((a, b) => a + b, 0);
-      await performGFitSync(currentUser, { dailySteps: simulatedDaily, totalSteps: simulatedTotal });
-    } else {
-      await handleGFitSyncAfterConnect(currentUser, token);
+    try {
+      const fitData = await dbService.fetchWeeklyStepsFromGoogleFit(token);
+      await performGFitSync(currentUser, fitData);
+    } catch(err) {
+      console.error(err);
+      showToastMessage('⚠️ No se pudieron sincronizar los pasos.', 'error');
+      setGFitSyncing(false);
     }
   };
 
   // Desconectar Google Fit
   const handleDisconnectGoogleFit = () => {
+    googleLogout();
     dbService.clearGoogleFitToken();
     setGFitConnected(false);
     setGFitLastSync(null);
@@ -448,8 +409,8 @@ function App() {
             setIsSyncingHealth(false);
             
             // Generar valores realistas según el reto
-            let generatedAmount = 0;
-            let mockUrl = '';
+            let generatedAmount;
+            let mockUrl;
             
             if (selectedChallenge.unit === 'pasos') {
               generatedAmount = Math.floor(Math.random() * 4000) + 8000; // 8k - 12k pasos
