@@ -34,8 +34,8 @@ import './App.css';
 function App() {
   // Authentication State
   const [currentUser, setCurrentUser] = useState(null);
-  const [presetUsers, setPresetUsers] = useState([]);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
+  const [loadingSession, setLoadingSession] = useState(true);
   const [landingView, setLandingView] = useState(() => {
     const hash = window.location.hash.replace('#', '');
     return !hash || hash === 'landing';
@@ -179,25 +179,28 @@ function App() {
   };
 
   const checkActiveSession = async () => {
-    const active = await dbService.getCurrentUser();
+    try {
+      const active = await dbService.getCurrentUser();
 
-    if (active) {
-      setCurrentUser(active);
-      setLandingView(false);
-      loadViewData(active);
-      // Verificar si ya tiene token guardado válido
-      const connected = dbService.isGoogleFitConnected();
-      setGFitConnected(connected);
-      if (connected && active.role === 'employee') {
-        const lastSync = dbService.getLastSync(active.id);
-        setGFitLastSync(lastSync);
+      if (active) {
+        setCurrentUser(active);
+        setLandingView(false);
+        await loadViewData(active);
+        // Verificar si ya tiene token guardado válido
+        const connected = dbService.isGoogleFitConnected();
+        setGFitConnected(connected);
+        if (connected && active.role === 'employee') {
+          const lastSync = dbService.getLastSync(active.id);
+          setGFitLastSync(lastSync);
+        }
+      } else {
+        setLandingView(true);
       }
-    } else {
-      setLandingView(true);
+    } catch (err) {
+      console.error("Error al cargar sesión activa:", err);
+    } finally {
+      setLoadingSession(false);
     }
-
-    const presets = await dbService.getPresetUsers();
-    setPresetUsers(presets);
   };
 
   // Load initial session on mount
@@ -237,11 +240,7 @@ function App() {
     }
   };
 
-  const autoFillPreset = (userPreset) => {
-    setLoginEmail(userPreset.email);
-    setLoginCompanyCode(userPreset.company_code);
-    showToastMessage(`Datos de ${userPreset.name} cargados en el formulario. ¡Presiona "Iniciar Sesión"!`);
-  };
+
 
   const autoFillAdmin = () => {
     setLoginEmail('admin@acme.com');
@@ -277,9 +276,6 @@ function App() {
     
     showToastMessage("🎉 ¡Perfil de bienestar creado con éxito! Te regalamos 100 puntos de bienvenida.");
     loadViewData(registered);
-    
-    const presets = await dbService.getPresetUsers();
-    setPresetUsers(presets);
   };
 
   const handleApproveUser = async (userId, userName) => {
@@ -289,10 +285,6 @@ function App() {
       // Actualizar estados locales de pendientes
       const pending = await dbService.getPendingUsers();
       setPendingUsers(pending);
-      
-      // Actualizar presetUsers si corresponde
-      const presets = await dbService.getPresetUsers();
-      setPresetUsers(presets);
       
       // Actualizar stats corporativas
       const stats = await dbService.getCompanyStats();
@@ -311,9 +303,6 @@ function App() {
       // Actualizar estados locales
       const pending = await dbService.getPendingUsers();
       setPendingUsers(pending);
-      
-      const presets = await dbService.getPresetUsers();
-      setPresetUsers(presets);
       
       const stats = await dbService.getCompanyStats();
       setCompanyStats(stats);
@@ -595,6 +584,17 @@ function App() {
   };
 
   // --- RENDERS ---
+
+  if (loadingSession) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-app)' }}>
+        <div style={{ textAlign: 'center' }}>
+          <RefreshCw className="spin-animation" size={42} style={{ color: 'var(--sky-accent)' }} />
+          <p style={{ marginTop: '1rem', color: 'var(--text-muted)', fontFamily: 'Outfit', fontWeight: 600 }}>Cargando portal de bienestar...</p>
+        </div>
+      </div>
+    );
+  }
 
   // A. PANTALLA DE AUTENTICACIÓN ACTUALIZADA CON CÓDIGO DE EMPRESA Y PRESETS CLICKEABLES
   if (!currentUser || landingView) {
@@ -921,15 +921,11 @@ function App() {
             border: '1px solid rgba(0,0,0,0.03)',
             padding: '3rem', 
             width: '100%', 
-            maxWidth: '900px',
-            display: 'grid',
-            gridTemplateColumns: '1.2fr 1fr',
-            gap: '3rem',
+            maxWidth: '520px',
             textAlign: 'left'
           }}
-          className="login-layout-split"
         >
-          {/* Columna Izquierda: Formulario de Login o Registro */}
+          {/* Formulario de Login o Registro */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
               <div 
@@ -1090,71 +1086,6 @@ function App() {
               </form>
             )}
           </div>
-
-          {/* Columna Derecha: Asistente rápido de pruebas (Auto-rellenadores) */}
-          <div style={{ backgroundColor: 'var(--bg-app)', borderRadius: '20px', padding: '1.75rem', border: '1px dashed var(--border-color)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <h3 style={{ fontFamily: 'Outfit', fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-main)' }}>
-              ⚡ Asistente de Pruebas Rápidas
-            </h3>
-            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-              Haz clic sobre cualquier perfil para auto-rellenar sus credenciales exactas (email y código corporativo) e iniciar sesión al instante.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Empleados</span>
-              
-              {presetUsers.map(u => (
-                <div 
-                  key={u.id}
-                  onClick={() => autoFillPreset(u)}
-                  style={{
-                    backgroundColor: 'white',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '12px',
-                    padding: '0.5rem 0.75rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    transition: 'all 0.2s ease'
-                  }}
-                  className="quick-tester-card"
-                >
-                  <img src={u.avatar} alt={u.name} style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
-                  <div style={{ minWidth: 0 }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)', display: 'block' }}>{u.name} {u.lastname}</span>
-                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</span>
-                  </div>
-                </div>
-              ))}
-
-              <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Administración</span>
-              
-              <div 
-                onClick={autoFillAdmin}
-                style={{
-                  backgroundColor: 'var(--lavender-bg)',
-                  border: '1px solid rgba(154, 124, 240, 0.2)',
-                  borderRadius: '12px',
-                  padding: '0.6rem 0.75rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  transition: 'all 0.2s ease'
-                }}
-                className="quick-tester-card"
-              >
-                <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--lavender-accent)', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', color: 'white' }}>
-                  🏢
-                </div>
-                <div>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--lavender-dark)', display: 'block' }}>RRHH Empresa Acme</span>
-                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'block' }}>admin@acme.com • ACME2026</span>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -1260,7 +1191,7 @@ function App() {
       {/* SIDEBAR */}
       <aside className="sidebar">
         <div className="logo-container">
-          <div className="logo-brand">
+          <div className="logo-brand" onClick={() => setLandingView(true)} style={{ cursor: 'pointer' }}>
             <div className="logo-icon">
               <HeartHandshake size={22} />
             </div>
