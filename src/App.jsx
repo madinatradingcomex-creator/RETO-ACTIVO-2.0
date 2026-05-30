@@ -1211,6 +1211,59 @@ function App() {
             </div>
           )}
 
+          {/* MODAL: TÉRMINOS Y CONDICIONES (P3) */}
+          {showTermsModal && (
+            <div className="modal-overlay" onClick={() => setShowTermsModal(false)}>
+              <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+                <button className="modal-close" onClick={() => setShowTermsModal(false)}>
+                  <X size={20} />
+                </button>
+                <div className="modal-header">
+                  <span style={{ fontSize: '2rem', display: 'block', marginBottom: '0.5rem' }}>📄</span>
+                  <h3 className="modal-title">Términos y Condiciones de Uso</h3>
+                  <p className="modal-subtitle">Reto Activo 2.0 - Plataforma de Bienestar Corporativo</p>
+                </div>
+                <div 
+                  style={{ 
+                    maxHeight: '300px', 
+                    overflowY: 'auto', 
+                    fontSize: '0.85rem', 
+                    color: 'var(--text-muted)', 
+                    lineHeight: 1.5,
+                    paddingRight: '0.5rem',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    padding: '1rem',
+                    backgroundColor: '#f8fafc',
+                    textAlign: 'left'
+                  }}
+                >
+                  <h4 style={{ color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>1. Objeto y Alcance</h4>
+                  <p style={{ margin: '0 0 1rem 0' }}>
+                    Reto Activo 2.0 es una plataforma corporativa diseñada para promover hábitos saludables, la actividad física y el bienestar general entre los colaboradores. El uso de la plataforma está supeditado a las condiciones aquí indicadas.
+                  </p>
+                  <h4 style={{ color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>2. Integración y Privacidad de Datos</h4>
+                  <p style={{ margin: '0 0 1rem 0' }}>
+                    Al sincronizar sus aplicaciones de salud (como Google Fit o Apple Health), usted autoriza la lectura exclusiva de métricas de movilidad diaria (pasos, distancia). Estos datos serán procesados únicamente con fines internos de participación en los retos de la empresa. Bajo ninguna circunstancia se venderán o compartirán datos sensibles de salud con terceros.
+                  </p>
+                  <h4 style={{ color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>3. Veracidad de la Información</h4>
+                  <p style={{ margin: '0 0 1rem 0' }}>
+                    El usuario se compromete a no adulterar la carga de evidencias manuales ni simular fraudulentamente actividades físicas. El comportamiento deshonesto o la carga repetida de información duplicada podrá ser causal de suspensión de la cuenta.
+                  </p>
+                  <h4 style={{ color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>4. Cambios en las Condiciones</h4>
+                  <p style={{ margin: '0' }}>
+                    Nos reservamos el derecho de modificar estos términos en cualquier momento para adaptarnos a nuevas exigencias legales o mejoras en el servicio de bienestar.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+                  <button className="btn btn-primary" style={{ width: 'auto', padding: '0.5rem 1.5rem' }} onClick={() => setShowTermsModal(false)}>
+                    Entendido
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
     );
@@ -3073,58 +3126,7 @@ function App() {
         </div>
       )}
 
-      {/* MODAL: TÉRMINOS Y CONDICIONES (P3) */}
-      {showTermsModal && (
-        <div className="modal-overlay" onClick={() => setShowTermsModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
-            <button className="modal-close" onClick={() => setShowTermsModal(false)}>
-              <X size={20} />
-            </button>
-            <div className="modal-header">
-              <span style={{ fontSize: '2rem', display: 'block', marginBottom: '0.5rem' }}>📄</span>
-              <h3 className="modal-title">Términos y Condiciones de Uso</h3>
-              <p className="modal-subtitle">Reto Activo 2.0 - Plataforma de Bienestar Corporativo</p>
-            </div>
-            <div 
-              style={{ 
-                maxHeight: '300px', 
-                overflowY: 'auto', 
-                fontSize: '0.85rem', 
-                color: 'var(--text-muted)', 
-                lineHeight: 1.5,
-                paddingRight: '0.5rem',
-                border: '1px solid var(--border-color)',
-                borderRadius: '8px',
-                padding: '1rem',
-                backgroundColor: '#f8fafc',
-                textAlign: 'left'
-              }}
-            >
-              <h4 style={{ color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>1. Objeto y Alcance</h4>
-              <p style={{ margin: '0 0 1rem 0' }}>
-                Reto Activo 2.0 es una plataforma corporativa diseñada para promover hábitos saludables, la actividad física y el bienestar general entre los colaboradores. El uso de la plataforma está supeditado a las condiciones aquí indicadas.
-              </p>
-              <h4 style={{ color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>2. Integración y Privacidad de Datos</h4>
-              <p style={{ margin: '0 0 1rem 0' }}>
-                Al sincronizar sus aplicaciones de salud (como Google Fit o Apple Health), usted autoriza la lectura exclusiva de métricas de movilidad diaria (pasos, distancia). Estos datos serán procesados únicamente con fines internos de participación en los retos de la empresa. Bajo ninguna circunstancia se venderán o compartirán datos sensibles de salud con terceros.
-              </p>
-              <h4 style={{ color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>3. Veracidad de la Información</h4>
-              <p style={{ margin: '0 0 1rem 0' }}>
-                El usuario se compromete a no adulterar la carga de evidencias manuales ni simular fraudulentamente actividades físicas. El comportamiento deshonesto o la carga repetida de información duplicada podrá ser causal de suspensión de la cuenta.
-              </p>
-              <h4 style={{ color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>4. Cambios en las Condiciones</h4>
-              <p style={{ margin: '0' }}>
-                Nos reservamos el derecho de modificar estos términos en cualquier momento para adaptarnos a nuevas exigencias legales o mejoras en el servicio de bienestar.
-              </p>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
-              <button className="btn btn-primary" style={{ width: 'auto', padding: '0.5rem 1.5rem' }} onClick={() => setShowTermsModal(false)}>
-                Entendido
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
 
 
