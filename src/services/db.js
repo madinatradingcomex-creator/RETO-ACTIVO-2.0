@@ -173,7 +173,23 @@ export const dbService = {
     return null;
   },
 
-  async loginWithCompanyCode(email, companyCode) {
+  async hashPassword(password) {
+    if (!crypto?.subtle) {
+      let hash = 0;
+      for (let i = 0; i < password.length; i++) {
+        const char = password.charCodeAt(i);
+        hash = (hash << 5) - hash + char;
+        hash = hash & hash;
+      }
+      return 'fb_' + Math.abs(hash).toString(16);
+    }
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hash = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+  },
+
+  async loginWithCompanyCode(email, companyCode, password) {
     await this.seedDatabase(); // Ensure seeded on first login attempt
     
     try {
@@ -186,21 +202,35 @@ export const dbService = {
       
       if (!snap.empty) {
         const user = snap.docs[0].data();
+        
+        // If user already has a password set, validate it
+        if (user.password_hash) {
+          const inputHash = await this.hashPassword(password);
+          if (user.password_hash !== inputHash) {
+            return { error: "Contraseña incorrecta." };
+          }
+        } else {
+          // User exists but has no password set (needs migration)
+          return { needsMigration: true, user };
+        }
+
         setLocalUser(user);
-        return user;
+        return { success: true, user };
       }
-    } catch(err) { console.error(err); }
-    return null;
+    } catch(err) { console.error(err); return { error: "Error en el servidor de base de datos." }; }
+    return { error: "Credenciales incorrectas. Verifica tu email y el código de empresa." };
   },
 
-  async registerUser(name, lastname, email, companyCode, department) {
+  async registerUser(name, lastname, email, companyCode, department, password) {
     const newId = `usr_${Math.random().toString(36).substr(2, 9)}`;
+    const passwordHash = await this.hashPassword(password);
     const newUser = {
       id: newId,
       name,
       lastname,
       email: email.toLowerCase(),
       company_code: companyCode.toUpperCase(),
+      password_hash: passwordHash,
       avatar: 'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=120',
       points: 100,
       department,
@@ -217,6 +247,24 @@ export const dbService = {
       return newUser;
     } catch(err) { console.error(err); }
     return null;
+  },
+
+  async setUserPassword(userId, password) {
+    try {
+      const hash = await this.hashPassword(password);
+      const ref = doc(db, 'usuarios', userId);
+      await updateDoc(ref, { password_hash: hash });
+      
+      const local = getLocalUser();
+      if (local && local.id === userId) {
+        local.password_hash = hash;
+        setLocalUser(local);
+      }
+      return { success: true };
+    } catch(err) {
+      console.error(err);
+      return { error: "No se pudo establecer la contraseña." };
+    }
   },
 
   async getPendingUsers() {
@@ -338,6 +386,25 @@ export const dbService = {
       const userFullName = currentUser ? `${currentUser.name} ${currentUser.lastname || ''}` : 'Anónimo';
 
       if (screenshotFile || screenshotUrlMock) {
+        // P4 duplicate check: check if user has already submitted evidence for this challenge today
+        const todayStr = new Date().toISOString().split('T')[0];
+        const evQuery = query(
+          collection(db, 'evidencias'),
+          where('user_id', '==', userId),
+          where('challenge_id', '==', challengeId)
+        );
+        const evSnap = await getDocs(evQuery);
+        const alreadySubmitted = evSnap.docs.some(doc => {
+          const ev = doc.data();
+          if (ev.status === 'rejected') return false; // Rejected evidence can be resubmitted
+          const evDate = ev.submission_date || (ev.date ? ev.date.split('T')[0] : '');
+          return evDate === todayStr;
+        });
+
+        if (alreadySubmitted) {
+          return { error: "Ya has registrado una evidencia para este reto hoy. Espera a que RRHH la revise." };
+        }
+
         let finalUrl = screenshotUrlMock || 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&q=80&w=300';
         if (screenshotFile) {
           try {
@@ -357,7 +424,8 @@ export const dbService = {
           points_awarded: challengeObj.points,
           value: parseFloat(amount),
           screenshot_url: finalUrl,
-          date: new Date().toISOString()
+          date: new Date().toISOString(),
+          submission_date: todayStr
         };
         await setDoc(doc(db, 'evidencias', newEvidence.id), newEvidence);
         return { pendingApproval: true, message: "Enviado a RRHH." };
@@ -636,14 +704,107 @@ export const dbService = {
       return { dailySteps: [0,0,0,0,0,0,0], totalSteps: 0 };
     }
   },
-  async syncGoogleFitSteps(userId, challengeId, fitData) {
+  async syncGoogleFitSteps(userId, fitData, syncDays = 7) {
     try {
       const { dailySteps, totalSteps } = fitData;
+      
+      const userRef = doc(db, 'usuarios', userId);
+      await updateDoc(userRef, { daily_steps_history: dailySteps });
+
+      const dates = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        dates.push(d.toISOString().split('T')[0]);
+      }
+
+      const q = query(
+        collection(db, 'user_challenges'),
+        where('user_id', '==', userId),
+        where('status', '==', 'active')
+      );
+      const snap = await getDocs(q);
+      
+      let syncedChallenges = [];
+      let totalPointsAwarded = 0;
+      let challengesCompletedCount = 0;
+
+      for (const enrollDoc of snap.docs) {
+        const enrollment = enrollDoc.data();
+        const challengeId = enrollment.challenge_id;
+
+        const cSnap = await getDoc(doc(db, 'retos', challengeId));
+        if (!cSnap.exists()) continue;
+        const challenge = cSnap.data();
+
+        if (challenge.unit !== 'pasos' && challenge.unit !== 'km') continue;
+
+        let netAmountToAdd = 0;
+        const dailySyncs = enrollment.daily_syncs || {};
+
+        for (let offset = 0; offset < syncDays; offset++) {
+          const index = 6 - offset;
+          if (index < 0) break;
+
+          const dateStr = dates[index];
+          const daySteps = dailySteps[index] || 0;
+          const previousSteps = dailySyncs[dateStr] || 0;
+
+          if (daySteps > previousSteps) {
+            const stepDiff = daySteps - previousSteps;
+            const amountToAdd = challenge.unit === 'km' 
+              ? parseFloat((stepDiff / 1312).toFixed(2))
+              : stepDiff;
+
+            netAmountToAdd += amountToAdd;
+            dailySyncs[dateStr] = daySteps;
+          }
+        }
+
+        if (netAmountToAdd > 0) {
+          const newProgress = parseFloat((parseFloat(enrollment.progress) + netAmountToAdd).toFixed(2));
+          let status = 'active';
+          let completed = false;
+
+          if (newProgress >= challenge.target) {
+            status = 'completed';
+            completed = true;
+            totalPointsAwarded += challenge.points;
+            challengesCompletedCount++;
+            await this.updateUserStats(userId, challenge.points, challenge.unit === 'pasos' ? netAmountToAdd : 0);
+          } else {
+            if (challenge.unit === 'pasos') {
+              await this.updateUserStats(userId, 0, netAmountToAdd);
+            }
+          }
+
+          await updateDoc(enrollDoc.ref, {
+            progress: completed ? challenge.target : newProgress,
+            status,
+            daily_syncs: dailySyncs
+          });
+
+          syncedChallenges.push({
+            title: challenge.title,
+            completed,
+            amountAdded: netAmountToAdd,
+            unit: challenge.unit
+          });
+        }
+      }
+
       const kmEquivalent = parseFloat((totalSteps / 1312).toFixed(2));
-      const ref = doc(db, 'usuarios', userId);
-      await updateDoc(ref, { daily_steps_history: dailySteps });
-      return { totalSteps, kmEquivalent, completed: false, pointsAwarded: 0 };
-    } catch(err) { console.error(err); return { totalSteps: 0, kmEquivalent: 0, completed: false, pointsAwarded: 0 }; }
+      return { 
+        totalSteps, 
+        kmEquivalent, 
+        syncedChallenges, 
+        pointsAwarded: totalPointsAwarded, 
+        completed: challengesCompletedCount > 0 
+      };
+    } catch(err) { 
+      console.error(err); 
+      return { totalSteps: 0, kmEquivalent: 0, syncedChallenges: [], pointsAwarded: 0, completed: false }; 
+    }
   },
   saveLastSync(userId, steps) {
     localStorage.setItem(`ra_gfit_last_sync_${userId}`, JSON.stringify({ steps, syncedAt: new Date().toISOString() }));
@@ -651,5 +812,38 @@ export const dbService = {
   getLastSync(userId) {
     const raw = localStorage.getItem(`ra_gfit_last_sync_${userId}`);
     return raw ? JSON.parse(raw) : null;
+  },
+  async getChallengeRanking(challengeId) {
+    try {
+      const q = query(
+        collection(db, 'user_challenges'),
+        where('challenge_id', '==', challengeId)
+      );
+      const snap = await getDocs(q);
+      const list = snap.docs.map(doc => doc.data());
+      
+      const uSnap = await getDocs(collection(db, 'usuarios'));
+      const usersMap = {};
+      uSnap.docs.forEach(doc => {
+        const u = doc.data();
+        usersMap[u.id] = u;
+      });
+
+      const enrichedList = list.map(item => {
+        const user = usersMap[item.user_id] || { name: 'Colaborador', lastname: 'Anónimo', avatar: '' };
+        return {
+          user_id: item.user_id,
+          user_name: `${user.name} ${user.lastname || ''}`,
+          avatar: user.avatar,
+          progress: item.progress,
+          status: item.status
+        };
+      }).sort((a, b) => b.progress - a.progress);
+
+      return enrichedList;
+    } catch(err) {
+      console.error(err);
+      return [];
+    }
   }
 };

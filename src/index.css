@@ -90,7 +90,7 @@ h1, h2, h3, h4, h5, h6 {
 /* Layout General */
 .app-container {
   display: flex;
-  min-height: 100vh;
+  min-height: 100dvh;
   position: relative;
 }
 
@@ -102,7 +102,7 @@ h1, h2, h3, h4, h5, h6 {
   padding: 2.5rem 1.5rem;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -720,6 +720,8 @@ h1, h2, h3, h4, h5, h6 {
   background-color: var(--bg-card);
   width: 90%;
   max-width: 500px;
+  max-height: 90dvh;
+  overflow-y: auto;
   border-radius: var(--radius-xl);
   padding: 2.25rem;
   box-shadow: var(--shadow-lg);
@@ -1213,6 +1215,11 @@ h1, h2, h3, h4, h5, h6 {
     grid-template-columns: 1fr !important;
     gap: 2rem !important;
     padding: 2rem !important;
+  }
+  .modal-content {
+    padding: 1.5rem 1.25rem !important;
+    width: 95% !important;
+    max-height: 95dvh !important;
   }
 }
 

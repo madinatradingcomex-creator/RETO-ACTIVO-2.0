@@ -22,7 +22,6 @@ import {
   ClipboardCheck,
   PlusCircle,
   Award,
-  Smartphone,
   RefreshCw,
   Mail,
   KeyRound,
@@ -31,17 +30,19 @@ import {
 import { dbService } from './services/db';
 import './App.css';
 
-// Certified SVG evidence badges for 100% reliable local rendering without external dependencies
-const GOOGLE_FIT_CERTIFIED_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="150" viewBox="0 0 300 150"><defs><linearGradient id="gfit-grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23ea4335" /><stop offset="50%" stop-color="%234285f4" /><stop offset="100%" stop-color="%2334a853" /></linearGradient></defs><rect width="100%" height="100%" fill="%23f8fafc" rx="16" stroke="%23e2e8f0" stroke-width="2"/><rect x="10" y="10" width="280" height="130" rx="10" fill="%23ffffff" /><circle cx="150" cy="50" r="24" fill="url(%23gfit-grad)" opacity="0.15" /><g transform="translate(138, 38) scale(1)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="%2334a853"/></g><text x="150" y="98" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="700" fill="%231e293b" text-anchor="middle">Sincronización Google Fit</text><text x="150" y="118" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="%2310b981" text-anchor="middle">✓ Evidencia de Actividad Certificada</text></svg>`;
 
-const APPLE_HEALTH_CERTIFIED_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="150" viewBox="0 0 300 150"><defs><linearGradient id="apple-grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23ff2d55" /><stop offset="100%" stop-color="%23ff3b30" /></linearGradient></defs><rect width="100%" height="100%" fill="%23f8fafc" rx="16" stroke="%23e2e8f0" stroke-width="2"/><rect x="10" y="10" width="280" height="130" rx="10" fill="%23ffffff" /><circle cx="150" cy="50" r="24" fill="url(%23apple-grad)" opacity="0.15" /><g transform="translate(138, 38) scale(1)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="%23ff2d55"/></g><text x="150" y="98" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="700" fill="%231e293b" text-anchor="middle">Sincronización de Salud</text><text x="150" y="118" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="%23ff2d55" text-anchor="middle">✓ Evidencia de Actividad Certificada</text></svg>`;
 
 function App() {
   // Authentication State
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    const local = sessionStorage.getItem('ra_current_user');
+    return local ? JSON.parse(local) : null;
+  });
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [loadingSession, setLoadingSession] = useState(true);
   const [landingView, setLandingView] = useState(() => {
+    const local = sessionStorage.getItem('ra_current_user');
+    if (local) return false;
     const hash = window.location.hash.replace('#', '');
     return !hash || hash === 'landing';
   });
@@ -62,6 +63,48 @@ function App() {
     const hash = window.location.hash.replace('#', '');
     return (hash && hash !== 'landing') ? hash : 'dashboard';
   });
+
+  const [debugLogs, setDebugLogs] = useState([]);
+
+  useEffect(() => {
+    const originalConsoleError = console.error;
+    const originalConsoleLog = console.log;
+
+    const addLog = (msg, type = 'info') => {
+      const text = typeof msg === 'object' ? JSON.stringify(msg) : String(msg);
+      setDebugLogs((prev) => [...prev.slice(-30), { timestamp: new Date().toLocaleTimeString(), msg: text, type }]);
+    };
+
+    console.error = (...args) => {
+      originalConsoleError.apply(console, args);
+      addLog(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '), 'error');
+    };
+
+    console.log = (...args) => {
+      originalConsoleLog.apply(console, args);
+      addLog(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '), 'log');
+    };
+
+    const handleWindowError = (event) => {
+      addLog(`Excepción: ${event.message} en ${event.filename}:${event.lineno}`, 'exception');
+    };
+
+    const handleUnhandledRejection = (event) => {
+      addLog(`Promesa rechazada: ${event.reason?.message || event.reason}`, 'exception');
+    };
+
+    window.addEventListener('error', handleWindowError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+    addLog("Consola de diagnóstico activa.");
+
+    return () => {
+      console.error = originalConsoleError;
+      console.log = originalConsoleLog;
+      window.removeEventListener('error', handleWindowError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -109,10 +152,22 @@ function App() {
   const [logAmount, setLogAmount] = useState('');
   const [screenshot, setScreenshot] = useState(null);
   const [screenshotPreview, setScreenshotPreview] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Health App Sync Simulation State
-  const [isSyncingHealth, setIsSyncingHealth] = useState(false);
-  const [syncProgress, setSyncProgress] = useState(0); // 0 -> 1 -> 2 -> 3 (completed)
+  // Auth Password States
+  const [loginPassword, setLoginPassword] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regPasswordConfirm, setRegPasswordConfirm] = useState('');
+  const [showMigratePasswordModal, setShowMigratePasswordModal] = useState(false);
+  const [migratePassword, setMigratePassword] = useState('');
+  const [migratePasswordConfirm, setMigratePasswordConfirm] = useState('');
+  const [migrateUserRef, setMigrateUserRef] = useState(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Terms & Conditions States
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+
 
   // Forms - Admin Create Challenge
   const [cTitle, setCTitle] = useState('');
@@ -147,7 +202,9 @@ function App() {
   const [gFitConnected, setGFitConnected] = useState(false);
   const [gFitSyncing, setGFitSyncing] = useState(false);
   const [gFitLastSync, setGFitLastSync] = useState(null);
-  const [gFitSelectedChallenge, setGFitSelectedChallenge] = useState(null);
+
+  const [gFitSyncDays, setGFitSyncDays] = useState(7); // 1, 2, 3, 4, 5, or 7
+  const [challengeRankings, setChallengeRankings] = useState({});
 
   const loadViewData = async (userSession) => {
     if (!userSession) return;
@@ -177,6 +234,20 @@ function App() {
         setRewards(rewardsData);
         setRedeemedRewards(redeemedData);
         setLeaderboard(leaderboardData);
+
+        // Fetch rankings for active employee challenges (P10)
+        const rankingsMap = {};
+        for (const uc of userChallengesData) {
+          if (uc.status === 'active') {
+            try {
+              const rList = await dbService.getChallengeRanking(uc.challenge_id);
+              rankingsMap[uc.challenge_id] = rList;
+            } catch(e) {
+              console.error("Error loading ranking for challenge " + uc.challenge_id, e);
+            }
+          }
+        }
+        setChallengeRankings(rankingsMap);
       }
     } catch (error) {
       console.error("Error cargando información de la vista:", error);
@@ -226,37 +297,128 @@ function App() {
   
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
-    if (!loginEmail.trim() || !loginCompanyCode.trim()) {
-      showToastMessage("Por favor completa el email y el código de empresa.", "error");
+    if (!loginEmail.trim() || !loginCompanyCode.trim() || !loginPassword.trim()) {
+      showToastMessage("Por favor completa el email, el código de empresa y la contraseña.", "error");
       return;
     }
 
-    const loggedUser = await dbService.loginWithCompanyCode(loginEmail, loginCompanyCode);
-    if (loggedUser) {
-      setCurrentUser(loggedUser);
-      setLandingView(false);
-      setActiveTab('dashboard');
-      showToastMessage(`¡Acceso correcto! Bienvenido, ${loggedUser.name} ${loggedUser.lastname || ''} 🌟`);
-      loadViewData(loggedUser);
-      setLoginEmail('');
-      setLoginCompanyCode('');
-    } else {
-      showToastMessage("Credenciales incorrectas. Verifica tu email y el código de empresa.", "error");
+    setIsLoggingIn(true);
+    console.log("Iniciando login para:", loginEmail, loginCompanyCode);
+    try {
+      const res = await dbService.loginWithCompanyCode(loginEmail, loginCompanyCode, loginPassword);
+      console.log("Respuesta obtenida de loginWithCompanyCode:", res);
+      
+      if (!res) {
+        alert("Error: No se recibió ninguna respuesta del servicio de base de datos (res es undefined o null).");
+        showToastMessage("No se recibió respuesta del servidor de base de datos.", "error");
+        return;
+      }
+
+      if (res.error) {
+        alert(`Aviso del Servidor: ${res.error}`);
+        showToastMessage(res.error, "error");
+        return;
+      }
+
+      if (res.needsMigration) {
+        console.log("Usuario detectado como legacy. Abriendo modal de migración para:", res.user);
+        setMigrateUserRef(res.user);
+        setMigratePassword('');
+        setMigratePasswordConfirm('');
+        setShowMigratePasswordModal(true);
+        return;
+      }
+
+      if (res.success && res.user) {
+        setCurrentUser(res.user);
+        setLandingView(false);
+        setActiveTab('dashboard');
+        showToastMessage(`¡Acceso correcto! Bienvenido, ${res.user.name} ${res.user.lastname || ''} 🌟`);
+        loadViewData(res.user);
+        setLoginEmail('');
+        setLoginCompanyCode('');
+        setLoginPassword('');
+        return;
+      }
+
+      // Si llegó aquí y no entró a ninguna de las condiciones anteriores
+      alert(`Respuesta inesperada del servidor de base de datos: ${JSON.stringify(res)}`);
+    } catch (err) {
+      console.error("Error crítico en login (capturado en App.jsx):", err);
+      alert(`Error crítico de red o Firebase al iniciar sesión:\n${err.message || err}`);
+      showToastMessage(`Error de red o conexión: ${err.message || err}`, "error");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleMigratePasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (!migratePassword || migratePassword.length < 6) {
+      showToastMessage("La contraseña debe tener al menos 6 caracteres.", "error");
+      return;
+    }
+    if (migratePassword !== migratePasswordConfirm) {
+      showToastMessage("Las contraseñas no coinciden.", "error");
+      return;
+    }
+
+    setIsLoggingIn(true);
+    try {
+      const res = await dbService.setUserPassword(migrateUserRef.id, migratePassword);
+      if (res.error) {
+        showToastMessage(res.error, "error");
+        return;
+      }
+
+      // Attempt login with the newly created password to establish session
+      const logged = await dbService.loginWithCompanyCode(migrateUserRef.email, migrateUserRef.company_code, migratePassword);
+      if (logged.success && logged.user) {
+        setCurrentUser(logged.user);
+        setLandingView(false);
+        setActiveTab('dashboard');
+        setShowMigratePasswordModal(false);
+        setMigrateUserRef(null);
+        showToastMessage("🔑 ¡Contraseña establecida con éxito! Tu cuenta ahora está protegida.");
+        loadViewData(logged.user);
+        
+        setLoginEmail('');
+        setLoginCompanyCode('');
+        setLoginPassword('');
+        setMigratePassword('');
+        setMigratePasswordConfirm('');
+      } else {
+        showToastMessage("Error al iniciar sesión tras establecer contraseña.", "error");
+      }
+    } catch (err) {
+      console.error("Error crítico al migrar contraseña:", err);
+      showToastMessage(`Error al guardar contraseña: ${err.message || err}`, "error");
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
 
 
-  const autoFillAdmin = () => {
-    setLoginEmail('admin@acme.com');
-    setLoginCompanyCode('ACME2026');
-    showToastMessage(`Credenciales de administrador cargadas. ¡Presiona "Iniciar Sesión"!`);
-  };
-
   const handleRegister = async (e) => {
     e.preventDefault();
-    if (!regName.trim() || !regLastname.trim() || !regEmail.trim() || !regCompanyCode.trim()) {
+    if (!regName.trim() || !regLastname.trim() || !regEmail.trim() || !regCompanyCode.trim() || !regPassword.trim()) {
       showToastMessage("Por favor rellena todos los campos requeridos.", "error");
+      return;
+    }
+
+    if (regPassword.length < 6) {
+      showToastMessage("La contraseña debe tener al menos 6 caracteres.", "error");
+      return;
+    }
+
+    if (regPassword !== regPasswordConfirm) {
+      showToastMessage("Las contraseñas no coinciden.", "error");
+      return;
+    }
+
+    if (!acceptedTerms) {
+      showToastMessage("Debes aceptar los Términos y Condiciones para continuar.", "error");
       return;
     }
 
@@ -265,22 +427,30 @@ function App() {
       regLastname,
       regEmail,
       regCompanyCode,
-      regDept
+      regDept,
+      regPassword
     );
 
-    setCurrentUser(registered);
-    setLandingView(false);
-    setActiveTab('dashboard');
-    setShowRegisterForm(false);
-    
-    // Clear registration inputs
-    setRegName('');
-    setRegLastname('');
-    setRegEmail('');
-    setRegCompanyCode('');
-    
-    showToastMessage("🎉 ¡Perfil de bienestar creado con éxito! Te regalamos 100 puntos de bienvenida.");
-    loadViewData(registered);
+    if (registered) {
+      setCurrentUser(registered);
+      setLandingView(false);
+      setActiveTab('dashboard');
+      setShowRegisterForm(false);
+      
+      // Clear registration inputs
+      setRegName('');
+      setRegLastname('');
+      setRegEmail('');
+      setRegCompanyCode('');
+      setRegPassword('');
+      setRegPasswordConfirm('');
+      setAcceptedTerms(false);
+      
+      showToastMessage("🎉 ¡Perfil de bienestar creado con éxito! Te regalamos 100 puntos de bienvenida.");
+      loadViewData(registered);
+    } else {
+      showToastMessage("Ocurrió un error al registrar el usuario.", "error");
+    }
   };
 
   const handleApproveUser = async (userId, userName) => {
@@ -330,40 +500,18 @@ function App() {
   const handleConnectGoogleFit = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       showToastMessage('✅ Token obtenido de Google. Consultando pasos...');
-      if (showLogModal) {
-        setIsSyncingHealth(true);
-        setSyncProgress(1);
-      } else {
-        setGFitSyncing(true);
-      }
+      setGFitSyncing(true);
       try {
         const token = tokenResponse.access_token;
         const fitData = await dbService.fetchWeeklyStepsFromGoogleFit(token);
         dbService.saveGoogleFitToken(token, 3600);
         setGFitConnected(true);
-
-        if (showLogModal) {
-          setSyncProgress(2);
-          setTimeout(() => {
-            setIsSyncingHealth(false);
-            let amountToLog = fitData.totalSteps;
-            if (selectedChallenge.unit === 'km') {
-              amountToLog = parseFloat((fitData.totalSteps / 1312).toFixed(2));
-            }
-            setLogAmount(amountToLog.toString());
-            setScreenshot(null);
-            setScreenshotPreview(GOOGLE_FIT_CERTIFIED_SVG);
-            showToastMessage(`📲 ¡Sincronizado! Se han importado ${amountToLog.toLocaleString()} ${selectedChallenge.unit} reales desde Google Fit.`);
-          }, 800);
-        } else {
-          await performGFitSync(currentUser, fitData);
-        }
+        await performGFitSync(currentUser, fitData);
       } catch(err) {
         console.error("Error connecting Google Fit:", err);
         showToastMessage('⚠️ No se pudieron leer los pasos de Google Fit.', 'error');
       } finally {
         setGFitSyncing(false);
-        setIsSyncingHealth(false);
       }
     },
     onError: error => {
@@ -404,8 +552,7 @@ function App() {
 
   // Lógica central: tomar los pasos y actualizar todo
   const performGFitSync = async (user, fitData) => {
-    const challengeId = gFitSelectedChallenge || null;
-    const result = await dbService.syncGoogleFitSteps(user.id, challengeId, fitData);
+    const result = await dbService.syncGoogleFitSteps(user.id, fitData, gFitSyncDays);
     const totalSteps = fitData.totalSteps || 0;
     dbService.saveLastSync(user.id, totalSteps);
 
@@ -417,73 +564,16 @@ function App() {
     await loadViewData(user);
 
     const kmText = result.kmEquivalent ? ` (≈ ${result.kmEquivalent} km)` : '';
-    if (result.completed) {
-      showToastMessage(`🏆 ¡Sincronizado y reto completado! +${result.pointsAwarded} puntos ganados desde Google Fit.`);
-    } else {
-      showToastMessage(`🌱 ¡Sincronizado! ${totalSteps.toLocaleString()} pasos${kmText} importados desde Google Fit.`);
-    }
-  };
-
-  // --- ACTIONS: EMPLEADO (HEALTH APP INTEGRATION) ---
-
-  // Sincronización oficial con Google Fit desde el modal
-  const handleCallHealthApp = async () => {
-    if (selectedChallenge.unit === 'pasos' || selectedChallenge.unit === 'km') {
-      if (gFitConnected) {
-        // Sincronizar usando el token real guardado
-        const token = dbService.getGoogleFitToken();
-        if (!token) {
-          setGFitConnected(false);
-          showToastMessage('La sesión de Google Fit expiró. Vuelve a conectar.', 'error');
-          return;
-        }
-        setIsSyncingHealth(true);
-        setSyncProgress(0);
-        try {
-          setSyncProgress(1);
-          const fitData = await dbService.fetchWeeklyStepsFromGoogleFit(token);
-          setSyncProgress(2);
-          setTimeout(() => {
-            setIsSyncingHealth(false);
-            let amountToLog = fitData.totalSteps;
-            if (selectedChallenge.unit === 'km') {
-              amountToLog = parseFloat((fitData.totalSteps / 1312).toFixed(2));
-            }
-            setLogAmount(amountToLog.toString());
-            setScreenshot(null);
-            setScreenshotPreview(GOOGLE_FIT_CERTIFIED_SVG);
-            showToastMessage(`📲 ¡Sincronizado! Se han importado ${amountToLog.toLocaleString()} ${selectedChallenge.unit} reales desde tu Google Fit.`);
-          }, 800);
-        } catch(err) {
-          console.error(err);
-          showToastMessage('⚠️ No se pudieron leer los pasos de Google Fit.', 'error');
-          setIsSyncingHealth(false);
-        }
+    
+    if (result.syncedChallenges && result.syncedChallenges.length > 0) {
+      const challengeTitles = result.syncedChallenges.map(sc => `"${sc.title}"`).join(', ');
+      if (result.completed) {
+        showToastMessage(`🏆 ¡Google Fit sincronizado! Retos completados (+${result.pointsAwarded} pts). Se actualizaron: ${challengeTitles}.`);
       } else {
-        // Si no está conectado, disparar la conexión oficial
-        handleConnectGoogleFit();
+        showToastMessage(`📲 ¡Sincronizado! Se actualizó tu progreso en: ${challengeTitles}${kmText}.`);
       }
     } else {
-      // Para retos que no son de movilidad (ej: alimentación), mantener simulación básica como alternativa
-      setIsSyncingHealth(true);
-      setSyncProgress(0);
-      const stepsInterval = setInterval(() => {
-        setSyncProgress(prev => {
-          if (prev >= 2) {
-            clearInterval(stepsInterval);
-            setTimeout(() => {
-              setIsSyncingHealth(false);
-              const generatedAmount = 1;
-              setLogAmount(generatedAmount.toString());
-              setScreenshot(null);
-              setScreenshotPreview(APPLE_HEALTH_CERTIFIED_SVG);
-              showToastMessage(`📲 ¡Sincronizado! Se han importado ${generatedAmount} ${selectedChallenge.unit} de Apple Health.`);
-            }, 800);
-            return 3;
-          }
-          return prev + 1;
-        });
-      }, 1200);
+      showToastMessage(`🌱 ¡Sincronizado! ${totalSteps.toLocaleString()} pasos${kmText} importados en tu historial.`);
     }
   };
 
@@ -503,8 +593,6 @@ function App() {
     setLogAmount('');
     setScreenshot(null);
     setScreenshotPreview('');
-    setIsSyncingHealth(false);
-    setSyncProgress(0);
     setShowLogModal(true);
   };
 
@@ -515,28 +603,40 @@ function App() {
       return;
     }
 
-    const res = await dbService.logChallengeProgress(
-      currentUser.id,
-      selectedChallenge.id,
-      parseFloat(logAmount),
-      screenshot,
-      screenshotPreview
-    );
+    setIsSubmitting(true);
+    try {
+      const res = await dbService.logChallengeProgress(
+        currentUser.id,
+        selectedChallenge.id,
+        parseFloat(logAmount),
+        screenshot,
+        screenshotPreview
+      );
 
-    if (res.error) {
-      showToastMessage(res.error, "error");
-      return;
-    }
+      if (res.error) {
+        showToastMessage(res.error, "error");
+        setIsSubmitting(false);
+        return;
+      }
 
-    setShowLogModal(false);
-    await loadViewData(currentUser);
+      setShowLogModal(false);
+      setLogAmount('');
+      setScreenshot(null);
+      setScreenshotPreview('');
+      await loadViewData(currentUser);
 
-    if (res.pendingApproval) {
-      showToastMessage(res.message, "success");
-    } else if (res.completed) {
-      showToastMessage(`🎉 ¡Felicidades! Has completado el reto y ganado +${res.pointsAwarded} puntos.`);
-    } else {
-      showToastMessage(`💪 Progreso registrado correctamente para el reto.`);
+      if (res.pendingApproval) {
+        showToastMessage(res.message, "success");
+      } else if (res.completed) {
+        showToastMessage(`🎉 ¡Felicidades! Has completado el reto y ganado +${res.pointsAwarded} puntos.`);
+      } else {
+        showToastMessage(`💪 Progreso registrado correctamente para el reto.`);
+      }
+    } catch (err) {
+      console.error(err);
+      showToastMessage("Error al enviar el progreso.", "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -920,8 +1020,30 @@ function App() {
                   />
                 </div>
 
-                <button type="submit" className="btn btn-primary" style={{ marginTop: '1.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <ShieldCheck size={18} /> Iniciar Sesión
+                <div className="form-group">
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Lock size={14} /> Contraseña
+                  </label>
+                  <input 
+                    type="password" 
+                    placeholder="Ingresa tu contraseña" 
+                    className="form-input"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    required 
+                  />
+                  <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem', lineHeight: '1.3' }}>
+                    💡 <em>Si usabas una cuenta anterior sin contraseña, escribe cualquier palabra o tu clave deseada aquí arriba para iniciar el asistente de creación de tu contraseña.</em>
+                  </span>
+                </div>
+
+                <button 
+                  type="submit" 
+                  className="btn btn-primary" 
+                  disabled={isLoggingIn}
+                  style={{ marginTop: '1.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center', opacity: isLoggingIn ? 0.7 : 1, cursor: isLoggingIn ? 'not-allowed' : 'pointer' }}
+                >
+                  <ShieldCheck size={18} /> {isLoggingIn ? "Iniciando Sesión..." : "Iniciar Sesión"}
                 </button>
 
                 <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
@@ -936,45 +1058,6 @@ function App() {
                   </button>
                 </div>
 
-                {/* Demo Helpers for simple evaluation and testing */}
-                <div 
-                  style={{ 
-                    marginTop: '2rem', 
-                    paddingTop: '1.25rem', 
-                    borderTop: '1px dashed var(--border-color)', 
-                    textAlign: 'center' 
-                  }}
-                >
-                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.75rem', fontWeight: 600 }}>
-                    💡 Acceso de Prueba / Demostración:
-                  </span>
-                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                    <button 
-                      type="button" 
-                      className="btn btn-secondary" 
-                      style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', width: 'auto', borderRadius: '8px' }}
-                      onClick={() => {
-                        setLoginEmail('colab1@mtc.com');
-                        setLoginCompanyCode('MTC');
-                        showToastMessage("Credenciales de colaborador cargadas. ¡Presiona Iniciar Sesión!");
-                      }}
-                    >
-                      Demo Colaborador
-                    </button>
-                    <button 
-                      type="button" 
-                      className="btn btn-secondary" 
-                      style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', width: 'auto', borderRadius: '8px', color: 'var(--lavender-dark)', borderColor: 'rgba(147,112,219,0.3)' }}
-                      onClick={() => {
-                        setLoginEmail('admin@acme.com');
-                        setLoginCompanyCode('ACME2026');
-                        showToastMessage("Credenciales de administrador (RRHH) cargadas. ¡Presiona Iniciar Sesión!");
-                      }}
-                    >
-                      Demo Empresa (RRHH)
-                    </button>
-                  </div>
-                </div>
               </form>
             ) : (
               // FORMULARIO DE REGISTRO COMPLETO
@@ -1049,6 +1132,61 @@ function App() {
                   </div>
                 </div>
 
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Contraseña</label>
+                    <input 
+                      type="password" 
+                      placeholder="Mínimo 6 caracteres" 
+                      className="form-input"
+                      value={regPassword}
+                      onChange={(e) => setRegPassword(e.target.value)}
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Confirmar Contraseña</label>
+                    <input 
+                      type="password" 
+                      placeholder="Repite la contraseña" 
+                      className="form-input"
+                      value={regPasswordConfirm}
+                      onChange={(e) => setRegPasswordConfirm(e.target.value)}
+                      required 
+                    />
+                  </div>
+                </div>
+
+                <div 
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'flex-start', 
+                    gap: '0.5rem', 
+                    marginTop: '1.25rem',
+                    backgroundColor: 'rgba(28,188,140,0.04)',
+                    padding: '0.85rem',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(28,188,140,0.1)'
+                  }}
+                >
+                  <input 
+                    type="checkbox" 
+                    id="terms-checkbox"
+                    checked={acceptedTerms}
+                    onChange={(e) => setAcceptedTerms(e.target.checked)}
+                    style={{ marginTop: '0.2rem', cursor: 'pointer' }}
+                    required
+                  />
+                  <label htmlFor="terms-checkbox" style={{ fontSize: '0.78rem', color: 'var(--text-main)', lineHeight: 1.4, cursor: 'pointer' }}>
+                    Acepto los <span 
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowTermsModal(true); }}
+                      style={{ color: 'var(--mint-accent)', fontWeight: 700, textDecoration: 'underline' }}
+                    >
+                      Términos y Condiciones de Uso
+                    </span> y la Política de Privacidad de Reto Activo 2.0.
+                  </label>
+                </div>
+
                 <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
                   <button type="button" className="btn btn-secondary" onClick={() => setShowRegisterForm(false)}>
                     Atrás
@@ -1060,6 +1198,103 @@ function App() {
               </form>
             )}
           </div>
+          
+          {/* Panel de Diagnóstico Técnico Visible para el Usuario */}
+          <div style={{
+            marginTop: '2rem',
+            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+            color: '#38BDF8',
+            borderRadius: '16px',
+            padding: '1.25rem',
+            fontSize: '0.78rem',
+            fontFamily: 'monospace',
+            maxHeight: '180px',
+            overflowY: 'auto',
+            boxShadow: 'var(--shadow-md)',
+            border: '1px solid #334155',
+            textAlign: 'left',
+            width: '100%',
+            maxWidth: '520px'
+          }}>
+            <div style={{ color: '#F1F5F9', fontWeight: 'bold', marginBottom: '0.5rem', borderBottom: '1px solid #334155', paddingBottom: '0.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>🖥️ Consola de Diagnóstico (Local)</span>
+              <span style={{ color: '#64748B', fontSize: '0.7rem' }}>{debugLogs.length} logs</span>
+            </div>
+            {debugLogs.length === 0 ? (
+              <div style={{ color: '#475569' }}>Esperando interacciones...</div>
+            ) : (
+              debugLogs.map((log, i) => (
+                <div key={i} style={{ marginBottom: '0.3rem', borderBottom: '1px dashed rgba(51, 65, 85, 0.3)', paddingBottom: '0.2rem', color: log.type === 'error' || log.type === 'exception' ? '#F43F5E' : log.type === 'log' ? '#E2E8F0' : '#38BDF8' }}>
+                  <span style={{ color: '#475569', marginRight: '0.5rem' }}>[{log.timestamp}]</span>
+                  <span style={{ fontWeight: log.type === 'error' || log.type === 'exception' ? 'bold' : 'normal' }}>
+                    {log.type === 'error' ? '❌ ERROR: ' : log.type === 'exception' ? '💥 CRASH: ' : 'ℹ️ '}
+                    {log.msg}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* MODAL: MIGRAR / CREAR CONTRASEÑA PARA CUENTAS ANTERIORES (P2) */}
+          {showMigratePasswordModal && migrateUserRef && (
+            <div className="modal-overlay">
+              <div className="modal-content" style={{ maxWidth: '450px' }}>
+                <div className="modal-header">
+                  <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '0.5rem' }}>🔐</span>
+                  <h3 className="modal-title">Crea tu Contraseña</h3>
+                  <p className="modal-subtitle">Hola <strong>{migrateUserRef.name}</strong>, para mayor seguridad ahora debes proteger tu cuenta con una contraseña.</p>
+                </div>
+
+                <form onSubmit={handleMigratePasswordSubmit}>
+                  <div className="form-group">
+                    <label className="form-label">Nueva Contraseña</label>
+                    <input 
+                      type="password" 
+                      placeholder="Mínimo 6 caracteres" 
+                      className="form-input"
+                      value={migratePassword}
+                      onChange={(e) => setMigratePassword(e.target.value)}
+                      required 
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Confirmar Contraseña</label>
+                    <input 
+                      type="password" 
+                      placeholder="Repite tu contraseña" 
+                      className="form-input"
+                      value={migratePasswordConfirm}
+                      onChange={(e) => setMigratePasswordConfirm(e.target.value)}
+                      required 
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
+                      onClick={() => {
+                        setShowMigratePasswordModal(false);
+                        setMigrateUserRef(null);
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                    <button 
+                      type="submit" 
+                      className="btn btn-primary"
+                      disabled={isLoggingIn}
+                      style={{ opacity: isLoggingIn ? 0.7 : 1, cursor: isLoggingIn ? 'not-allowed' : 'pointer' }}
+                    >
+                      {isLoggingIn ? "Guardando..." : "Guardar y Acceder"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
     );
@@ -1468,6 +1703,68 @@ function App() {
                       );
                     })}
                   </div>
+
+                  {/* Detalle Diario (P10) */}
+                  <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
+                    <h4 style={{ fontFamily: 'Outfit', fontSize: '1.05rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--text-main)' }}>
+                      📊 Desglose Diario de Movilidad
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                      {(currentUser.daily_steps_history || [0, 0, 0, 0, 0, 0, 0]).map((steps, index) => {
+                        const date = new Date();
+                        date.setDate(date.getDate() - (6 - index));
+                        const dateStr = date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+                        const isToday = index === 6;
+                        const km = (steps / 1312).toFixed(1);
+                        const goalMet = steps >= 10000;
+
+                        return (
+                          <div 
+                            key={index}
+                            style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'space-between',
+                              padding: '0.75rem 1rem', 
+                              backgroundColor: isToday ? 'rgba(28,188,140,0.04)' : '#f8fafc',
+                              border: '1px solid ' + (isToday ? 'rgba(28,188,140,0.15)' : 'var(--border-color)'),
+                              borderRadius: '12px',
+                              fontSize: '0.85rem'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <span style={{ fontWeight: isToday ? 800 : 600, color: isToday ? 'var(--mint-dark)' : 'var(--text-main)' }}>
+                                {weekDays[index]} {isToday && '(Hoy)'}
+                              </span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                                ({dateStr})
+                              </span>
+                            </div>
+                            
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                              <div style={{ textAlign: 'right' }}>
+                                <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{steps.toLocaleString()}</span>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}> pasos</span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginLeft: '0.5rem' }}>({km} km)</span>
+                              </div>
+                              
+                              <span style={{
+                                backgroundColor: goalMet ? 'rgba(28,188,140,0.1)' : 'rgba(0,0,0,0.03)',
+                                color: goalMet ? 'var(--mint-dark)' : 'var(--text-muted)',
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                padding: '0.2rem 0.5rem',
+                                borderRadius: '6px',
+                                textTransform: 'uppercase'
+                              }}>
+                                {goalMet ? '🎯 Cumplida' : '🚶 Activo'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </section>
 
                 {/* ===== PANEL GOOGLE FIT ===== */}
@@ -1548,37 +1845,42 @@ function App() {
                       )}
                     </div>
 
-                    {/* Selector de reto (cuando está conectado) */}
+                    {/* Selector de Rango de Días (P7) */}
                     {gFitConnected && (
-                      <div style={{ minWidth: '200px' }}>
-                        <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>
-                          Aplicar pasos a reto:
+                      <div style={{ minWidth: '220px' }}>
+                        <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>
+                          📅 Rango de Sincronización:
                         </label>
-                        <select
-                          value={gFitSelectedChallenge || ''}
-                          onChange={e => setGFitSelectedChallenge(e.target.value || null)}
-                          style={{
-                            border: '1px solid var(--border-color)',
-                            borderRadius: '10px',
-                            padding: '0.5rem 0.75rem',
-                            fontSize: '0.85rem',
-                            backgroundColor: 'white',
-                            color: 'var(--text-main)',
-                            width: '100%',
-                            outline: 'none',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <option value="">Solo actualizar pasos del día</option>
-                          {userChallenges.filter(uc => uc.status === 'active').map(uc => {
-                            const ch = challenges.find(c => c.id === uc.challenge_id);
-                            return ch ? (
-                              <option key={uc.challenge_id} value={uc.challenge_id}>
-                                {ch.image} {ch.title}
-                              </option>
-                            ) : null;
-                          })}
-                        </select>
+                        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                          {[
+                            { label: 'Hoy', value: 1 },
+                            { label: '2d', value: 2 },
+                            { label: '3d', value: 3 },
+                            { label: '4d', value: 4 },
+                            { label: '5d', value: 5 },
+                            { label: 'Semana', value: 7 }
+                          ].map(pill => (
+                            <button
+                              key={pill.value}
+                              type="button"
+                              onClick={() => setGFitSyncDays(pill.value)}
+                              style={{
+                                border: '1px solid ' + (gFitSyncDays === pill.value ? 'var(--mint-accent)' : 'var(--border-color)'),
+                                backgroundColor: gFitSyncDays === pill.value ? 'var(--mint-bg)' : 'white',
+                                color: gFitSyncDays === pill.value ? 'var(--mint-dark)' : 'var(--text-main)',
+                                padding: '0.35rem 0.6rem',
+                                borderRadius: '8px',
+                                fontSize: '0.75rem',
+                                fontWeight: gFitSyncDays === pill.value ? 700 : 500,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                                outline: 'none'
+                              }}
+                            >
+                              {pill.label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
 
@@ -1656,13 +1958,24 @@ function App() {
                           const progressPercent = Math.min((uc.progress / challenge.target) * 100, 100);
                           const theme = getCategoryTheme(challenge.category);
                           
+                          const rankings = challengeRankings[challenge.id] || [];
+                          const myIndex = rankings.findIndex(r => r.user_id === currentUser.id);
+                          const myRank = myIndex !== -1 ? myIndex + 1 : null;
+                          
                           return (
                             <div className="challenge-card" key={uc.challenge_id}>
                               <div className="challenge-image-container">
                                 <span style={{ fontSize: '3rem' }}>{challenge.image}</span>
-                                <span className="challenge-badge" style={{ backgroundColor: theme.bg, color: theme.text }}>
-                                  En Curso
-                                </span>
+                                <div style={{ display: 'flex', gap: '0.35rem', position: 'absolute', top: '0.75rem', left: '0.75rem', zIndex: 2 }}>
+                                  <span className="challenge-badge" style={{ backgroundColor: theme.bg, color: theme.text }}>
+                                    En Curso
+                                  </span>
+                                  {myRank && (
+                                    <span className="challenge-badge" style={{ backgroundColor: '#FFF9E6', color: '#B38F00', border: '1px solid rgba(255,215,0,0.25)', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                                      🏆 #{myRank}
+                                    </span>
+                                  )}
+                                </div>
                                 <span className="challenge-points-badge">
                                   🪙 +{challenge.points} pts
                                 </span>
@@ -2684,53 +2997,6 @@ function App() {
               <p className="modal-subtitle">Reto: <strong>{selectedChallenge.title}</strong></p>
             </div>
 
-            {/* INTEGRACIÓN CON APLICACIONES DE SALUD */}
-            <div 
-              style={{ 
-                backgroundColor: 'var(--sky-bg)', 
-                border: '1px solid rgba(91,166,224,0.15)', 
-                padding: '1.25rem', 
-                borderRadius: 'var(--radius-lg)', 
-                marginBottom: '1.5rem',
-                textAlign: 'center'
-              }}
-            >
-              <Smartphone size={28} style={{ color: 'var(--sky-accent)', marginBottom: '0.5rem' }} />
-              <h4 style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--sky-dark)', marginBottom: '0.25rem' }}>
-                🔗 Sincronización Automática con Salud
-              </h4>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '1rem', lineHeight: 1.35 }}>
-                Conéctate directamente con tu app de salud (Apple Health, Google Fit o Strava) para extraer tu actividad hoy y generar tu evidencia certificada.
-              </p>
-              
-              {!isSyncingHealth ? (
-                <button 
-                  type="button" 
-                  className="btn btn-secondary" 
-                  style={{ 
-                    backgroundColor: 'white', 
-                    color: 'var(--sky-dark)', 
-                    width: 'auto', 
-                    margin: '0 auto', 
-                    fontSize: '0.85rem',
-                    border: '1px solid rgba(91,166,224,0.2)' 
-                  }}
-                  onClick={handleCallHealthApp}
-                >
-                  <RefreshCw size={14} /> Sincronizar App de Salud
-                </button>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-                  <RefreshCw size={18} className="spin-animation" style={{ color: 'var(--sky-accent)' }} />
-                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--sky-dark)' }}>
-                    {syncProgress === 0 && "Iniciando enlace con Apple Health/Google Fit..."}
-                    {syncProgress === 1 && "Extrayendo métricas de actividad..."}
-                    {syncProgress === 2 && "Generando previsualización de evidencia..."}
-                  </span>
-                </div>
-              )}
-            </div>
-
             <form onSubmit={handleSubmitProgress}>
               <div className="form-group">
                 <label className="form-label">Cantidad a Registrar ({selectedChallenge.unit})</label>
@@ -2747,24 +3013,19 @@ function App() {
 
               {/* Uploader / Visualizador de Evidencia */}
               <div className="form-group">
-                <label className="form-label">Evidencia de Actividad (Captura de pantalla o Enlace de Salud)</label>
+                <label className="form-label">Evidencia de Actividad (Captura de pantalla)</label>
                 
                 {!screenshotPreview ? (
-                  <div className="file-upload-zone" style={{ position: 'relative' }}>
+                  <div 
+                    className="file-upload-zone" 
+                    onClick={() => document.getElementById('evidence-file-input')?.click()}
+                    style={{ position: 'relative', padding: '1.5rem 1rem' }}
+                  >
                     <input 
                       id="evidence-file-input"
                       type="file" 
                       accept="image/*" 
-                      style={{ 
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        opacity: 0,
-                        cursor: 'pointer',
-                        zIndex: 2
-                      }}
+                      style={{ display: 'none' }}
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
@@ -2775,7 +3036,7 @@ function App() {
                         }
                       }}
                     />
-                    <div style={{ pointerEvents: 'none', position: 'relative', zIndex: 1, textAlign: 'center' }}>
+                    <div style={{ textAlign: 'center' }}>
                       <Upload size={24} style={{ margin: '0 auto 0.5rem', color: 'var(--mint-accent)' }} />
                       <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>
                         Selecciona o toma una foto desde tu celular
@@ -2857,8 +3118,8 @@ function App() {
                 <button type="button" className="btn btn-secondary" onClick={() => setShowLogModal(false)}>
                   Cancelar
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  Enviar Actividad para Aprobación
+                <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+                  {isSubmitting ? 'Enviando...' : 'Enviar Actividad para Aprobación'}
                 </button>
               </div>
             </form>
@@ -2895,6 +3156,61 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* MODAL: TÉRMINOS Y CONDICIONES (P3) */}
+      {showTermsModal && (
+        <div className="modal-overlay" onClick={() => setShowTermsModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+            <button className="modal-close" onClick={() => setShowTermsModal(false)}>
+              <X size={20} />
+            </button>
+            <div className="modal-header">
+              <span style={{ fontSize: '2rem', display: 'block', marginBottom: '0.5rem' }}>📄</span>
+              <h3 className="modal-title">Términos y Condiciones de Uso</h3>
+              <p className="modal-subtitle">Reto Activo 2.0 - Plataforma de Bienestar Corporativo</p>
+            </div>
+            <div 
+              style={{ 
+                maxHeight: '300px', 
+                overflowY: 'auto', 
+                fontSize: '0.85rem', 
+                color: 'var(--text-muted)', 
+                lineHeight: 1.5,
+                paddingRight: '0.5rem',
+                border: '1px solid var(--border-color)',
+                borderRadius: '8px',
+                padding: '1rem',
+                backgroundColor: '#f8fafc',
+                textAlign: 'left'
+              }}
+            >
+              <h4 style={{ color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>1. Objeto y Alcance</h4>
+              <p style={{ margin: '0 0 1rem 0' }}>
+                Reto Activo 2.0 es una plataforma corporativa diseñada para promover hábitos saludables, la actividad física y el bienestar general entre los colaboradores. El uso de la plataforma está supeditado a las condiciones aquí indicadas.
+              </p>
+              <h4 style={{ color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>2. Integración y Privacidad de Datos</h4>
+              <p style={{ margin: '0 0 1rem 0' }}>
+                Al sincronizar sus aplicaciones de salud (como Google Fit o Apple Health), usted autoriza la lectura exclusiva de métricas de movilidad diaria (pasos, distancia). Estos datos serán procesados únicamente con fines internos de participación en los retos de la empresa. Bajo ninguna circunstancia se venderán o compartirán datos sensibles de salud con terceros.
+              </p>
+              <h4 style={{ color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>3. Veracidad de la Información</h4>
+              <p style={{ margin: '0 0 1rem 0' }}>
+                El usuario se compromete a no adulterar la carga de evidencias manuales ni simular fraudulentamente actividades físicas. El comportamiento deshonesto o la carga repetida de información duplicada podrá ser causal de suspensión de la cuenta.
+              </p>
+              <h4 style={{ color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>4. Cambios en las Condiciones</h4>
+              <p style={{ margin: '0' }}>
+                Nos reservamos el derecho de modificar estos términos en cualquier momento para adaptarnos a nuevas exigencias legales o mejoras en el servicio de bienestar.
+              </p>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+              <button className="btn btn-primary" style={{ width: 'auto', padding: '0.5rem 1.5rem' }} onClick={() => setShowTermsModal(false)}>
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
 
       {/* TOAST */}
       {toast && (
