@@ -706,22 +706,13 @@ function App() {
                   </button>
                 </>
               ) : (
-                <>
-                  <button 
-                    className="btn btn-secondary" 
-                    style={{ width: 'auto', padding: '0.6rem 1.25rem', fontSize: '0.88rem' }}
-                    onClick={() => { setLandingView(false); setShowRegisterForm(false); }}
-                  >
-                    Acceso Empleados
-                  </button>
-                  <button 
-                    className="btn btn-lavender" 
-                    style={{ width: 'auto', padding: '0.6rem 1.25rem', fontSize: '0.88rem' }}
-                    onClick={() => { setLandingView(false); autoFillAdmin(); }}
-                  >
-                    Portal Empresa
-                  </button>
-                </>
+                <button 
+                  className="btn btn-primary" 
+                  style={{ width: 'auto', padding: '0.6rem 1.5rem', fontSize: '0.88rem', borderRadius: '12px' }}
+                  onClick={() => { setLandingView(false); setShowRegisterForm(false); }}
+                >
+                  Acceder a mi Portal 🔑
+                </button>
               )}
             </div>
           </header>
@@ -773,19 +764,12 @@ function App() {
               ) : (
                 <button 
                   className="btn btn-primary" 
-                  style={{ width: 'auto', padding: '0.9rem 2rem', fontSize: '1rem', borderRadius: '14px' }}
+                  style={{ width: 'auto', padding: '0.9rem 2.5rem', fontSize: '1rem', borderRadius: '14px' }}
                   onClick={() => { setLandingView(false); setShowRegisterForm(false); }}
                 >
                   Comenzar mis Retos 🚀
                 </button>
               )}
-              <a 
-                href="#accesos"
-                className="btn btn-secondary" 
-                style={{ width: 'auto', padding: '0.9rem 2rem', fontSize: '1rem', borderRadius: '14px', textDecoration: 'none' }}
-              >
-                Ver Portales de Acceso
-              </a>
             </div>
           </section>
 
@@ -824,107 +808,8 @@ function App() {
             </div>
           </section>
 
-          {/* Seccion de accesos dividida */}
-          <section id="accesos" style={{ maxWidth: '1000px', margin: '0 auto', borderTop: '1px solid var(--border-color)', paddingTop: '5rem' }}>
-            <h2 style={{ fontFamily: 'Outfit', fontSize: '1.8rem', textAlign: 'center', marginBottom: '3rem' }}>
-              🔑 Acceso a los Portales
-            </h2>
-
-            <div 
-              style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
-                gap: '2.5rem' 
-              }}
-            >
-              {/* Acceso Empleados */}
-              <div 
-                style={{ 
-                  backgroundColor: 'white', 
-                  border: '1px solid var(--border-color)', 
-                  borderRadius: '24px', 
-                  padding: '2.5rem', 
-                  boxShadow: 'var(--shadow-sm)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '1rem'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <span style={{ fontSize: '2.2rem' }}>🚶‍♂️</span>
-                  <div>
-                    <h3 style={{ fontFamily: 'Outfit', fontSize: '1.25rem' }}>Portal del Colaborador</h3>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--mint-dark)', fontWeight: 700 }}>EMPLEADOS</span>
-                  </div>
-                </div>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.45, flexGrow: 1 }}>
-                  Anotate a retos corporativos activos, sincroniza tus pasos diarios de forma automática, sube capturas de evidencias y canjea tus puntos acumulados por increíbles premios.
-                </p>
-                
-                {currentUser && currentUser.role === 'employee' ? (
-                  <button 
-                    className="btn btn-primary" 
-                    onClick={() => setLandingView(false)}
-                  >
-                    Ir a mi Panel de Retos 🚀
-                  </button>
-                ) : (
-                  <button 
-                    className="btn btn-primary" 
-                    onClick={() => { setLandingView(false); setShowRegisterForm(false); }}
-                    disabled={currentUser && currentUser.role !== 'employee'}
-                  >
-                    Ingresar a mis Retos
-                  </button>
-                )}
-              </div>
-
-              {/* Acceso Empresas */}
-              <div 
-                style={{ 
-                  backgroundColor: 'white', 
-                  border: '1px solid var(--border-color)', 
-                  borderRadius: '24px', 
-                  padding: '2.5rem', 
-                  boxShadow: 'var(--shadow-sm)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '1rem'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <span style={{ fontSize: '2.2rem' }}>🏢</span>
-                  <div>
-                    <h3 style={{ fontFamily: 'Outfit', fontSize: '1.25rem' }}>Portal de la Empresa</h3>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--lavender-dark)', fontWeight: 700 }}>ADMINISTRACIÓN RRHH</span>
-                  </div>
-                </div>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.45, flexGrow: 1 }}>
-                  Lanza retos y campañas activas corporativas en tiempo real, gestiona el stock de la tienda, audita y aprueba las evidencias cargadas y analiza las métricas de bienestar generales.
-                </p>
-                
-                {currentUser && currentUser.role === 'company' ? (
-                  <button 
-                    className="btn btn-lavender" 
-                    onClick={() => setLandingView(false)}
-                  >
-                    Ir a mi Panel de RRHH 🚀
-                  </button>
-                ) : (
-                  <button 
-                    className="btn btn-lavender" 
-                    onClick={() => { setLandingView(false); autoFillAdmin(); }}
-                    disabled={currentUser && currentUser.role !== 'company'}
-                  >
-                    Ingresar al Panel Corporativo
-                  </button>
-                )}
-              </div>
-            </div>
-          </section>
-
           {/* Footer */}
-          <footer style={{ marginTop: '6rem', borderTop: '1px solid var(--border-color)', paddingTop: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+          <footer style={{ marginTop: '4rem', borderTop: '1px solid var(--border-color)', paddingTop: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
             Reto Activo 2.0 - © 2026. Todos los derechos reservados. Diseñado para potenciar el bienestar y salud laboral de tus equipos.
           </footer>
         </div>
@@ -1049,6 +934,46 @@ function App() {
                   >
                     Registrarme
                   </button>
+                </div>
+
+                {/* Demo Helpers for simple evaluation and testing */}
+                <div 
+                  style={{ 
+                    marginTop: '2rem', 
+                    paddingTop: '1.25rem', 
+                    borderTop: '1px dashed var(--border-color)', 
+                    textAlign: 'center' 
+                  }}
+                >
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.75rem', fontWeight: 600 }}>
+                    💡 Acceso de Prueba / Demostración:
+                  </span>
+                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
+                      style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', width: 'auto', borderRadius: '8px' }}
+                      onClick={() => {
+                        setLoginEmail('colab1@mtc.com');
+                        setLoginCompanyCode('MTC');
+                        showToastMessage("Credenciales de colaborador cargadas. ¡Presiona Iniciar Sesión!");
+                      }}
+                    >
+                      Demo Colaborador
+                    </button>
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
+                      style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', width: 'auto', borderRadius: '8px', color: 'var(--lavender-dark)', borderColor: 'rgba(147,112,219,0.3)' }}
+                      onClick={() => {
+                        setLoginEmail('admin@acme.com');
+                        setLoginCompanyCode('ACME2026');
+                        showToastMessage("Credenciales de administrador (RRHH) cargadas. ¡Presiona Iniciar Sesión!");
+                      }}
+                    >
+                      Demo Empresa (RRHH)
+                    </button>
+                  </div>
                 </div>
               </form>
             ) : (
