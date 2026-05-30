@@ -325,18 +325,40 @@ function App() {
   const handleConnectGoogleFit = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       showToastMessage('✅ Token obtenido de Google. Consultando pasos...');
-      setGFitSyncing(true);
+      if (showLogModal) {
+        setIsSyncingHealth(true);
+        setSyncProgress(1);
+      } else {
+        setGFitSyncing(true);
+      }
       try {
         const token = tokenResponse.access_token;
         const fitData = await dbService.fetchWeeklyStepsFromGoogleFit(token);
         dbService.saveGoogleFitToken(token, 3600);
         setGFitConnected(true);
-        await performGFitSync(currentUser, fitData);
+
+        if (showLogModal) {
+          setSyncProgress(2);
+          setTimeout(() => {
+            setIsSyncingHealth(false);
+            let amountToLog = fitData.totalSteps;
+            if (selectedChallenge.unit === 'km') {
+              amountToLog = parseFloat((fitData.totalSteps / 1312).toFixed(2));
+            }
+            setLogAmount(amountToLog.toString());
+            setScreenshot(null);
+            setScreenshotPreview('https://images.unsplash.com/photo-1510017808632-95f08e030633?auto=format&fit=crop&q=80&w=300');
+            showToastMessage(`📲 ¡Sincronizado! Se han importado ${amountToLog.toLocaleString()} ${selectedChallenge.unit} reales desde Google Fit.`);
+          }, 800);
+        } else {
+          await performGFitSync(currentUser, fitData);
+        }
       } catch(err) {
         console.error("Error connecting Google Fit:", err);
         showToastMessage('⚠️ No se pudieron leer los pasos de Google Fit.', 'error');
       } finally {
         setGFitSyncing(false);
+        setIsSyncingHealth(false);
       }
     },
     onError: error => {
@@ -399,43 +421,66 @@ function App() {
 
   // --- ACTIONS: EMPLEADO (HEALTH APP INTEGRATION) ---
 
-  // Simulación interactiva de "Llamar a la app de salud"
-  const handleCallHealthApp = () => {
-    setIsSyncingHealth(true);
-    setSyncProgress(0);
-
-    const stepsInterval = setInterval(() => {
-      setSyncProgress(prev => {
-        if (prev >= 2) {
-          clearInterval(stepsInterval);
+  // Sincronización oficial con Google Fit desde el modal
+  const handleCallHealthApp = async () => {
+    if (selectedChallenge.unit === 'pasos' || selectedChallenge.unit === 'km') {
+      if (gFitConnected) {
+        // Sincronizar usando el token real guardado
+        const token = dbService.getGoogleFitToken();
+        if (!token) {
+          setGFitConnected(false);
+          showToastMessage('La sesión de Google Fit expiró. Vuelve a conectar.', 'error');
+          return;
+        }
+        setIsSyncingHealth(true);
+        setSyncProgress(0);
+        try {
+          setSyncProgress(1);
+          const fitData = await dbService.fetchWeeklyStepsFromGoogleFit(token);
+          setSyncProgress(2);
           setTimeout(() => {
             setIsSyncingHealth(false);
-            
-            // Generar valores realistas según el reto
-            let generatedAmount;
-            let mockUrl;
-            
-            if (selectedChallenge.unit === 'pasos') {
-              generatedAmount = Math.floor(Math.random() * 4000) + 8000; // 8k - 12k pasos
-              mockUrl = 'https://images.unsplash.com/photo-1510017808632-95f08e030633?auto=format&fit=crop&q=80&w=300';
-            } else if (selectedChallenge.unit === 'km') {
-              generatedAmount = parseFloat((Math.random() * 5 + 5).toFixed(1)); // 5k - 10 km
-              mockUrl = 'https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?auto=format&fit=crop&q=80&w=300';
-            } else {
-              generatedAmount = 1; // 1 sesión/litro
-              mockUrl = 'https://images.unsplash.com/photo-1545205597-3d9d02c29597?auto=format&fit=crop&q=80&w=300';
+            let amountToLog = fitData.totalSteps;
+            if (selectedChallenge.unit === 'km') {
+              amountToLog = parseFloat((fitData.totalSteps / 1312).toFixed(2));
             }
-
-            setLogAmount(generatedAmount.toString());
-            setScreenshot(null); // No requiere archivo físico porque proviene de la API de salud
-            setScreenshotPreview(mockUrl);
-            showToastMessage(`📲 ¡Sincronizado! Se han importado ${generatedAmount} ${selectedChallenge.unit} de Apple Health / Google Fit.`);
+            setLogAmount(amountToLog.toString());
+            setScreenshot(null);
+            setScreenshotPreview('https://images.unsplash.com/photo-1510017808632-95f08e030633?auto=format&fit=crop&q=80&w=300');
+            showToastMessage(`📲 ¡Sincronizado! Se han importado ${amountToLog.toLocaleString()} ${selectedChallenge.unit} reales desde tu Google Fit.`);
           }, 800);
-          return 3;
+        } catch(err) {
+          console.error(err);
+          showToastMessage('⚠️ No se pudieron leer los pasos de Google Fit.', 'error');
+          setIsSyncingHealth(false);
         }
-        return prev + 1;
-      });
-    }, 1200);
+      } else {
+        // Si no está conectado, disparar la conexión oficial
+        handleConnectGoogleFit();
+      }
+    } else {
+      // Para retos que no son de movilidad (ej: alimentación), mantener simulación básica como alternativa
+      setIsSyncingHealth(true);
+      setSyncProgress(0);
+      const stepsInterval = setInterval(() => {
+        setSyncProgress(prev => {
+          if (prev >= 2) {
+            clearInterval(stepsInterval);
+            setTimeout(() => {
+              setIsSyncingHealth(false);
+              const generatedAmount = 1;
+              const mockUrl = 'https://images.unsplash.com/photo-1545205597-3d9d02c29597?auto=format&fit=crop&q=80&w=300';
+              setLogAmount(generatedAmount.toString());
+              setScreenshot(null);
+              setScreenshotPreview(mockUrl);
+              showToastMessage(`📲 ¡Sincronizado! Se han importado ${generatedAmount} ${selectedChallenge.unit} de Apple Health.`);
+            }, 800);
+            return 3;
+          }
+          return prev + 1;
+        });
+      }, 1200);
+    }
   };
 
   const handleEnroll = async (challengeId) => {
