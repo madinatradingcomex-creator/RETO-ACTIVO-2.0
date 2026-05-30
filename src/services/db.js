@@ -352,7 +352,7 @@ export const dbService = {
           user_id: userId,
           user_name: userFullName,
           type: challengeObj.category,
-          activity_type: 'manual',
+          activity_type: (!screenshotFile && screenshotUrlMock && screenshotUrlMock.startsWith('data:image/svg+xml')) ? 'sync' : 'manual',
           status: 'pending',
           points_awarded: challengeObj.points,
           value: parseFloat(amount),

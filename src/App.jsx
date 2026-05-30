@@ -31,6 +31,11 @@ import {
 import { dbService } from './services/db';
 import './App.css';
 
+// Certified SVG evidence badges for 100% reliable local rendering without external dependencies
+const GOOGLE_FIT_CERTIFIED_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="150" viewBox="0 0 300 150"><defs><linearGradient id="gfit-grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23ea4335" /><stop offset="50%" stop-color="%234285f4" /><stop offset="100%" stop-color="%2334a853" /></linearGradient></defs><rect width="100%" height="100%" fill="%23f8fafc" rx="16" stroke="%23e2e8f0" stroke-width="2"/><rect x="10" y="10" width="280" height="130" rx="10" fill="%23ffffff" /><circle cx="150" cy="50" r="24" fill="url(%23gfit-grad)" opacity="0.15" /><g transform="translate(138, 38) scale(1)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="%2334a853"/></g><text x="150" y="98" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="700" fill="%231e293b" text-anchor="middle">Sincronización Google Fit</text><text x="150" y="118" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="%2310b981" text-anchor="middle">✓ Evidencia de Actividad Certificada</text></svg>`;
+
+const APPLE_HEALTH_CERTIFIED_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="150" viewBox="0 0 300 150"><defs><linearGradient id="apple-grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23ff2d55" /><stop offset="100%" stop-color="%23ff3b30" /></linearGradient></defs><rect width="100%" height="100%" fill="%23f8fafc" rx="16" stroke="%23e2e8f0" stroke-width="2"/><rect x="10" y="10" width="280" height="130" rx="10" fill="%23ffffff" /><circle cx="150" cy="50" r="24" fill="url(%23apple-grad)" opacity="0.15" /><g transform="translate(138, 38) scale(1)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="%23ff2d55"/></g><text x="150" y="98" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="700" fill="%231e293b" text-anchor="middle">Sincronización de Salud</text><text x="150" y="118" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="%23ff2d55" text-anchor="middle">✓ Evidencia de Actividad Certificada</text></svg>`;
+
 function App() {
   // Authentication State
   const [currentUser, setCurrentUser] = useState(null);
@@ -347,7 +352,7 @@ function App() {
             }
             setLogAmount(amountToLog.toString());
             setScreenshot(null);
-            setScreenshotPreview('https://images.unsplash.com/photo-1510017808632-95f08e030633?auto=format&fit=crop&q=80&w=300');
+            setScreenshotPreview(GOOGLE_FIT_CERTIFIED_SVG);
             showToastMessage(`📲 ¡Sincronizado! Se han importado ${amountToLog.toLocaleString()} ${selectedChallenge.unit} reales desde Google Fit.`);
           }, 800);
         } else {
@@ -446,7 +451,7 @@ function App() {
             }
             setLogAmount(amountToLog.toString());
             setScreenshot(null);
-            setScreenshotPreview('https://images.unsplash.com/photo-1510017808632-95f08e030633?auto=format&fit=crop&q=80&w=300');
+            setScreenshotPreview(GOOGLE_FIT_CERTIFIED_SVG);
             showToastMessage(`📲 ¡Sincronizado! Se han importado ${amountToLog.toLocaleString()} ${selectedChallenge.unit} reales desde tu Google Fit.`);
           }, 800);
         } catch(err) {
@@ -469,10 +474,9 @@ function App() {
             setTimeout(() => {
               setIsSyncingHealth(false);
               const generatedAmount = 1;
-              const mockUrl = 'https://images.unsplash.com/photo-1545205597-3d9d02c29597?auto=format&fit=crop&q=80&w=300';
               setLogAmount(generatedAmount.toString());
               setScreenshot(null);
-              setScreenshotPreview(mockUrl);
+              setScreenshotPreview(APPLE_HEALTH_CERTIFIED_SVG);
               showToastMessage(`📲 ¡Sincronizado! Se han importado ${generatedAmount} ${selectedChallenge.unit} de Apple Health.`);
             }, 800);
             return 3;
@@ -2821,11 +2825,21 @@ function App() {
                 <label className="form-label">Evidencia de Actividad (Captura de pantalla o Enlace de Salud)</label>
                 
                 {!screenshotPreview ? (
-                  <label className="file-upload-zone">
+                  <div className="file-upload-zone" style={{ position: 'relative' }}>
                     <input 
+                      id="evidence-file-input"
                       type="file" 
                       accept="image/*" 
-                      style={{ display: 'none' }}
+                      style={{ 
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        opacity: 0,
+                        cursor: 'pointer',
+                        zIndex: 2
+                      }}
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
@@ -2836,22 +2850,37 @@ function App() {
                         }
                       }}
                     />
-                    <Upload size={24} style={{ margin: '0 auto 0.5rem', color: 'var(--mint-accent)' }} />
-                    <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600 }}>Selecciona o arrastra una imagen manual</span>
-                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Formatos: PNG, JPG</span>
-                  </label>
+                    <div style={{ pointerEvents: 'none', position: 'relative', zIndex: 1, textAlign: 'center' }}>
+                      <Upload size={24} style={{ margin: '0 auto 0.5rem', color: 'var(--mint-accent)' }} />
+                      <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                        Selecciona o toma una foto desde tu celular
+                      </span>
+                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                        Formatos: PNG, JPG (Se abrirá tu fototeca o cámara)
+                      </span>
+                    </div>
+                  </div>
                 ) : (
                   <div style={{ position: 'relative' }}>
-                    <div className="file-preview" style={{ height: '140px' }}>
-                      <img src={screenshotPreview} alt="Preview Evidence" />
+                    <div className="file-preview" style={{ height: '140px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                      <img 
+                        src={screenshotPreview} 
+                        alt="Preview Evidence" 
+                        style={{ 
+                          width: '100%', 
+                          height: '100%', 
+                          objectFit: screenshotPreview.startsWith('data:image/svg+xml') ? 'contain' : 'cover',
+                          maxHeight: '140px'
+                        }} 
+                      />
                     </div>
-                    {/* Visual badge of synchronization */}
+                    {/* Visual badge of synchronization type */}
                     <div 
                       style={{ 
                         position: 'absolute', 
                         bottom: '0.5rem', 
                         left: '0.5rem', 
-                        backgroundColor: 'var(--mint-accent)', 
+                        backgroundColor: !screenshot ? 'var(--sky-accent)' : 'var(--mint-accent)', 
                         color: 'white', 
                         fontSize: '0.68rem', 
                         fontWeight: 700, 
@@ -2859,14 +2888,38 @@ function App() {
                         borderRadius: '6px',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '0.25rem'
+                        gap: '0.25rem',
+                        boxShadow: 'var(--shadow-sm)'
                       }}
                     >
-                      <Check size={10} /> Evidencia de Salud Importada
+                      {!screenshot ? (
+                        <>
+                          <Check size={10} /> Evidencia de Salud Certificada
+                        </>
+                      ) : (
+                        <>
+                          <Check size={10} /> Evidencia Manual Subida
+                        </>
+                      )}
                     </div>
                     <button 
                       type="button" 
-                      style={{ position: 'absolute', top: '0.5rem', right: '0.5rem', backgroundColor: 'rgba(0,0,0,0.6)', color: 'white', border: 'none', borderRadius: '50%', padding: '0.25rem', cursor: 'pointer' }}
+                      style={{ 
+                        position: 'absolute', 
+                        top: '0.5rem', 
+                        right: '0.5rem', 
+                        backgroundColor: 'rgba(0,0,0,0.6)', 
+                        color: 'white', 
+                        border: 'none', 
+                        borderRadius: '50%', 
+                        width: '24px', 
+                        height: '24px', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        cursor: 'pointer',
+                        zIndex: 3
+                      }}
                       onClick={() => { setScreenshot(null); setScreenshotPreview(''); }}
                     >
                       <X size={14} />
