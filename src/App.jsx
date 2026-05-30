@@ -64,47 +64,7 @@ function App() {
     return (hash && hash !== 'landing') ? hash : 'dashboard';
   });
 
-  const [debugLogs, setDebugLogs] = useState([]);
 
-  useEffect(() => {
-    const originalConsoleError = console.error;
-    const originalConsoleLog = console.log;
-
-    const addLog = (msg, type = 'info') => {
-      const text = typeof msg === 'object' ? JSON.stringify(msg) : String(msg);
-      setDebugLogs((prev) => [...prev.slice(-30), { timestamp: new Date().toLocaleTimeString(), msg: text, type }]);
-    };
-
-    console.error = (...args) => {
-      originalConsoleError.apply(console, args);
-      addLog(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '), 'error');
-    };
-
-    console.log = (...args) => {
-      originalConsoleLog.apply(console, args);
-      addLog(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '), 'log');
-    };
-
-    const handleWindowError = (event) => {
-      addLog(`Excepción: ${event.message} en ${event.filename}:${event.lineno}`, 'exception');
-    };
-
-    const handleUnhandledRejection = (event) => {
-      addLog(`Promesa rechazada: ${event.reason?.message || event.reason}`, 'exception');
-    };
-
-    window.addEventListener('error', handleWindowError);
-    window.addEventListener('unhandledrejection', handleUnhandledRejection);
-
-    addLog("Consola de diagnóstico activa.");
-
-    return () => {
-      console.error = originalConsoleError;
-      console.log = originalConsoleLog;
-      window.removeEventListener('error', handleWindowError);
-      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
-    };
-  }, []);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -303,25 +263,20 @@ function App() {
     }
 
     setIsLoggingIn(true);
-    console.log("Iniciando login para:", loginEmail, loginCompanyCode);
     try {
       const res = await dbService.loginWithCompanyCode(loginEmail, loginCompanyCode, loginPassword);
-      console.log("Respuesta obtenida de loginWithCompanyCode:", res);
       
       if (!res) {
-        alert("Error: No se recibió ninguna respuesta del servicio de base de datos (res es undefined o null).");
         showToastMessage("No se recibió respuesta del servidor de base de datos.", "error");
         return;
       }
 
       if (res.error) {
-        alert(`Aviso del Servidor: ${res.error}`);
         showToastMessage(res.error, "error");
         return;
       }
 
       if (res.needsMigration) {
-        console.log("Usuario detectado como legacy. Abriendo modal de migración para:", res.user);
         setMigrateUserRef(res.user);
         setMigratePassword('');
         setMigratePasswordConfirm('');
@@ -338,14 +293,9 @@ function App() {
         setLoginEmail('');
         setLoginCompanyCode('');
         setLoginPassword('');
-        return;
       }
-
-      // Si llegó aquí y no entró a ninguna de las condiciones anteriores
-      alert(`Respuesta inesperada del servidor de base de datos: ${JSON.stringify(res)}`);
     } catch (err) {
-      console.error("Error crítico en login (capturado en App.jsx):", err);
-      alert(`Error crítico de red o Firebase al iniciar sesión:\n${err.message || err}`);
+      console.error("Error crítico en login:", err);
       showToastMessage(`Error de red o conexión: ${err.message || err}`, "error");
     } finally {
       setIsLoggingIn(false);
@@ -1199,41 +1149,7 @@ function App() {
             )}
           </div>
           
-          {/* Panel de Diagnóstico Técnico Visible para el Usuario */}
-          <div style={{
-            marginTop: '2rem',
-            backgroundColor: 'rgba(15, 23, 42, 0.95)',
-            color: '#38BDF8',
-            borderRadius: '16px',
-            padding: '1.25rem',
-            fontSize: '0.78rem',
-            fontFamily: 'monospace',
-            maxHeight: '180px',
-            overflowY: 'auto',
-            boxShadow: 'var(--shadow-md)',
-            border: '1px solid #334155',
-            textAlign: 'left',
-            width: '100%',
-            maxWidth: '520px'
-          }}>
-            <div style={{ color: '#F1F5F9', fontWeight: 'bold', marginBottom: '0.5rem', borderBottom: '1px solid #334155', paddingBottom: '0.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>🖥️ Consola de Diagnóstico (Local)</span>
-              <span style={{ color: '#64748B', fontSize: '0.7rem' }}>{debugLogs.length} logs</span>
-            </div>
-            {debugLogs.length === 0 ? (
-              <div style={{ color: '#475569' }}>Esperando interacciones...</div>
-            ) : (
-              debugLogs.map((log, i) => (
-                <div key={i} style={{ marginBottom: '0.3rem', borderBottom: '1px dashed rgba(51, 65, 85, 0.3)', paddingBottom: '0.2rem', color: log.type === 'error' || log.type === 'exception' ? '#F43F5E' : log.type === 'log' ? '#E2E8F0' : '#38BDF8' }}>
-                  <span style={{ color: '#475569', marginRight: '0.5rem' }}>[{log.timestamp}]</span>
-                  <span style={{ fontWeight: log.type === 'error' || log.type === 'exception' ? 'bold' : 'normal' }}>
-                    {log.type === 'error' ? '❌ ERROR: ' : log.type === 'exception' ? '💥 CRASH: ' : 'ℹ️ '}
-                    {log.msg}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
+
 
           {/* MODAL: MIGRAR / CREAR CONTRASEÑA PARA CUENTAS ANTERIORES (P2) */}
           {showMigratePasswordModal && migrateUserRef && (
