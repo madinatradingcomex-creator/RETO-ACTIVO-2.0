@@ -643,6 +643,11 @@ function App() {
       return;
     }
 
+    if (!screenshot && !screenshotPreview) {
+      showToastMessage("Por favor adjunta una captura de pantalla como evidencia de tu actividad para evitar registros duplicados o incorrectos.", "error");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const res = await dbService.logChallengeProgress(
@@ -3016,6 +3021,28 @@ function App() {
                             const percent = Math.min((p.progress / adminSelectedChallenge.target) * 100, 100);
                             const isCompleted = p.status === 'completed' || percent >= 100;
                             
+                            const todayStr = new Date().toISOString().split('T')[0];
+                            const isNotStarted = adminSelectedChallenge.start_date && todayStr < adminSelectedChallenge.start_date;
+                            const isEnded = adminSelectedChallenge.end_date && todayStr > adminSelectedChallenge.end_date;
+
+                            let statusText = "🟢 En Curso";
+                            let statusBg = "var(--sky-bg)";
+                            let statusColor = "var(--sky-accent)";
+
+                            if (isCompleted) {
+                              statusText = "🏆 Completado";
+                              statusBg = "var(--mint-bg)";
+                              statusColor = "var(--mint-dark)";
+                            } else if (isNotStarted) {
+                              statusText = "⏳ No Iniciado";
+                              statusBg = "#FFF9E6";
+                              statusColor = "#B38F00";
+                            } else if (isEnded) {
+                              statusText = "🏁 Finalizado";
+                              statusBg = "var(--bg-main)";
+                              statusColor = "var(--text-muted)";
+                            }
+
                             let rankBadge = `#${idx + 1}`;
                             if (idx === 0) rankBadge = '🥇 #1';
                             else if (idx === 1) rankBadge = '🥈 #2';
@@ -3058,10 +3085,10 @@ function App() {
                                     borderRadius: '20px', 
                                     fontSize: '0.75rem', 
                                     fontWeight: 700,
-                                    backgroundColor: isCompleted ? 'var(--mint-bg)' : 'var(--sky-bg)',
-                                    color: isCompleted ? 'var(--mint-dark)' : 'var(--sky-accent)'
+                                    backgroundColor: statusBg,
+                                    color: statusColor
                                   }}>
-                                    {isCompleted ? '🏆 Completado' : '🟢 En Curso'}
+                                    {statusText}
                                   </span>
                                 </td>
                               </tr>

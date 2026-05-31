@@ -400,6 +400,10 @@ export const dbService = {
       const currentUser = getLocalUser();
       const userFullName = currentUser ? `${currentUser.name} ${currentUser.lastname || ''}` : 'Anónimo';
 
+      if (!screenshotFile && !screenshotUrlMock) {
+        return { error: "La evidencia en captura de pantalla es obligatoria para evitar registros falsos o incorrectos." };
+      }
+
       if (screenshotFile || screenshotUrlMock) {
         // P4 duplicate check: check if user has already submitted evidence for this challenge today
         const todayStr = new Date().toISOString().split('T')[0];
