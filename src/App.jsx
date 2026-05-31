@@ -2793,6 +2793,29 @@ function App() {
                           return true;
                         })
                         .map(c => {
+                          const todayStr = new Date().toISOString().split('T')[0];
+                          const isNotStarted = c.start_date && todayStr < c.start_date;
+                          const isEnded = c.end_date && todayStr > c.end_date;
+                          
+                          let statusBadge = (
+                            <span className="challenge-badge" style={{ backgroundColor: 'var(--mint-bg)', color: 'var(--mint-dark)', border: '1px solid rgba(28,188,140,0.12)' }}>
+                              En Curso (Activo)
+                            </span>
+                          );
+                          if (isNotStarted) {
+                            statusBadge = (
+                              <span className="challenge-badge" style={{ backgroundColor: 'var(--sky-bg)', color: 'var(--sky-dark)', border: '1px solid rgba(66,133,244,0.12)' }}>
+                                ⏳ Programado
+                              </span>
+                            );
+                          } else if (isEnded) {
+                            statusBadge = (
+                              <span className="challenge-badge" style={{ backgroundColor: '#FDF1ED', color: 'var(--coral-dark)', border: '1px solid rgba(252,139,114,0.18)' }}>
+                                🏁 Finalizado
+                              </span>
+                            );
+                          }
+
                           return (
                             <div 
                               className="challenge-card" 
@@ -2810,6 +2833,9 @@ function App() {
                             >
                               <div className="challenge-image-container">
                                 <span style={{ fontSize: '3.2rem' }}>{c.image || '🏆'}</span>
+                                <div style={{ position: 'absolute', top: '0.75rem', left: '0.75rem', zIndex: 2 }}>
+                                  {statusBadge}
+                                </div>
                                 <span className="challenge-points-badge">
                                   🪙 +{c.points} pts
                                 </span>
@@ -2823,6 +2849,12 @@ function App() {
                                   <div className="challenge-stat-item">
                                     <span className="challenge-stat-label">Objetivo</span>
                                     <span className="challenge-stat-value">{c.target} {c.unit}</span>
+                                  </div>
+                                  <div className="challenge-stat-item" style={{ minWidth: '120px' }}>
+                                    <span className="challenge-stat-label">Vigencia</span>
+                                    <span className="challenge-stat-value" style={{ fontSize: '0.78rem' }}>
+                                      {c.start_date ? `${formatDate(c.start_date)} al ${formatDate(c.end_date)}` : 'Permanente'}
+                                    </span>
                                   </div>
                                   <div className="challenge-stat-item">
                                     <span className="challenge-stat-label">Participantes</span>
