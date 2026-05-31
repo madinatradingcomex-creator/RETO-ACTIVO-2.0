@@ -1572,3 +1572,121 @@ h1, h2, h3, h4, h5, h6 {
   margin-top: 1rem;
 }
 
+/* Daily Breakdown Accordion Rows */
+.daily-breakdown-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  background-color: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  font-size: 0.88rem;
+  transition: var(--transition-smooth);
+}
+
+.daily-breakdown-row.is-today {
+  background-color: rgba(28, 188, 140, 0.04);
+  border-color: rgba(28, 188, 140, 0.15);
+}
+
+.daily-breakdown-row:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+  border-color: rgba(28, 188, 140, 0.2);
+}
+
+.daily-breakdown-row .row-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.daily-breakdown-row .day-name {
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.daily-breakdown-row.is-today .day-name {
+  font-weight: 800;
+  color: var(--mint-dark);
+}
+
+.daily-breakdown-row .day-date {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.daily-breakdown-row .row-right {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.daily-breakdown-row .steps-metric {
+  text-align: right;
+  font-weight: 500;
+}
+
+.daily-breakdown-row .steps-count {
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.daily-breakdown-row .steps-km {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-left: 0.5rem;
+}
+
+.daily-breakdown-row .status-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+
+.daily-breakdown-row .status-badge.met {
+  background-color: rgba(28, 188, 140, 0.1);
+  color: var(--mint-dark);
+}
+
+.daily-breakdown-row .status-badge.active {
+  background-color: rgba(0, 0, 0, 0.03);
+  color: var(--text-muted);
+}
+
+/* Perfect mobile responsiveness for daily breakdown details */
+@media (max-width: 580px) {
+  .daily-breakdown-row {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .daily-breakdown-row .row-left {
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .daily-breakdown-row .row-right {
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .daily-breakdown-row .steps-metric {
+    text-align: center;
+  }
+
+  .daily-breakdown-row .steps-km {
+    display: block;
+    margin-left: 0;
+    margin-top: 0.15rem;
+  }
+}
+

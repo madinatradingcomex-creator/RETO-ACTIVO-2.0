@@ -30,7 +30,8 @@ import {
   EyeOff,
   AlertCircle,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Users
 } from 'lucide-react';
 import { dbService } from './services/db';
 import './App.css';
@@ -110,6 +111,11 @@ function App() {
   const [pendingEvidences, setPendingEvidences] = useState([]);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [companyStats, setCompanyStats] = useState(null);
+  const [activeUsers, setActiveUsers] = useState([]);
+  const [activeUsersSearch, setActiveUsersSearch] = useState('');
+  const [editingUser, setEditingUser] = useState(null);
+  const [editPoints, setEditPoints] = useState('');
+  const [editDept, setEditDept] = useState('');
   
   // Forms - Employee Log
   const [showLogModal, setShowLogModal] = useState(false);
@@ -188,9 +194,11 @@ function App() {
         const pending = await dbService.getPendingEvidences();
         const pendingUsrs = await dbService.getPendingUsers();
         const stats = await dbService.getCompanyStats();
+        const activeUsrs = await dbService.getActiveUsers();
         setPendingEvidences(pending);
         setPendingUsers(pendingUsrs);
         setCompanyStats(stats);
+        setActiveUsers(activeUsrs);
         
         const challengesData = await dbService.getChallenges();
         const rewardsData = await dbService.getRewards();
@@ -452,6 +460,57 @@ function App() {
     } catch (err) {
       console.error(err);
       showToastMessage("Error al rechazar al colaborador.", "error");
+    }
+  };
+
+  const handleEditUser = (user) => {
+    setEditingUser(user);
+    setEditPoints(user.points || 0);
+    setEditDept(user.department || '');
+  };
+
+  const handleSaveUserChanges = async () => {
+    if (!editingUser) return;
+    try {
+      if (editingUser.points !== parseInt(editPoints)) {
+        await dbService.updateUserPointsDirectly(editingUser.id, editPoints);
+      }
+      if (editingUser.department !== editDept) {
+        await dbService.updateUserDepartmentDirectly(editingUser.id, editDept);
+      }
+      showToastMessage(`💾 Datos de ${editingUser.name} actualizados correctamente.`);
+      setEditingUser(null);
+      
+      // Actualizar lista local de colaboradores activos
+      const activeUsrs = await dbService.getActiveUsers();
+      setActiveUsers(activeUsrs);
+      
+      // Actualizar estadísticas de la empresa
+      const stats = await dbService.getCompanyStats();
+      setCompanyStats(stats);
+    } catch(err) {
+      console.error(err);
+      showToastMessage("Error al guardar los cambios del colaborador.", "error");
+    }
+  };
+
+  const handleDeleteUser = async (userId, userName) => {
+    if (confirm(`⚠️ ¿Estás completamente seguro de que deseas dar de baja a ${userName}? Esta acción eliminará su cuenta y todo su progreso de forma permanente.`)) {
+      try {
+        await dbService.deleteUser(userId);
+        showToastMessage(`🚫 Se ha dado de baja la cuenta de ${userName} correctamente.`, "error");
+        
+        // Actualizar lista local de colaboradores activos
+        const activeUsrs = await dbService.getActiveUsers();
+        setActiveUsers(activeUsrs);
+        
+        // Actualizar estadísticas de la empresa
+        const stats = await dbService.getCompanyStats();
+        setCompanyStats(stats);
+      } catch(err) {
+        console.error(err);
+        showToastMessage("Error al dar de baja al colaborador.", "error");
+      }
     }
   };
 
@@ -1598,6 +1657,14 @@ function App() {
             </div>
 
             <div 
+              className={`nav-item ${activeTab === 'manage_users' ? 'active' : ''}`}
+              onClick={() => setActiveTab('manage_users')}
+            >
+              <Users size={20} />
+              <span>Colaboradores</span>
+            </div>
+
+            <div 
               className={`nav-item ${activeTab === 'create_challenge' ? 'active' : ''}`}
               onClick={() => setActiveTab('create_challenge')}
             >
@@ -1752,16 +1819,6 @@ function App() {
                           <span className="chart-day-label" style={isToday ? { color: 'var(--mint-dark)', fontWeight: 800 } : {}}>
                             {weekDays[index]} {isToday && '(Hoy)'}
                           </span>
-                          <span 
-                            style={{ 
-                              fontSize: '0.74rem', 
-                              fontWeight: 700, 
-                              color: isToday ? 'var(--mint-dark)' : 'var(--text-muted)', 
-                              marginTop: '0.15rem' 
-                            }}
-                          >
-                            {steps.toLocaleString()}
-                          </span>
                         </div>
                       );
                     })}
@@ -1828,42 +1885,25 @@ function App() {
                           return (
                             <div 
                               key={index}
-                              style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                justifyContent: 'space-between',
-                                padding: '0.75rem 1rem', 
-                                backgroundColor: isToday ? 'rgba(28,188,140,0.04)' : '#f8fafc',
-                                border: '1px solid ' + (isToday ? 'rgba(28,188,140,0.15)' : 'var(--border-color)'),
-                                borderRadius: '12px',
-                                fontSize: '0.85rem'
-                              }}
+                              className={`daily-breakdown-row ${isToday ? 'is-today' : ''}`}
                             >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <span style={{ fontWeight: isToday ? 800 : 600, color: isToday ? 'var(--mint-dark)' : 'var(--text-main)' }}>
+                              <div className="row-left">
+                                <span className="day-name">
                                   {weekDays[index]} {isToday && '(Hoy)'}
                                 </span>
-                                <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                                <span className="day-date">
                                   ({dateStr})
                                 </span>
                               </div>
                               
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                                <div style={{ textAlign: 'right' }}>
-                                  <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{steps.toLocaleString()}</span>
+                              <div className="row-right">
+                                <div className="steps-metric">
+                                  <span className="steps-count">{steps.toLocaleString()}</span>
                                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}> pasos</span>
-                                  <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginLeft: '0.5rem' }}>({km} km)</span>
+                                  <span className="steps-km">({km} km)</span>
                                 </div>
                                 
-                                <span style={{
-                                  backgroundColor: goalMet ? 'rgba(28,188,140,0.1)' : 'rgba(0,0,0,0.03)',
-                                  color: goalMet ? 'var(--mint-dark)' : 'var(--text-muted)',
-                                  fontSize: '0.68rem',
-                                  fontWeight: 700,
-                                  padding: '0.2rem 0.5rem',
-                                  borderRadius: '6px',
-                                  textTransform: 'uppercase'
-                                }}>
+                                <span className={`status-badge ${goalMet ? 'met' : 'active'}`}>
                                   {goalMet ? '🎯 Cumplida' : '🚶 Activo'}
                                 </span>
                               </div>
@@ -3082,6 +3122,133 @@ function App() {
                 </div>
               </div>
             )}
+
+            {/* VIEW: GESTIÓN DE COLABORADORES ACTIVOS */}
+            {activeTab === 'manage_users' && (
+              <div className="view-container">
+                <header className="view-header">
+                  <div className="view-title-group">
+                    <button className="btn btn-secondary view-back-btn" onClick={() => setActiveTab('dashboard')}>
+                      ← Volver al Dashboard
+                    </button>
+                    <h1>Gestión de Colaboradores</h1>
+                    <p>Administra las cuentas de tus colaboradores activos. Modifica sus puntos acumulados, áreas de trabajo o dalos de baja si ya no forman parte de las campañas.</p>
+                  </div>
+                </header>
+
+                <div className="activity-section">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
+                    <h3 style={{ fontSize: '1.25rem', margin: 0 }}>
+                      👥 Colaboradores Activos ({activeUsers.length})
+                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', backgroundColor: 'white', padding: '0.5rem 1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', width: '320px', boxShadow: 'var(--shadow-sm)' }}>
+                      <Search size={18} style={{ color: 'var(--text-muted)' }} />
+                      <input 
+                        type="text" 
+                        placeholder="Buscar colaborador por nombre..." 
+                        className="form-input" 
+                        style={{ border: 'none', padding: 0, fontSize: '0.88rem', width: '100%', outline: 'none' }}
+                        value={activeUsersSearch}
+                        onChange={(e) => setActiveUsersSearch(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  {activeUsers.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '4rem', backgroundColor: 'white', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)' }}>
+                      <span style={{ fontSize: '3rem', display: 'block', marginBottom: '1rem' }}>👥</span>
+                      <p style={{ fontWeight: 600, fontSize: '1.1rem', color: 'var(--text-main)' }}>No hay colaboradores activos</p>
+                      <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>Ve a la sección de Aprobaciones para habilitar nuevos colaboradores.</p>
+                    </div>
+                  ) : activeUsers.filter(u => `${u.name} ${u.lastname || ''}`.toLowerCase().includes(activeUsersSearch.toLowerCase())).length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'white', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      No se encontraron colaboradores que coincidan con la búsqueda.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
+                      {activeUsers
+                        .filter(u => `${u.name} ${u.lastname || ''}`.toLowerCase().includes(activeUsersSearch.toLowerCase()))
+                        .map(user => (
+                          <div 
+                            key={user.id} 
+                            style={{ 
+                              backgroundColor: 'white', 
+                              border: '1px solid var(--border-color)', 
+                              borderRadius: '16px', 
+                              padding: '1.5rem', 
+                              display: 'flex', 
+                              flexDirection: 'column', 
+                              gap: '1rem',
+                              boxShadow: 'var(--shadow-sm)',
+                              position: 'relative',
+                              overflow: 'hidden'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                              <img 
+                                src={user.avatar} 
+                                alt={user.name} 
+                                style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover', border: '2px solid white', boxShadow: 'var(--shadow-sm)' }} 
+                              />
+                              <div>
+                                <h4 style={{ margin: 0, fontWeight: 700, color: 'var(--text-main)' }}>
+                                  {user.name} {user.lastname || ''}
+                                </h4>
+                                <span 
+                                  className="leaderboard-dept"
+                                  style={{
+                                    fontSize: '0.72rem',
+                                    padding: '0.15rem 0.45rem',
+                                    borderRadius: '8px',
+                                    display: 'inline-block',
+                                    marginTop: '0.2rem',
+                                    backgroundColor: 'var(--bg-app)',
+                                    color: varColorForDept(user.department)
+                                  }}
+                                >
+                                  {user.department || 'Sin Área'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div style={{ borderTop: '1px solid rgba(0,0,0,0.05)', borderBottom: '1px solid rgba(0,0,0,0.05)', padding: '0.75rem 0', fontSize: '0.82rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span>Email:</span>
+                                <strong style={{ color: 'var(--text-main)', wordBreak: 'break-all' }}>{user.email}</strong>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span>Saldo Puntos:</span>
+                                <strong style={{ color: 'var(--mint-dark)' }}>🪙 {user.points || 0} pts</strong>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span>Racha:</span>
+                                <strong style={{ color: 'var(--coral-dark)' }}>🔥 {user.streak || 0} días</strong>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '0.75rem', marginTop: 'auto' }}>
+                              <button 
+                                className="btn btn-secondary" 
+                                onClick={() => handleEditUser(user)}
+                                style={{ flexGrow: 1, padding: '0.5rem 1rem', fontSize: '0.82rem' }}
+                              >
+                                Editar Datos
+                              </button>
+                              <button 
+                                className="btn btn-secondary" 
+                                onClick={() => handleDeleteUser(user.id, `${user.name} ${user.lastname || ''}`)}
+                                style={{ padding: '0.5rem 1rem', fontSize: '0.82rem', color: 'var(--coral-accent)', borderColor: 'rgba(252,139,114,0.3)' }}
+                              >
+                                Dar de Baja
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -3090,6 +3257,79 @@ function App() {
       {/* =============================================================== */}
       {/* MODALES Y TOAST                                                 */}
       {/* =============================================================== */}
+
+      {/* MODAL: EDITAR COLABORADOR ACTIVO (ADMIN) */}
+      {editingUser && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '480px' }}>
+            <button className="modal-close" onClick={() => setEditingUser(null)}>
+              <X size={20} />
+            </button>
+            
+            <div className="modal-header" style={{ marginBottom: '1.5rem' }}>
+              <img 
+                src={editingUser.avatar} 
+                alt={editingUser.name} 
+                style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '3px solid white', boxShadow: 'var(--shadow-md)', margin: '0 auto 0.75rem' }} 
+              />
+              <h3 className="modal-title">Editar Colaborador</h3>
+              <p className="modal-subtitle">Personalizando datos de: <strong>{editingUser.name} {editingUser.lastname || ''}</strong></p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div className="form-group">
+                <label className="form-label">Saldo de Puntos Wellness</label>
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  placeholder="Ej: 500" 
+                  value={editPoints} 
+                  onChange={(e) => setEditPoints(e.target.value)}
+                  required
+                />
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.25rem' }}>
+                  El valor actual es: <strong>{editingUser.points || 0} pts</strong>.
+                </span>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Departamento / Área de Trabajo</label>
+                <select 
+                  className="form-input" 
+                  value={editDept} 
+                  onChange={(e) => setEditDept(e.target.value)}
+                  required
+                >
+                  <option value="Ventas">Ventas</option>
+                  <option value="Recursos Humanos">Recursos Humanos</option>
+                  <option value="Tecnología">Tecnología</option>
+                  <option value="Marketing">Marketing</option>
+                  <option value="Operaciones">Operaciones</option>
+                  <option value="Administración">Administración</option>
+                  <option value="Diseño">Diseño</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem' }}>
+                <button 
+                  className="btn btn-primary" 
+                  onClick={handleSaveUserChanges}
+                  style={{ flexGrow: 1 }}
+                >
+                  Guardar Cambios
+                </button>
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => setEditingUser(null)}
+                  style={{ flexGrow: 1 }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: REGISTRAR PROGRESO CON INTEGRACIÓN DE APP DE SALUD */}
       {showLogModal && selectedChallenge && (
