@@ -346,6 +346,17 @@ export const dbService = {
 
   async enrollInChallenge(userId, challengeId) {
     try {
+      const cRef = doc(db, 'retos', challengeId);
+      const cSnap = await getDoc(cRef);
+      if (!cSnap.exists()) return { error: "El reto no existe." };
+      const challenge = cSnap.data();
+
+      // Restrict enrollment after the challenge has started
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (challenge.start_date && todayStr >= challenge.start_date) {
+        return { error: "Inscripción cerrada. El reto ya se inició o ha finalizado." };
+      }
+
       const q = query(collection(db, 'user_challenges'), where('user_id', '==', userId), where('challenge_id', '==', challengeId));
       const snap = await getDocs(q);
       if (snap.empty) {
@@ -357,15 +368,10 @@ export const dbService = {
           enrolled_at: new Date().toISOString()
         };
         await addDoc(collection(db, 'user_challenges'), newEnrollment);
-        
-        const cRef = doc(db, 'retos', challengeId);
-        const cSnap = await getDoc(cRef);
-        if (cSnap.exists()) {
-          await updateDoc(cRef, { participantsCount: (cSnap.data().participantsCount || 0) + 1 });
-        }
+        await updateDoc(cRef, { participantsCount: (challenge.participantsCount || 0) + 1 });
       }
       return await this.getUserChallenges(userId);
-    } catch(err) { console.error(err); return []; }
+    } catch(err) { console.error(err); return { error: "Error de servidor al inscribirse." }; }
   },
 
   async logChallengeProgress(userId, challengeId, amount, screenshotFile = null, screenshotUrlMock = '') {
@@ -381,6 +387,15 @@ export const dbService = {
       const cSnap = await getDoc(cRef);
       if (!cSnap.exists()) return { error: "Reto no encontrado." };
       const challengeObj = cSnap.data();
+
+      // Check date constraints for logging progress
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (challengeObj.start_date && todayStr < challengeObj.start_date) {
+        return { error: `El reto inicia el ${challengeObj.start_date.split('-').reverse().join('/')}. Aún no puedes registrar progreso.` };
+      }
+      if (challengeObj.end_date && todayStr > challengeObj.end_date) {
+        return { error: "El reto ha finalizado. No se puede registrar más progreso." };
+      }
 
       const currentUser = getLocalUser();
       const userFullName = currentUser ? `${currentUser.name} ${currentUser.lastname || ''}` : 'Anónimo';
@@ -585,11 +600,13 @@ export const dbService = {
     } catch(err) { console.error(err); return { error: "Error interno" }; }
   },
 
-  async createChallenge(title, description, points, category, target, unit, duration, image) {
+  async createChallenge(title, description, points, category, target, unit, duration, image, startDate, endDate) {
     try {
       const newChallenge = {
         id: `ch_${Math.random().toString(36).substr(2, 9)}`,
-        title, description, points: parseInt(points), category, target: parseFloat(target), unit, duration, participantsCount: 0, image: image || '🏆'
+        title, description, points: parseInt(points), category, target: parseFloat(target), unit, duration, participantsCount: 0, image: image || '🏆',
+        start_date: startDate || '',
+        end_date: endDate || ''
       };
       await setDoc(doc(db, 'retos', newChallenge.id), newChallenge);
       return newChallenge;
@@ -753,6 +770,11 @@ export const dbService = {
           if (index < 0) break;
 
           const dateStr = dates[index];
+          
+          // Only sync steps within the challenge's active range
+          if (challenge.start_date && dateStr < challenge.start_date) continue;
+          if (challenge.end_date && dateStr > challenge.end_date) continue;
+
           const daySteps = dailySteps[index] || 0;
           const previousSteps = dailySyncs[dateStr] || 0;
 

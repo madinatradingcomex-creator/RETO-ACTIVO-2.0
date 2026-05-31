@@ -158,6 +158,8 @@ function App() {
   const [cUnit, setCUnit] = useState('km');
   const [cDuration, setCDuration] = useState('7 días');
   const [cIcon, setCIcon] = useState('🚴‍♀️');
+  const [cStartDate, setCStartDate] = useState('');
+  const [cEndDate, setCEndDate] = useState('');
 
   // Forms - Admin Create Reward
   const [rTitle, setRTitle] = useState('');
@@ -605,8 +607,12 @@ function App() {
   };
 
   const handleEnroll = async (challengeId) => {
-    const updated = await dbService.enrollInChallenge(currentUser.id, challengeId);
-    setUserChallenges(updated);
+    const res = await dbService.enrollInChallenge(currentUser.id, challengeId);
+    if (res && res.error) {
+      showToastMessage(res.error, "error");
+      return;
+    }
+    setUserChallenges(res);
     
     const challengesData = await dbService.getChallenges();
     setChallenges(challengesData);
@@ -705,8 +711,13 @@ function App() {
 
   const handleCreateChallenge = async (e) => {
     e.preventDefault();
-    if (!cTitle || !cDesc || !cPoints || !cTarget) {
-      showToastMessage("Por favor rellena todos los campos requeridos.", "error");
+    if (!cTitle || !cDesc || !cPoints || !cTarget || !cStartDate || !cEndDate) {
+      showToastMessage("Por favor rellena todos los campos requeridos, incluyendo las fechas.", "error");
+      return;
+    }
+
+    if (new Date(cStartDate) > new Date(cEndDate)) {
+      showToastMessage("La fecha de inicio no puede ser posterior a la fecha de finalización.", "error");
       return;
     }
 
@@ -718,7 +729,9 @@ function App() {
       cTarget,
       cUnit,
       cDuration,
-      cIcon
+      cIcon,
+      cStartDate,
+      cEndDate
     );
 
     showToastMessage(`🚀 ¡Reto "${newChallenge.title}" publicado con éxito! Ya se encuentra en la biblioteca.`);
@@ -727,6 +740,8 @@ function App() {
     setCDesc('');
     setCPoints('');
     setCTarget('');
+    setCStartDate('');
+    setCEndDate('');
     
     loadViewData(currentUser);
     setActiveTab('dashboard');
@@ -1498,6 +1513,15 @@ function App() {
     : 10000;
   const weekDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/D';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return dateStr;
+  };
+
   const getCategoryTheme = (category) => {
     switch (category) {
       case 'mobility':
@@ -2126,6 +2150,10 @@ function App() {
                           const rankings = challengeRankings[challenge.id] || [];
                           const myIndex = rankings.findIndex(r => r.user_id === currentUser.id);
                           const myRank = myIndex !== -1 ? myIndex + 1 : null;
+
+                          const todayStr = new Date().toISOString().split('T')[0];
+                          const isNotStarted = challenge.start_date && todayStr < challenge.start_date;
+                          const isEnded = challenge.end_date && todayStr > challenge.end_date;
                           
                           return (
                             <div className="challenge-card" key={uc.challenge_id}>
@@ -2148,7 +2176,13 @@ function App() {
                               
                               <div className="challenge-content">
                                 <h4 className="challenge-title">{challenge.title}</h4>
-                                <p className="challenge-desc">{challenge.description}</p>
+                                <p className="challenge-desc" style={{ marginBottom: '0.5rem' }}>{challenge.description}</p>
+                                
+                                {challenge.start_date && (
+                                  <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '1.25rem', fontWeight: 500 }}>
+                                    🗓️ Vigencia: <strong>{formatDate(challenge.start_date)} al {formatDate(challenge.end_date)}</strong>
+                                  </span>
+                                )}
                                 
                                 <div className="challenge-progress-bar">
                                   <div className="challenge-progress-fill" style={{ width: `${progressPercent}%`, backgroundColor: theme.accent }} />
@@ -2161,9 +2195,19 @@ function App() {
                                   </span>
                                 </div>
 
-                                <button className="btn btn-primary" onClick={() => openLogActivityModal(challenge)}>
-                                  Registrar Actividad
-                                </button>
+                                {isNotStarted ? (
+                                  <button className="btn btn-secondary" style={{ cursor: 'not-allowed', opacity: 0.6 }} disabled>
+                                    ⏳ Inicia el {formatDate(challenge.start_date)}
+                                  </button>
+                                ) : isEnded ? (
+                                  <button className="btn btn-disabled" disabled>
+                                    🏁 Reto Finalizado el {formatDate(challenge.end_date)}
+                                  </button>
+                                ) : (
+                                  <button className="btn btn-primary" onClick={() => openLogActivityModal(challenge)}>
+                                    Registrar Actividad
+                                  </button>
+                                )}
                               </div>
                             </div>
                           );
@@ -2214,6 +2258,11 @@ function App() {
                       const theme = getCategoryTheme(c.category);
                       const progressPercent = enrollment ? Math.min((enrollment.progress / c.target) * 100, 100) : 0;
 
+                      const todayStr = new Date().toISOString().split('T')[0];
+                      const isNotStarted = c.start_date && todayStr < c.start_date;
+                      const isEnded = c.end_date && todayStr > c.end_date;
+                      const hasStarted = c.start_date && todayStr >= c.start_date;
+
                       return (
                         <div className="challenge-card" key={c.id}>
                           <div className="challenge-image-container">
@@ -2228,6 +2277,10 @@ function App() {
                                   Participando
                                 </span>
                               )
+                            ) : hasStarted ? (
+                              <span className="challenge-badge" style={{ backgroundColor: '#FDF1ED', color: 'var(--coral-dark)', border: '1px solid rgba(252,139,114,0.18)' }}>
+                                Inscripción Cerrada
+                              </span>
                             ) : (
                               <span className="challenge-badge" style={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', color: 'var(--text-main)' }}>
                                 Disponible
@@ -2248,9 +2301,11 @@ function App() {
                                 <span className="challenge-stat-label">Objetivo</span>
                                 <span className="challenge-stat-value">{c.target} {c.unit}</span>
                               </div>
-                              <div className="challenge-stat-item">
-                                <span className="challenge-stat-label">Duración</span>
-                                <span className="challenge-stat-value">{c.duration}</span>
+                              <div className="challenge-stat-item" style={{ minWidth: '120px' }}>
+                                <span className="challenge-stat-label">Vigencia</span>
+                                <span className="challenge-stat-value" style={{ fontSize: '0.78rem' }}>
+                                  {c.start_date ? `${formatDate(c.start_date)} al ${formatDate(c.end_date)}` : 'Permanente'}
+                                </span>
                               </div>
                               <div className="challenge-stat-item">
                                 <span className="challenge-stat-label">Participantes</span>
@@ -2273,13 +2328,29 @@ function App() {
                             )}
 
                             {!enrollment ? (
-                              <button className="btn btn-primary" onClick={() => handleEnroll(c.id)}>
-                                Anotarse al Reto
-                              </button>
+                              hasStarted ? (
+                                <button className="btn btn-disabled" style={{ cursor: 'not-allowed' }} disabled>
+                                  Inscripción Cerrada (Ya se inició el reto)
+                                </button>
+                              ) : (
+                                <button className="btn btn-primary" onClick={() => handleEnroll(c.id)}>
+                                  Anotarse al Reto
+                                </button>
+                              )
                             ) : enrollment.status === 'active' ? (
-                              <button className="btn btn-lavender" onClick={() => openLogActivityModal(c)}>
-                                Registrar Actividad
-                              </button>
+                              isNotStarted ? (
+                                <button className="btn btn-secondary" style={{ cursor: 'not-allowed', opacity: 0.6 }} disabled>
+                                  ⏳ Inicia el {formatDate(c.start_date)}
+                                </button>
+                              ) : isEnded ? (
+                                <button className="btn btn-disabled" disabled>
+                                  🏁 Reto Finalizado el {formatDate(c.end_date)}
+                                </button>
+                              ) : (
+                                <button className="btn btn-lavender" onClick={() => openLogActivityModal(c)}>
+                                  Registrar Actividad
+                                </button>
+                              )
                             ) : (
                               <button className="btn btn-disabled" disabled>
                                 ¡Reto Completado! 🎉
@@ -2914,6 +2985,29 @@ function App() {
                           <option value="sky">Pasos / Hidratación (Celeste)</option>
                           <option value="lavender">Pausas / Meditación (Violeta)</option>
                         </select>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      <div className="form-group">
+                        <label className="form-label">📅 Fecha de Inicio (Apertura)</label>
+                        <input 
+                          type="date" 
+                          className="form-input" 
+                          value={cStartDate}
+                          onChange={(e) => setCStartDate(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">🏁 Fecha de Finalización</label>
+                        <input 
+                          type="date" 
+                          className="form-input" 
+                          value={cEndDate}
+                          onChange={(e) => setCEndDate(e.target.value)}
+                          required
+                        />
                       </div>
                     </div>
 
