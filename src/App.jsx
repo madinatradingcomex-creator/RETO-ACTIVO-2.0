@@ -1511,6 +1511,23 @@ function App() {
     }
   };
 
+  const varColorForDept = (dept) => {
+    switch (dept) {
+      case 'Tecnología':
+        return 'var(--mint-dark)';
+      case 'Ventas':
+        return 'var(--sky-dark)';
+      case 'Recursos Humanos':
+        return 'var(--lavender-dark)';
+      case 'Finanzas':
+        return 'var(--coral-dark)';
+      case 'Diseño':
+        return 'var(--lavender-dark)';
+      default:
+        return 'var(--text-muted)';
+    }
+  };
+
   return (
     <div className="app-container">
       

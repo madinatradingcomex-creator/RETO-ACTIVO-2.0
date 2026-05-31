@@ -851,5 +851,48 @@ export const dbService = {
       console.error(err);
       return [];
     }
+  },
+  async getActiveUsers() {
+    try {
+      const q = query(
+        collection(db, 'usuarios'), 
+        where('role', '==', 'employee'), 
+        where('status', '==', 'approved')
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map(d => d.data());
+    } catch(err) {
+      console.error("Error getting active users:", err);
+      return [];
+    }
+  },
+  async updateUserPointsDirectly(userId, newPoints) {
+    try {
+      const ref = doc(db, 'usuarios', userId);
+      await updateDoc(ref, { points: parseInt(newPoints) });
+      return { success: true };
+    } catch(err) {
+      console.error("Error updating user points:", err);
+      return { error: err.message };
+    }
+  },
+  async updateUserDepartmentDirectly(userId, department) {
+    try {
+      const ref = doc(db, 'usuarios', userId);
+      await updateDoc(ref, { department });
+      return { success: true };
+    } catch(err) {
+      console.error("Error updating user department:", err);
+      return { error: err.message };
+    }
+  },
+  async deleteUser(userId) {
+    try {
+      await deleteDoc(doc(db, 'usuarios', userId));
+      return { success: true };
+    } catch(err) {
+      console.error("Error deleting user:", err);
+      return { error: err.message };
+    }
   }
 };
