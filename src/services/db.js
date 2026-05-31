@@ -351,10 +351,16 @@ export const dbService = {
       if (!cSnap.exists()) return { error: "El reto no existe." };
       const challenge = cSnap.data();
 
-      // Restrict enrollment after the challenge has started
+      // Restrict enrollment after the challenge has started or deadline has passed
       const todayStr = new Date().toISOString().split('T')[0];
-      if (challenge.start_date && todayStr >= challenge.start_date) {
-        return { error: "Inscripción cerrada. El reto ya se inició o ha finalizado." };
+      if (challenge.modality === 'immediate') {
+        if (challenge.enrollment_deadline && todayStr > challenge.enrollment_deadline) {
+          return { error: `Inscripción cerrada. El límite para anotarse era el ${challenge.enrollment_deadline.split('-').reverse().join('/')}.` };
+        }
+      } else {
+        if (challenge.start_date && todayStr >= challenge.start_date) {
+          return { error: "Inscripción cerrada. El reto ya se inició o ha finalizado." };
+        }
       }
 
       const q = query(collection(db, 'user_challenges'), where('user_id', '==', userId), where('challenge_id', '==', challengeId));
@@ -390,7 +396,7 @@ export const dbService = {
 
       // Check date constraints for logging progress
       const todayStr = new Date().toISOString().split('T')[0];
-      if (challengeObj.start_date && todayStr < challengeObj.start_date) {
+      if (challengeObj.modality !== 'immediate' && challengeObj.start_date && todayStr < challengeObj.start_date) {
         return { error: `El reto inicia el ${challengeObj.start_date.split('-').reverse().join('/')}. Aún no puedes registrar progreso.` };
       }
       if (challengeObj.end_date && todayStr > challengeObj.end_date) {
@@ -604,13 +610,15 @@ export const dbService = {
     } catch(err) { console.error(err); return { error: "Error interno" }; }
   },
 
-  async createChallenge(title, description, points, category, target, unit, duration, image, startDate, endDate) {
+  async createChallenge(title, description, points, category, target, unit, duration, image, startDate, endDate, modality = 'scheduled', enrollmentDeadline = '') {
     try {
       const newChallenge = {
         id: `ch_${Math.random().toString(36).substr(2, 9)}`,
         title, description, points: parseInt(points), category, target: parseFloat(target), unit, duration, participantsCount: 0, image: image || '🏆',
         start_date: startDate || '',
-        end_date: endDate || ''
+        end_date: endDate || '',
+        modality,
+        enrollment_deadline: enrollmentDeadline || ''
       };
       await setDoc(doc(db, 'retos', newChallenge.id), newChallenge);
       return newChallenge;

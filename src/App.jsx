@@ -172,6 +172,8 @@ function App() {
   const [cIcon, setCIcon] = useState('🚴‍♀️');
   const [cStartDate, setCStartDate] = useState('');
   const [cEndDate, setCEndDate] = useState('');
+  const [cModality, setCModality] = useState('scheduled');
+  const [cEnrollmentDeadline, setCEnrollmentDeadline] = useState('');
 
   // Admin Challenges Manager & Detail view states (Participants declared here)
   const [adminChallengeParticipants, setAdminChallengeParticipants] = useState([]);
@@ -744,14 +746,49 @@ function App() {
 
   const handleCreateChallenge = async (e) => {
     e.preventDefault();
-    if (!cTitle || !cDesc || !cPoints || !cTarget || !cStartDate || !cEndDate) {
-      showToastMessage("Por favor rellena todos los campos requeridos, incluyendo las fechas.", "error");
+    if (!cTitle || !cDesc || !cPoints || !cTarget) {
+      showToastMessage("Por favor rellena todos los campos requeridos.", "error");
       return;
     }
 
-    if (new Date(cStartDate) > new Date(cEndDate)) {
-      showToastMessage("La fecha de inicio no puede ser posterior a la fecha de finalización.", "error");
-      return;
+    const todayStr = new Date().toISOString().split('T')[0];
+    let finalStartDate = '';
+    let finalEndDate = '';
+    let finalEnrollmentDeadline = '';
+
+    if (cModality === 'scheduled') {
+      if (!cStartDate || !cEndDate) {
+        showToastMessage("Para la modalidad programada, debes definir fecha de inicio y finalización.", "error");
+        return;
+      }
+      if (new Date(cStartDate) > new Date(cEndDate)) {
+        showToastMessage("La fecha de inicio no puede ser posterior a la fecha de finalización.", "error");
+        return;
+      }
+      finalStartDate = cStartDate;
+      finalEndDate = cEndDate;
+      finalEnrollmentDeadline = cStartDate;
+    } else {
+      // Immediate
+      if (!cEnrollmentDeadline) {
+        showToastMessage("Para inicio inmediato, debes definir una fecha límite de inscripción.", "error");
+        return;
+      }
+      if (cEnrollmentDeadline < todayStr) {
+        showToastMessage("La fecha límite de inscripción no puede ser anterior a hoy.", "error");
+        return;
+      }
+      if (cEndDate && cEndDate < todayStr) {
+        showToastMessage("La fecha de finalización no puede ser en el pasado.", "error");
+        return;
+      }
+      if (cEndDate && cEndDate < cEnrollmentDeadline) {
+        showToastMessage("La fecha de finalización no puede ser anterior al límite de inscripción.", "error");
+        return;
+      }
+      finalStartDate = todayStr;
+      finalEndDate = cEndDate || ''; // Optional end date
+      finalEnrollmentDeadline = cEnrollmentDeadline;
     }
 
     const newChallenge = await dbService.createChallenge(
@@ -763,8 +800,10 @@ function App() {
       cUnit,
       cDuration,
       cIcon,
-      cStartDate,
-      cEndDate
+      finalStartDate,
+      finalEndDate,
+      cModality,
+      finalEnrollmentDeadline
     );
 
     showToastMessage(`🚀 ¡Reto "${newChallenge.title}" publicado con éxito! Ya se encuentra en la biblioteca.`);
@@ -775,6 +814,8 @@ function App() {
     setCTarget('');
     setCStartDate('');
     setCEndDate('');
+    setCEnrollmentDeadline('');
+    setCModality('scheduled');
     
     loadViewData(currentUser);
     setActiveTab('dashboard');
@@ -2394,9 +2435,11 @@ function App() {
                       const progressPercent = enrollment ? Math.min((enrollment.progress / c.target) * 100, 100) : 0;
 
                       const todayStr = new Date().toISOString().split('T')[0];
-                      const isNotStarted = c.start_date && todayStr < c.start_date;
+                      const isNotStarted = c.modality !== 'immediate' && c.start_date && todayStr < c.start_date;
                       const isEnded = c.end_date && todayStr > c.end_date;
-                      const hasStarted = c.start_date && todayStr >= c.start_date;
+                      const isEnrollmentClosed = c.modality === 'immediate'
+                        ? (c.enrollment_deadline && todayStr > c.enrollment_deadline)
+                        : (c.start_date && todayStr >= c.start_date);
 
                       return (
                         <div className="challenge-card" key={c.id}>
@@ -2412,7 +2455,7 @@ function App() {
                                   Participando
                                 </span>
                               )
-                            ) : hasStarted ? (
+                            ) : isEnrollmentClosed ? (
                               <span className="challenge-badge" style={{ backgroundColor: '#FDF1ED', color: 'var(--coral-dark)', border: '1px solid rgba(252,139,114,0.18)' }}>
                                 Inscripción Cerrada
                               </span>
@@ -2439,7 +2482,13 @@ function App() {
                               <div className="challenge-stat-item" style={{ minWidth: '120px' }}>
                                 <span className="challenge-stat-label">Vigencia</span>
                                 <span className="challenge-stat-value" style={{ fontSize: '0.78rem' }}>
-                                  {c.start_date ? `${formatDate(c.start_date)} al ${formatDate(c.end_date)}` : 'Permanente'}
+                                  {c.modality === 'immediate' ? (
+                                    <>⚡ Inicia hoy {c.enrollment_deadline && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Límite anotarse: {formatDate(c.enrollment_deadline)}</div>}</>
+                                  ) : c.start_date ? (
+                                    `${formatDate(c.start_date)} al ${formatDate(c.end_date)}`
+                                  ) : (
+                                    'Permanente'
+                                  )}
                                 </span>
                               </div>
                               <div className="challenge-stat-item">
@@ -2463,9 +2512,9 @@ function App() {
                             )}
 
                             {!enrollment ? (
-                              hasStarted ? (
+                              isEnrollmentClosed ? (
                                 <button className="btn btn-disabled" style={{ cursor: 'not-allowed' }} disabled>
-                                  Inscripción Cerrada (Ya se inició el reto)
+                                  Inscripción Cerrada (Pasó la fecha límite)
                                 </button>
                               ) : (
                                 <button className="btn btn-primary" onClick={() => handleEnroll(c.id)}>
@@ -2906,7 +2955,7 @@ function App() {
                         {challenges
                           .filter(c => {
                             const todayStr = new Date().toISOString().split('T')[0];
-                            const isNotStarted = c.start_date && todayStr < c.start_date;
+                            const isNotStarted = c.modality !== 'immediate' && c.start_date && todayStr < c.start_date;
                             const isEnded = c.end_date && todayStr > c.end_date;
                             const isActive = !isNotStarted && !isEnded;
                             
@@ -2917,7 +2966,7 @@ function App() {
                           })
                           .map(c => {
                             const todayStr = new Date().toISOString().split('T')[0];
-                            const isNotStarted = c.start_date && todayStr < c.start_date;
+                            const isNotStarted = c.modality !== 'immediate' && c.start_date && todayStr < c.start_date;
                             const isEnded = c.end_date && todayStr > c.end_date;
                             
                             let statusLabel = "🟢 Activo";
@@ -2961,7 +3010,9 @@ function App() {
                                       <span>🎯 {c.target} {c.unit}</span>
                                       <span>🪙 +{c.points} pts</span>
                                       <span>👥 {c.participantsCount || 0} personas</span>
-                                      {c.start_date && (
+                                      {c.modality === 'immediate' ? (
+                                        <span>⚡ Inicio Inmediato (Inscripción hasta {c.enrollment_deadline ? formatDate(c.enrollment_deadline) : 'Sin límite'})</span>
+                                      ) : c.start_date && (
                                         <span>🗓️ {formatDate(c.start_date)} al {formatDate(c.end_date)}</span>
                                       )}
                                     </div>
@@ -3072,8 +3123,14 @@ function App() {
                         <Activity size={20} />
                       </div>
                     </div>
-                    <div className="stat-value" style={{ fontSize: '1.1rem', fontWeight: 700, padding: '0.5rem 0' }}>
-                      {adminSelectedChallenge.start_date ? `${formatDate(adminSelectedChallenge.start_date)} al ${formatDate(adminSelectedChallenge.end_date)}` : 'Campaña Permanente'}
+                    <div className="stat-value" style={{ fontSize: '1.0rem', fontWeight: 700, padding: '0.5rem 0' }}>
+                      {adminSelectedChallenge.modality === 'immediate' ? (
+                        <>⚡ Inicio Inmediato {adminSelectedChallenge.enrollment_deadline && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Límite anotarse: {formatDate(adminSelectedChallenge.enrollment_deadline)}</div>}</>
+                      ) : adminSelectedChallenge.start_date ? (
+                        `${formatDate(adminSelectedChallenge.start_date)} al ${formatDate(adminSelectedChallenge.end_date)}`
+                      ) : (
+                        'Campaña Permanente'
+                      )}
                     </div>
                     <div className="stat-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                       <span>Duración estimada: {adminSelectedChallenge.duration || 'N/A'}</span>
@@ -3139,7 +3196,7 @@ function App() {
                             const isCompleted = p.status === 'completed' || percent >= 100;
                             
                             const todayStr = new Date().toISOString().split('T')[0];
-                            const isNotStarted = adminSelectedChallenge.start_date && todayStr < adminSelectedChallenge.start_date;
+                            const isNotStarted = adminSelectedChallenge.modality !== 'immediate' && adminSelectedChallenge.start_date && todayStr < adminSelectedChallenge.start_date;
                             const isEnded = adminSelectedChallenge.end_date && todayStr > adminSelectedChallenge.end_date;
 
                             let statusText = "🟢 En Curso";
@@ -3427,28 +3484,81 @@ function App() {
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      <div className="form-group">
-                        <label className="form-label">📅 Fecha de Inicio (Apertura)</label>
-                        <input 
-                          type="date" 
-                          className="form-input" 
-                          value={cStartDate}
-                          onChange={(e) => setCStartDate(e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">🏁 Fecha de Finalización</label>
-                        <input 
-                          type="date" 
-                          className="form-input" 
-                          value={cEndDate}
-                          onChange={(e) => setCEndDate(e.target.value)}
-                          required
-                        />
+                    <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                      <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 700 }}>🎯 Modalidad de Programación</label>
+                      <div style={{ display: 'flex', gap: '2rem' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                          <input 
+                            type="radio" 
+                            name="c_modality" 
+                            value="scheduled" 
+                            checked={cModality === 'scheduled'} 
+                            onChange={() => setCModality('scheduled')}
+                            style={{ accentColor: 'var(--accent-color)', width: '16px', height: '16px' }}
+                          />
+                          Programado (Fechas pactadas)
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                          <input 
+                            type="radio" 
+                            name="c_modality" 
+                            value="immediate" 
+                            checked={cModality === 'immediate'} 
+                            onChange={() => setCModality('immediate')}
+                            style={{ accentColor: 'var(--accent-color)', width: '16px', height: '16px' }}
+                          />
+                          Inicio Inmediato (Se activa hoy)
+                        </label>
                       </div>
                     </div>
+
+                    {cModality === 'scheduled' ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div className="form-group">
+                          <label className="form-label">📅 Fecha de Inicio (Apertura)</label>
+                          <input 
+                            type="date" 
+                            className="form-input" 
+                            value={cStartDate}
+                            onChange={(e) => setCStartDate(e.target.value)}
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">🏁 Fecha de Finalización</label>
+                          <input 
+                            type="date" 
+                            className="form-input" 
+                            value={cEndDate}
+                            onChange={(e) => setCEndDate(e.target.value)}
+                            required
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div className="form-group">
+                          <label className="form-label">⏳ Límite de Inscripción</label>
+                          <input 
+                            type="date" 
+                            className="form-input" 
+                            value={cEnrollmentDeadline}
+                            onChange={(e) => setCEnrollmentDeadline(e.target.value)}
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">🏁 Fecha de Finalización (Opcional)</label>
+                          <input 
+                            type="date" 
+                            className="form-input" 
+                            value={cEndDate}
+                            onChange={(e) => setCEndDate(e.target.value)}
+                            placeholder="Ej: dd/mm/aaaa"
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     <div className="form-group">
                       <label className="form-label">Duración Estimada</label>
