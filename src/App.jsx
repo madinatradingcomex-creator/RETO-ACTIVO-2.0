@@ -2734,68 +2734,90 @@ function App() {
                     <div className="stat-footer">Colaboradores activos</div>
                   </div>
                 </section>
-
                 <section className="activity-section" style={{ marginBottom: '2.5rem' }}>
-                  <h3 style={{ fontSize: '1.25rem', marginBottom: '1.5rem' }}>📊 Rendimiento Medio por Departamento</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {companyStats.deptChartData.map((dept, idx) => {
-                      const maxStepsVal = Math.max(...companyStats.deptChartData.map(d=>d.avgSteps), 1000);
-                      const barPercent = Math.min((dept.avgSteps / maxStepsVal) * 100, 100);
-                      const colors = [
-                        { from: '#4285F4', to: '#1CBC8C' },
-                        { from: '#FC8B72', to: '#F7C59F' },
-                        { from: '#9B8EFF', to: '#C3B9FF' },
-                        { from: '#1CBC8C', to: '#70D9BF' },
-                      ];
-                      const color = colors[idx % colors.length];
-                      return (
-                        <div key={idx} className="dept-bar-row">
-                          <span style={{ width: '160px', fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)', flexShrink: 0 }}>
-                            {dept.name}
+                  <h3 style={{ fontSize: '1.25rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    🏆 Retos Corporativos Lanzados
+                  </h3>
+                  {challenges.length === 0 ? (
+                    <div style={{ backgroundColor: 'white', padding: '2.5rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      No se han creado retos aún. ¡Crea el primero usando el botón de arriba! 🌱
+                    </div>
+                  ) : (
+                    <div className="challenges-grid">
+                      {challenges.map(c => {
+                        const todayStr = new Date().toISOString().split('T')[0];
+                        const isNotStarted = c.start_date && todayStr < c.start_date;
+                        const isEnded = c.end_date && todayStr > c.end_date;
+                        
+                        let statusBadge = (
+                          <span className="challenge-badge" style={{ backgroundColor: 'var(--mint-bg)', color: 'var(--mint-dark)', border: '1px solid rgba(28,188,140,0.12)' }}>
+                            En Curso (Activo)
                           </span>
-                          <div className="dept-bar-track">
-                            <div 
-                              className="dept-bar-fill"
-                              style={{ 
-                                width: `${barPercent}%`,
-                                background: `linear-gradient(90deg, ${color.from}, ${color.to})`,
-                              }}
-                            />
-                            <span className="dept-bar-label">
-                              {dept.avgSteps.toLocaleString()} pasos prom.
+                        );
+                        if (isNotStarted) {
+                          statusBadge = (
+                            <span className="challenge-badge" style={{ backgroundColor: 'var(--sky-bg)', color: 'var(--sky-dark)', border: '1px solid rgba(66,133,244,0.12)' }}>
+                              ⏳ Programado
                             </span>
+                          );
+                        } else if (isEnded) {
+                          statusBadge = (
+                            <span className="challenge-badge" style={{ backgroundColor: '#FDF1ED', color: 'var(--coral-dark)', border: '1px solid rgba(252,139,114,0.18)' }}>
+                              🏁 Finalizado
+                            </span>
+                          );
+                        }
+
+                        return (
+                          <div className="challenge-card" key={c.id}>
+                            <div className="challenge-image-container">
+                              <span style={{ fontSize: '3.2rem' }}>{c.image || '🏆'}</span>
+                              <div style={{ position: 'absolute', top: '0.75rem', left: '0.75rem', zIndex: 2 }}>
+                                {statusBadge}
+                              </div>
+                              <span className="challenge-points-badge">
+                                🪙 +{c.points} pts
+                              </span>
+                            </div>
+
+                            <div className="challenge-content">
+                              <h3 className="challenge-title">{c.title}</h3>
+                              <p className="challenge-desc" style={{ marginBottom: '1.25rem' }}>{c.description}</p>
+
+                              <div className="challenge-stats" style={{ marginTop: 'auto' }}>
+                                <div className="challenge-stat-item">
+                                  <span className="challenge-stat-label">Objetivo</span>
+                                  <span className="challenge-stat-value">{c.target} {c.unit}</span>
+                                </div>
+                                <div className="challenge-stat-item" style={{ minWidth: '120px' }}>
+                                  <span className="challenge-stat-label">Vigencia</span>
+                                  <span className="challenge-stat-value" style={{ fontSize: '0.78rem' }}>
+                                    {c.start_date ? `${formatDate(c.start_date)} al ${formatDate(c.end_date)}` : 'Permanente'}
+                                  </span>
+                                </div>
+                                <div className="challenge-stat-item">
+                                  <span className="challenge-stat-label">Participantes</span>
+                                  <span className="challenge-stat-value">{c.participantsCount || 0} personas</span>
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                          <span className="dept-bar-pts">
-                            🪙 {dept.points} pts
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </section>
 
-                <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem' }}>
+                <section style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
                   <div style={{ backgroundColor: 'white', padding: '1.75rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
                     <h4 style={{ fontSize: '1.1rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <ClipboardCheck size={20} style={{ color: 'var(--mint-accent)' }} /> Evidencias Pendientes
                     </h4>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginBottom: '1.25rem' }}>
-                      Tienes {pendingEvidences.length} capturas de pantalla de empleados esperando aprobación.
+                      Tienes <strong>{pendingEvidences.length}</strong> capturas de pantalla de empleados esperando aprobación y auditoría de RRHH.
                     </p>
-                    <button className="btn btn-secondary" onClick={() => setActiveTab('evidence')}>
+                    <button className="btn btn-secondary" style={{ width: 'auto' }} onClick={() => setActiveTab('evidence')}>
                       Ir a Verificar Evidencias
-                    </button>
-                  </div>
-
-                  <div style={{ backgroundColor: 'white', padding: '1.75rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
-                    <h4 style={{ fontSize: '1.1rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Award size={20} style={{ color: 'var(--coral-accent)' }} /> Estadísticas Generales
-                    </h4>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginBottom: '1.25rem' }}>
-                      El departamento de **{companyStats.deptChartData.sort((a,b)=>b.avgSteps - a.avgSteps)[0]?.name || 'Tecnología'}** lidera la tabla de movilidad corporativa.
-                    </p>
-                    <button className="btn btn-secondary" onClick={() => setActiveTab('create_challenge')}>
-                      Lanzar Nueva Campaña
                     </button>
                   </div>
                 </section>
@@ -2962,30 +2984,16 @@ function App() {
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      <div className="form-group">
-                        <label className="form-label">Puntos a Otorgar</label>
-                        <input 
-                          type="number" 
-                          placeholder="Ej: 300" 
-                          className="form-input" 
-                          value={cPoints}
-                          onChange={(e) => setCPoints(e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Categoría / Temática</label>
-                        <select 
-                          className="form-input" 
-                          value={cCategory}
-                          onChange={(e) => setCCategory(e.target.value)}
-                        >
-                          <option value="mobility">Movilidad / Deporte (Verde Menta)</option>
-                          <option value="sky">Pasos / Hidratación (Celeste)</option>
-                          <option value="lavender">Pausas / Meditación (Violeta)</option>
-                        </select>
-                      </div>
+                    <div className="form-group">
+                      <label className="form-label">Puntos a Otorgar</label>
+                      <input 
+                        type="number" 
+                        placeholder="Ej: 300" 
+                        className="form-input" 
+                        value={cPoints}
+                        onChange={(e) => setCPoints(e.target.value)}
+                        required
+                      />
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
