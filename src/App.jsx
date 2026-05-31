@@ -2810,7 +2810,7 @@ function App() {
                               </div>
 
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginLeft: 'auto' }}>
-                                <span className="challenge-badge" style={{ backgroundColor: statusBg, color: statusColor, fontSize: '0.75rem', padding: '0.25rem 0.5rem', whiteSpace: 'nowrap' }}>
+                                <span style={{ backgroundColor: statusBg, color: statusColor, fontSize: '0.75rem', padding: '0.25rem 0.6rem', borderRadius: '20px', fontWeight: 700, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center' }}>
                                   {statusLabel}
                                 </span>
                                 <button 
