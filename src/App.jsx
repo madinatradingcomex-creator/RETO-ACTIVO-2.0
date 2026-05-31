@@ -68,6 +68,10 @@ function App() {
   // Navigation
   const [activeTab, setActiveTab] = useState(() => {
     const hash = window.location.hash.replace('#', '');
+    if (hash === 'challenge_detail') {
+      window.location.hash = 'dashboard';
+      return 'dashboard';
+    }
     return (hash && hash !== 'landing') ? hash : 'dashboard';
   });
 
@@ -80,14 +84,17 @@ function App() {
         setLandingView(true);
       } else {
         setLandingView(false);
-        if (hash !== activeTab) {
+        if (hash === 'challenge_detail' && !adminSelectedChallenge) {
+          window.location.hash = 'dashboard';
+          setActiveTab('dashboard');
+        } else if (hash !== activeTab) {
           setActiveTab(hash);
         }
       }
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [activeTab]);
+  }, [activeTab, adminSelectedChallenge]);
 
   useEffect(() => {
     if (landingView) {
