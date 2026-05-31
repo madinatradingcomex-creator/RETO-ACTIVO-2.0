@@ -311,11 +311,17 @@ export const dbService = {
         if (stepsToday > 0) {
           hist[hist.length - 1] += stepsToday;
         }
-        await updateDoc(ref, { points: newPoints, daily_steps_history: hist });
+        const nowIso = new Date().toISOString();
+        await updateDoc(ref, { 
+          points: newPoints, 
+          daily_steps_history: hist,
+          last_active_at: nowIso
+        });
         const local = getLocalUser();
         if (local && local.id === userId) {
           local.points = newPoints;
           local.daily_steps_history = hist;
+          local.last_active_at = nowIso;
           setLocalUser(local);
         }
       }
@@ -732,7 +738,12 @@ export const dbService = {
       const { dailySteps, totalSteps } = fitData;
       
       const userRef = doc(db, 'usuarios', userId);
-      await updateDoc(userRef, { daily_steps_history: dailySteps });
+      const nowIso = new Date().toISOString();
+      await updateDoc(userRef, { 
+        daily_steps_history: dailySteps,
+        last_sync_at: nowIso,
+        last_active_at: nowIso
+      });
 
       const dates = [];
       for (let i = 6; i >= 0; i--) {
@@ -858,13 +869,14 @@ export const dbService = {
       });
 
       const enrichedList = list.map(item => {
-        const user = usersMap[item.user_id] || { name: 'Colaborador', lastname: 'Anónimo', avatar: '' };
+        const user = usersMap[item.user_id] || { name: 'Colaborador', lastname: 'Anónimo', avatar: '', last_sync_at: '', last_active_at: '' };
         return {
           user_id: item.user_id,
           user_name: `${user.name} ${user.lastname || ''}`,
           avatar: user.avatar,
           progress: item.progress,
-          status: item.status
+          status: item.status,
+          last_sync_at: user.last_sync_at || user.last_active_at || ''
         };
       }).sort((a, b) => b.progress - a.progress);
 

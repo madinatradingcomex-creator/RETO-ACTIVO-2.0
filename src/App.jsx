@@ -188,6 +188,26 @@ function App() {
   const [gFitSyncDays, setGFitSyncDays] = useState(7); // 1, 2, 3, 4, 5, or 7
   const [challengeRankings, setChallengeRankings] = useState({});
 
+  // === ADMIN DETAILED CHALLENGE VIEWS ===
+  const [adminChallengesFilter, setAdminChallengesFilter] = useState('active');
+  const [selectedAdminChallenge, setSelectedAdminChallenge] = useState(null);
+  const [adminChallengeRankings, setAdminChallengeRankings] = useState([]);
+  const [isAdminRankingsLoading, setIsAdminRankingsLoading] = useState(false);
+
+  const handleOpenAdminChallengeDetails = async (challenge) => {
+    setSelectedAdminChallenge(challenge);
+    setIsAdminRankingsLoading(true);
+    try {
+      const rankings = await dbService.getChallengeRanking(challenge.id);
+      setAdminChallengeRankings(rankings);
+    } catch (e) {
+      console.error("Error loading challenge rankings for admin:", e);
+      setAdminChallengeRankings([]);
+    } finally {
+      setIsAdminRankingsLoading(false);
+    }
+  };
+
   const loadViewData = async (userSession) => {
     if (!userSession) return;
     
@@ -2735,75 +2755,84 @@ function App() {
                   </div>
                 </section>
                 <section className="activity-section" style={{ marginBottom: '2.5rem' }}>
-                  <h3 style={{ fontSize: '1.25rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    🏆 Retos Corporativos Lanzados
-                  </h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                    <h3 style={{ fontSize: '1.25rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      🏆 Retos Corporativos Lanzados
+                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.88rem', color: 'var(--text-muted)', fontWeight: 600 }}>Filtrar por vigencia:</span>
+                      <select
+                        className="form-input"
+                        style={{ width: 'auto', padding: '0.4rem 2rem 0.4rem 1rem', height: 'auto', fontSize: '0.88rem', fontWeight: 600, border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)' }}
+                        value={adminChallengesFilter}
+                        onChange={(e) => setAdminChallengesFilter(e.target.value)}
+                      >
+                        <option value="all">Todos los retos</option>
+                        <option value="active">Activos (En Curso)</option>
+                        <option value="future">Futuros (Programados)</option>
+                        <option value="past">Pasados (Finalizados)</option>
+                      </select>
+                    </div>
+                  </div>
+
                   {challenges.length === 0 ? (
                     <div style={{ backgroundColor: 'white', padding: '2.5rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', textAlign: 'center', color: 'var(--text-muted)' }}>
                       No se han creado retos aún. ¡Crea el primero usando el botón de arriba! 🌱
                     </div>
                   ) : (
                     <div className="challenges-grid">
-                      {challenges.map(c => {
-                        const todayStr = new Date().toISOString().split('T')[0];
-                        const isNotStarted = c.start_date && todayStr < c.start_date;
-                        const isEnded = c.end_date && todayStr > c.end_date;
-                        
-                        let statusBadge = (
-                          <span className="challenge-badge" style={{ backgroundColor: 'var(--mint-bg)', color: 'var(--mint-dark)', border: '1px solid rgba(28,188,140,0.12)' }}>
-                            En Curso (Activo)
-                          </span>
-                        );
-                        if (isNotStarted) {
-                          statusBadge = (
-                            <span className="challenge-badge" style={{ backgroundColor: 'var(--sky-bg)', color: 'var(--sky-dark)', border: '1px solid rgba(66,133,244,0.12)' }}>
-                              ⏳ Programado
-                            </span>
-                          );
-                        } else if (isEnded) {
-                          statusBadge = (
-                            <span className="challenge-badge" style={{ backgroundColor: '#FDF1ED', color: 'var(--coral-dark)', border: '1px solid rgba(252,139,114,0.18)' }}>
-                              🏁 Finalizado
-                            </span>
-                          );
-                        }
-
-                        return (
-                          <div className="challenge-card" key={c.id}>
-                            <div className="challenge-image-container">
-                              <span style={{ fontSize: '3.2rem' }}>{c.image || '🏆'}</span>
-                              <div style={{ position: 'absolute', top: '0.75rem', left: '0.75rem', zIndex: 2 }}>
-                                {statusBadge}
+                      {challenges
+                        .filter(c => {
+                          const todayStr = new Date().toISOString().split('T')[0];
+                          const isNotStarted = c.start_date && todayStr < c.start_date;
+                          const isEnded = c.end_date && todayStr > c.end_date;
+                          
+                          if (adminChallengesFilter === 'active') return !isNotStarted && !isEnded;
+                          if (adminChallengesFilter === 'future') return isNotStarted;
+                          if (adminChallengesFilter === 'past') return isEnded;
+                          return true;
+                        })
+                        .map(c => {
+                          return (
+                            <div 
+                              className="challenge-card" 
+                              key={c.id} 
+                              onClick={() => handleOpenAdminChallengeDetails(c)}
+                              style={{ cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s' }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.transform = 'translateY(-4px)';
+                                e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+                              }}
+                            >
+                              <div className="challenge-image-container">
+                                <span style={{ fontSize: '3.2rem' }}>{c.image || '🏆'}</span>
+                                <span className="challenge-points-badge">
+                                  🪙 +{c.points} pts
+                                </span>
                               </div>
-                              <span className="challenge-points-badge">
-                                🪙 +{c.points} pts
-                              </span>
-                            </div>
 
-                            <div className="challenge-content">
-                              <h3 className="challenge-title">{c.title}</h3>
-                              <p className="challenge-desc" style={{ marginBottom: '1.25rem' }}>{c.description}</p>
+                              <div className="challenge-content">
+                                <h3 className="challenge-title">{c.title}</h3>
+                                <p className="challenge-desc" style={{ marginBottom: '1.25rem' }}>{c.description}</p>
 
-                              <div className="challenge-stats" style={{ marginTop: 'auto' }}>
-                                <div className="challenge-stat-item">
-                                  <span className="challenge-stat-label">Objetivo</span>
-                                  <span className="challenge-stat-value">{c.target} {c.unit}</span>
-                                </div>
-                                <div className="challenge-stat-item" style={{ minWidth: '120px' }}>
-                                  <span className="challenge-stat-label">Vigencia</span>
-                                  <span className="challenge-stat-value" style={{ fontSize: '0.78rem' }}>
-                                    {c.start_date ? `${formatDate(c.start_date)} al ${formatDate(c.end_date)}` : 'Permanente'}
-                                  </span>
-                                </div>
-                                <div className="challenge-stat-item">
-                                  <span className="challenge-stat-label">Participantes</span>
-                                  <span className="challenge-stat-value">{c.participantsCount || 0} personas</span>
+                                <div className="challenge-stats" style={{ marginTop: 'auto' }}>
+                                  <div className="challenge-stat-item">
+                                    <span className="challenge-stat-label">Objetivo</span>
+                                    <span className="challenge-stat-value">{c.target} {c.unit}</span>
+                                  </div>
+                                  <div className="challenge-stat-item">
+                                    <span className="challenge-stat-label">Participantes</span>
+                                    <span className="challenge-stat-value">{c.participantsCount || 0} personas</span>
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
                     </div>
                   )}
                 </section>
@@ -3445,6 +3474,167 @@ function App() {
                   Cancelar
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: DETALLES DE RETO PARA ADMINISTRADOR RRHH */}
+      {selectedAdminChallenge && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '680px', maxHeight: '85dvh', display: 'flex', flexDirection: 'column' }}>
+            <button className="modal-close" onClick={() => setSelectedAdminChallenge(null)}>
+              <X size={20} />
+            </button>
+            
+            <div className="modal-header" style={{ marginBottom: '1.5rem', flexShrink: 0 }}>
+              <span style={{ fontSize: '3rem', display: 'block', marginBottom: '0.5rem' }}>{selectedAdminChallenge.image || '🏆'}</span>
+              <h3 className="modal-title">{selectedAdminChallenge.title}</h3>
+              <p className="modal-subtitle" style={{ color: 'var(--text-muted)' }}>Métricas del Reto & Tablero de Competencia</p>
+            </div>
+
+            <div style={{ overflowY: 'auto', paddingRight: '0.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', flexGrow: 1 }}>
+              <div style={{ backgroundColor: 'var(--sky-bg)', padding: '1rem 1.25rem', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(66,133,244,0.1)' }}>
+                <h4 style={{ fontSize: '0.92rem', color: 'var(--sky-dark)', fontWeight: 700, margin: '0 0 0.5rem 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Detalles del Desafío
+                </h4>
+                <p style={{ margin: '0 0 1rem 0', fontSize: '0.88rem', color: 'var(--text-main)' }}>{selectedAdminChallenge.description}</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', fontSize: '0.85rem' }}>
+                  <div>
+                    <span style={{ display: 'block', color: 'var(--text-muted)' }}>Objetivo</span>
+                    <strong style={{ fontSize: '0.95rem' }}>{selectedAdminChallenge.target} {selectedAdminChallenge.unit}</strong>
+                  </div>
+                  <div>
+                    <span style={{ display: 'block', color: 'var(--text-muted)' }}>Puntos</span>
+                    <strong style={{ fontSize: '0.95rem' }}>🪙 {selectedAdminChallenge.points} pts</strong>
+                  </div>
+                  <div>
+                    <span style={{ display: 'block', color: 'var(--text-muted)' }}>Vigencia</span>
+                    <strong style={{ fontSize: '0.95rem' }}>
+                      {selectedAdminChallenge.start_date 
+                        ? `${formatDate(selectedAdminChallenge.start_date)} al ${formatDate(selectedAdminChallenge.end_date)}` 
+                        : 'Permanente'}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 style={{ fontSize: '1.1rem', margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Award size={20} style={{ color: 'var(--coral-accent)' }} /> 
+                  Tablero de Posiciones ({selectedAdminChallenge.participantsCount || 0} anotados)
+                </h4>
+
+                {isAdminRankingsLoading ? (
+                  <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                    Cargando posiciones del reto... ⏳
+                  </div>
+                ) : adminChallengeRankings.length === 0 ? (
+                  <div style={{ backgroundColor: 'var(--background-light)', padding: '2rem', borderRadius: 'var(--radius-lg)', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                    Nadie se ha anotado a este reto aún. 🌱
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {adminChallengeRankings.map((member, index) => {
+                      const progressPct = Math.min((member.progress / selectedAdminChallenge.target) * 100, 100);
+                      
+                      // Calculate days since last sync
+                      let syncText = 'Nunca';
+                      let syncStyle = {
+                        color: 'var(--text-muted)',
+                        backgroundColor: '#F4F5F7',
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1px solid rgba(0,0,0,0.05)'
+                      };
+                      if (member.last_sync_at) {
+                        const diffTime = Math.abs(new Date() - new Date(member.last_sync_at));
+                        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                        if (diffDays === 0) {
+                          syncText = 'Hoy';
+                          syncStyle = {
+                            color: 'var(--mint-dark)',
+                            backgroundColor: 'var(--mint-bg)',
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1px solid rgba(28,188,140,0.1)'
+                          };
+                        } else if (diffDays === 1) {
+                          syncText = 'Ayer';
+                          syncStyle = {
+                            color: 'var(--text-main)',
+                            backgroundColor: 'var(--border-color)',
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: 'var(--radius-sm)'
+                          };
+                        } else {
+                          syncText = `Hace ${diffDays} días`;
+                          syncStyle = {
+                            color: '#E06666',
+                            backgroundColor: '#FDF3F3',
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1px solid rgba(224,102,102,0.1)'
+                          };
+                        }
+                      }
+
+                      return (
+                        <div key={member.user_id} className="dept-bar-row" style={{ backgroundColor: 'var(--background-light)', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                          {/* Rank */}
+                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: index === 0 ? '#FFF9E6' : index === 1 ? '#F4F5F7' : '#ECEFF1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.88rem', color: index === 0 ? '#B38F00' : '#455A64', flexShrink: 0 }}>
+                            {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
+                          </div>
+
+                          {/* Avatar & Name */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexGrow: 1, minWidth: '150px' }}>
+                            <div className="avatar" style={{ width: '32px', height: '32px', fontSize: '0.9rem' }}>
+                              {member.avatar ? member.avatar : member.user_name.charAt(0)}
+                            </div>
+                            <div>
+                              <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>{member.user_name}</div>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                Estado: <strong>{member.status === 'completed' ? 'Completado ✓' : 'En curso'}</strong>
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Progress bar and numeric stats */}
+                          <div style={{ width: '180px', display: 'flex', flexDirection: 'column', gap: '0.25rem', flexShrink: 0 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 600 }}>
+                              <span>Progreso</span>
+                              <span>{member.progress} / {selectedAdminChallenge.target}</span>
+                            </div>
+                            <div className="challenge-progress-bar" style={{ height: '6px', margin: 0 }}>
+                              <div 
+                                className="challenge-progress-fill" 
+                                style={{ 
+                                  width: `${progressPct}%`, 
+                                  backgroundColor: progressPct >= 100 ? 'var(--mint-accent)' : 'var(--sky-accent)' 
+                                }} 
+                              />
+                            </div>
+                          </div>
+
+                          {/* Sync / Activity status */}
+                          <div style={{ width: '110px', textAlign: 'right', flexShrink: 0 }}>
+                            <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Última Sinc.</span>
+                            <span style={syncStyle}>
+                              {syncText}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="modal-footer" style={{ marginTop: '1.5rem', textAlign: 'right', flexShrink: 0 }}>
+              <button className="btn btn-secondary" style={{ width: 'auto' }} onClick={() => setSelectedAdminChallenge(null)}>
+                Cerrar Detalle
+              </button>
             </div>
           </div>
         </div>
