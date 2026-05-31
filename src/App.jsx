@@ -32,7 +32,8 @@ import {
   ChevronDown,
   ChevronUp,
   Users,
-  Trash2
+  Trash2,
+  Edit2
 } from 'lucide-react';
 import { dbService } from './services/db';
 import './App.css';
@@ -176,6 +177,17 @@ function App() {
   const [adminChallengeParticipants, setAdminChallengeParticipants] = useState([]);
   const [loadingAdminRanking, setLoadingAdminRanking] = useState(false);
   const [adminChallengesFilter, setAdminChallengesFilter] = useState('all');
+
+  // Modals for editing challenge dates & progress
+  const [showEditDatesModal, setShowEditDatesModal] = useState(false);
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
+  const [isSavingDates, setIsSavingDates] = useState(false);
+
+  const [showEditProgressModal, setShowEditProgressModal] = useState(false);
+  const [editingParticipant, setEditingParticipant] = useState(null);
+  const [editProgressValue, setEditProgressValue] = useState('');
+  const [isSavingProgress, setIsSavingProgress] = useState(false);
 
   // Forms - Admin Create Reward
   const [rTitle, setRTitle] = useState('');
@@ -781,6 +793,78 @@ function App() {
 
     showToastMessage("🗑️ ¡Reto eliminado con éxito de la plataforma!");
     loadViewData(currentUser);
+  };
+
+  const handleSaveChallengeDates = async (e) => {
+    e.preventDefault();
+    if (!editStartDate || !editEndDate) {
+      showToastMessage("Por favor ingresa ambas fechas.", "error");
+      return;
+    }
+    if (editEndDate < editStartDate) {
+      showToastMessage("La fecha de finalización no puede ser anterior a la fecha de inicio.", "error");
+      return;
+    }
+
+    setIsSavingDates(true);
+    const res = await dbService.updateChallengeDates(adminSelectedChallenge.id, editStartDate, editEndDate);
+    setIsSavingDates(false);
+
+    if (res.error) {
+      showToastMessage(res.error, "error");
+      return;
+    }
+
+    showToastMessage("📅 Rango de vigencia actualizado correctamente.");
+    
+    // Update local state to reflect new dates
+    const updated = { 
+      ...adminSelectedChallenge, 
+      start_date: editStartDate, 
+      end_date: editEndDate 
+    };
+    setAdminSelectedChallenge(updated);
+    
+    // Also reload overall challenges list in parent state
+    loadViewData(currentUser);
+    setShowEditDatesModal(false);
+  };
+
+  const handleSaveParticipantProgress = async (e) => {
+    e.preventDefault();
+    if (editProgressValue === '' || isNaN(parseFloat(editProgressValue)) || parseFloat(editProgressValue) < 0) {
+      showToastMessage("Por favor ingresa un número de progreso válido y mayor o igual a 0.", "error");
+      return;
+    }
+
+    setIsSavingProgress(true);
+    const res = await dbService.updateParticipantProgress(
+      editingParticipant.user_id, 
+      adminSelectedChallenge.id, 
+      parseFloat(editProgressValue)
+    );
+    setIsSavingProgress(false);
+
+    if (res.error) {
+      showToastMessage(res.error, "error");
+      return;
+    }
+
+    showToastMessage(`✏️ Progreso de ${editingParticipant.user_name} modificado con éxito.`);
+    
+    // Reload ranking/participants list
+    setLoadingAdminRanking(true);
+    try {
+      const pList = await dbService.getChallengeRanking(adminSelectedChallenge.id);
+      setAdminChallengeParticipants(pList);
+    } catch(err) {
+      console.error(err);
+    } finally {
+      setLoadingAdminRanking(false);
+    }
+    
+    setShowEditProgressModal(false);
+    setEditingParticipant(null);
   };
 
   const handleViewChallengeDetail = async (challenge) => {
@@ -2991,8 +3075,32 @@ function App() {
                     <div className="stat-value" style={{ fontSize: '1.1rem', fontWeight: 700, padding: '0.5rem 0' }}>
                       {adminSelectedChallenge.start_date ? `${formatDate(adminSelectedChallenge.start_date)} al ${formatDate(adminSelectedChallenge.end_date)}` : 'Campaña Permanente'}
                     </div>
-                    <div className="stat-footer">
-                      Duración estimada: {adminSelectedChallenge.duration || 'N/A'}
+                    <div className="stat-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                      <span>Duración estimada: {adminSelectedChallenge.duration || 'N/A'}</span>
+                      <button 
+                        onClick={() => {
+                          setEditStartDate(adminSelectedChallenge.start_date || '');
+                          setEditEndDate(adminSelectedChallenge.end_date || '');
+                          setShowEditDatesModal(true);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--accent-color)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          padding: '0.2rem 0.4rem',
+                          borderRadius: '4px',
+                          transition: 'background-color 0.2s'
+                        }}
+                        title="Modificar fechas de vigencia"
+                      >
+                        <Edit2 size={12} /> Modificar
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -3080,7 +3188,31 @@ function App() {
                                 <td style={{ padding: '1rem' }}>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: 600 }}>
-                                      <span>{p.progress.toLocaleString()} / {adminSelectedChallenge.target.toLocaleString()} {adminSelectedChallenge.unit}</span>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                        <span>{p.progress.toLocaleString()} / {adminSelectedChallenge.target.toLocaleString()} {adminSelectedChallenge.unit}</span>
+                                        <button 
+                                          onClick={() => {
+                                            setEditingParticipant(p);
+                                            setEditProgressValue(p.progress);
+                                            setShowEditProgressModal(true);
+                                          }}
+                                          style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            color: 'var(--accent-color)',
+                                            cursor: 'pointer',
+                                            padding: '0.1rem 0.25rem',
+                                            borderRadius: '4px',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            transition: 'background-color 0.2s',
+                                            fontSize: '0.72rem'
+                                          }}
+                                          title="Ajustar progreso"
+                                        >
+                                          <Edit2 size={11} />
+                                        </button>
+                                      </div>
                                       <span>{Math.round(percent)}%</span>
                                     </div>
                                     <div style={{ width: '100%', height: '6px', backgroundColor: 'var(--bg-main)', borderRadius: '10px', overflow: 'hidden' }}>
@@ -3874,6 +4006,127 @@ function App() {
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
                   {isSubmitting ? 'Enviando...' : 'Enviar Actividad para Aprobación'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDITAR FECHAS DE VIGENCIA DE RETO */}
+      {showEditDatesModal && adminSelectedChallenge && (
+        <div className="modal-overlay" onClick={() => setShowEditDatesModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px', width: '90%' }}>
+            <div className="modal-header">
+              <h3>📅 Editar Rango de Vigencia</h3>
+              <button className="close-btn" onClick={() => setShowEditDatesModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveChallengeDates} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginTop: '1rem' }}>
+              <div>
+                <p style={{ margin: '0 0 1rem 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  Ajusta la vigencia del reto <strong>"{adminSelectedChallenge.title}"</strong>. Los colaboradores solo pueden participar e inscribirse dentro de este rango temporal.
+                </p>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>Fecha de Inicio</label>
+                  <input 
+                    type="date" 
+                    className="form-control" 
+                    value={editStartDate} 
+                    onChange={(e) => setEditStartDate(e.target.value)} 
+                    required 
+                    style={{ width: '100%' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>Fecha de Finalización</label>
+                  <input 
+                    type="date" 
+                    className="form-control" 
+                    value={editEndDate} 
+                    onChange={(e) => setEditEndDate(e.target.value)} 
+                    required 
+                    style={{ width: '100%' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowEditDatesModal(false)} style={{ flex: 1 }}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={isSavingDates} style={{ flex: 1 }}>
+                  {isSavingDates ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: AJUSTAR PROGRESO DE COLABORADOR */}
+      {showEditProgressModal && editingParticipant && adminSelectedChallenge && (
+        <div className="modal-overlay" onClick={() => { setShowEditProgressModal(false); setEditingParticipant(null); }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px', width: '90%' }}>
+            <div className="modal-header">
+              <h3>✏️ Ajustar Progreso de Colaborador</h3>
+              <button className="close-btn" onClick={() => { setShowEditProgressModal(false); setEditingParticipant(null); }}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveParticipantProgress} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginTop: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', backgroundColor: 'var(--bg-main)', padding: '1rem', borderRadius: 'var(--radius-lg)' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'white', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--text-muted)' }}>
+                  {editingParticipant.avatar ? (
+                    <img src={editingParticipant.avatar} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                  ) : (
+                    editingParticipant.user_name.charAt(0).toUpperCase()
+                  )}
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem' }}>{editingParticipant.user_name}</h4>
+                  <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    Reto: {adminSelectedChallenge.title}
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                  Progreso Actual Registrado
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input 
+                    type="number" 
+                    className="form-control" 
+                    value={editProgressValue} 
+                    onChange={(e) => setEditProgressValue(e.target.value)} 
+                    required 
+                    min="0"
+                    step="any"
+                    style={{ flex: 1 }}
+                  />
+                  <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                    / {adminSelectedChallenge.target} {adminSelectedChallenge.unit}
+                  </span>
+                </div>
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Ingresa el valor total acumulado para este participante. Si supera la meta ({adminSelectedChallenge.target} {adminSelectedChallenge.unit}), el reto se marcará automáticamente como completado.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowEditProgressModal(false); setEditingParticipant(null); }} style={{ flex: 1 }}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={isSavingProgress} style={{ flex: 1 }}>
+                  {isSavingProgress ? 'Guardando...' : 'Actualizar Progreso'}
                 </button>
               </div>
             </form>

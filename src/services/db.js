@@ -930,5 +930,53 @@ export const dbService = {
       console.error("Error deleting challenge:", err);
       return { error: err.message };
     }
+  },
+  async updateChallengeDates(challengeId, startDate, endDate) {
+    try {
+      const ref = doc(db, 'retos', challengeId);
+      await updateDoc(ref, {
+        start_date: startDate || '',
+        end_date: endDate || ''
+      });
+      return { success: true };
+    } catch(err) {
+      console.error("Error updating challenge dates:", err);
+      return { error: err.message };
+    }
+  },
+  async updateParticipantProgress(userId, challengeId, newProgress) {
+    try {
+      const q = query(
+        collection(db, 'user_challenges'), 
+        where('user_id', '==', userId), 
+        where('challenge_id', '==', challengeId)
+      );
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        return { error: "Inscripción no encontrada." };
+      }
+      
+      const enrollDoc = snap.docs[0];
+      const targetProgress = parseFloat(newProgress);
+      
+      // Let's get the challenge to check if target is met
+      const cSnap = await getDoc(doc(db, 'retos', challengeId));
+      let status = 'active';
+      if (cSnap.exists()) {
+        const challenge = cSnap.data();
+        if (targetProgress >= challenge.target) {
+          status = 'completed';
+        }
+      }
+      
+      await updateDoc(enrollDoc.ref, { 
+        progress: targetProgress,
+        status: status
+      });
+      return { success: true };
+    } catch(err) {
+      console.error("Error updating participant progress:", err);
+      return { error: err.message };
+    }
   }
 };
