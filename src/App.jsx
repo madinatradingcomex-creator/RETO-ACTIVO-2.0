@@ -162,6 +162,12 @@ function App() {
   const [cStartDate, setCStartDate] = useState('');
   const [cEndDate, setCEndDate] = useState('');
 
+  // Admin Challenges Manager & Detail view states
+  const [adminSelectedChallenge, setAdminSelectedChallenge] = useState(null);
+  const [adminChallengeParticipants, setAdminChallengeParticipants] = useState([]);
+  const [loadingAdminRanking, setLoadingAdminRanking] = useState(false);
+  const [adminChallengesFilter, setAdminChallengesFilter] = useState('all');
+
   // Forms - Admin Create Reward
   const [rTitle, setRTitle] = useState('');
   const [rDesc, setRDesc] = useState('');
@@ -761,6 +767,21 @@ function App() {
 
     showToastMessage("🗑️ ¡Reto eliminado con éxito de la plataforma!");
     loadViewData(currentUser);
+  };
+
+  const handleViewChallengeDetail = async (challenge) => {
+    setAdminSelectedChallenge(challenge);
+    setLoadingAdminRanking(true);
+    setActiveTab('challenge_detail');
+    try {
+      const pList = await dbService.getChallengeRanking(challenge.id);
+      setAdminChallengeParticipants(pList);
+    } catch (e) {
+      console.error("Error loading challenge participants:", e);
+      showToastMessage("Error al cargar la lista de participantes.", "error");
+    } finally {
+      setLoadingAdminRanking(false);
+    }
   };
 
   const handleCreateReward = async (e) => {
@@ -2755,7 +2776,7 @@ function App() {
                   
                   {/* Left/Main Block: Retos y Iniciativas Creadas */}
                   <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                       <div>
                         <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 0.25rem 0' }}>
                           🏆 Campañas y Retos de Bienestar
@@ -2764,6 +2785,17 @@ function App() {
                           Administra y monitorea las iniciativas vigentes para toda la plantilla.
                         </p>
                       </div>
+                      <select 
+                        className="form-input" 
+                        style={{ width: 'auto', padding: '0.4rem 2rem 0.4rem 1rem', fontSize: '0.82rem', borderRadius: '20px', height: 'auto', margin: 0 }}
+                        value={adminChallengesFilter}
+                        onChange={(e) => setAdminChallengesFilter(e.target.value)}
+                      >
+                        <option value="all">Filtro: Todos los Retos</option>
+                        <option value="active">🟢 En Curso / Activos</option>
+                        <option value="scheduled">⏳ Programados</option>
+                        <option value="ended">🏁 Finalizados</option>
+                      </select>
                     </div>
 
                     {challenges.length === 0 ? (
@@ -2773,57 +2805,89 @@ function App() {
                       </div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {challenges.map(c => {
-                          const todayStr = new Date().toISOString().split('T')[0];
-                          const isNotStarted = c.start_date && todayStr < c.start_date;
-                          const isEnded = c.end_date && todayStr > c.end_date;
-                          
-                          let statusLabel = "🟢 Activo";
-                          let statusBg = "var(--mint-bg)";
-                          let statusColor = "var(--mint-dark)";
-                          
-                          if (isNotStarted) {
-                            statusLabel = "⏳ Programado";
-                            statusBg = "#FFF9E6";
-                            statusColor = "#B38F00";
-                          } else if (isEnded) {
-                            statusLabel = "🏁 Finalizado";
-                            statusBg = "var(--sky-bg)";
-                            statusColor = "var(--sky-accent)";
-                          }
+                        {challenges
+                          .filter(c => {
+                            const todayStr = new Date().toISOString().split('T')[0];
+                            const isNotStarted = c.start_date && todayStr < c.start_date;
+                            const isEnded = c.end_date && todayStr > c.end_date;
+                            const isActive = !isNotStarted && !isEnded;
+                            
+                            if (adminChallengesFilter === 'active') return isActive;
+                            if (adminChallengesFilter === 'scheduled') return isNotStarted;
+                            if (adminChallengesFilter === 'ended') return isEnded;
+                            return true;
+                          })
+                          .map(c => {
+                            const todayStr = new Date().toISOString().split('T')[0];
+                            const isNotStarted = c.start_date && todayStr < c.start_date;
+                            const isEnded = c.end_date && todayStr > c.end_date;
+                            
+                            let statusLabel = "🟢 Activo";
+                            let statusBg = "var(--mint-bg)";
+                            let statusColor = "var(--mint-dark)";
+                            
+                            if (isNotStarted) {
+                              statusLabel = "⏳ Programado";
+                              statusBg = "#FFF9E6";
+                              statusColor = "#B38F00";
+                            } else if (isEnded) {
+                              statusLabel = "🏁 Finalizado";
+                              statusBg = "var(--sky-bg)";
+                              statusColor = "var(--sky-accent)";
+                            }
 
-                          return (
-                            <div key={c.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'var(--bg-main)', padding: '1rem 1.25rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', gap: '1rem' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                <span style={{ fontSize: '2rem' }}>{c.image || '🏆'}</span>
-                                <div>
-                                  <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.96rem', fontWeight: 700, color: 'var(--text-main)' }}>{c.title}</h4>
-                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem 0.8rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                                    <span>🎯 {c.target} {c.unit}</span>
-                                    <span>🪙 +{c.points} pts</span>
-                                    <span>👥 {c.participantsCount || 0} personas</span>
-                                    {c.start_date && (
-                                      <span>🗓️ {formatDate(c.start_date)} al {formatDate(c.end_date)}</span>
-                                    )}
+                            return (
+                              <div 
+                                key={c.id} 
+                                onClick={() => handleViewChallengeDetail(c)}
+                                style={{ 
+                                  display: 'flex', 
+                                  flexWrap: 'wrap', 
+                                  alignItems: 'center', 
+                                  justifyContent: 'space-between', 
+                                  backgroundColor: 'var(--bg-main)', 
+                                  padding: '1rem 1.25rem', 
+                                  borderRadius: 'var(--radius-lg)', 
+                                  border: '1px solid var(--border-color)', 
+                                  gap: '1rem',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s ease'
+                                }}
+                                className="admin-challenge-item-hover"
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                  <span style={{ fontSize: '2rem' }}>{c.image || '🏆'}</span>
+                                  <div>
+                                    <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.96rem', fontWeight: 700, color: 'var(--text-main)' }}>{c.title}</h4>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem 0.8rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                      <span>🎯 {c.target} {c.unit}</span>
+                                      <span>🪙 +{c.points} pts</span>
+                                      <span>👥 {c.participantsCount || 0} personas</span>
+                                      {c.start_date && (
+                                        <span>🗓️ {formatDate(c.start_date)} al {formatDate(c.end_date)}</span>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
 
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginLeft: 'auto' }}>
-                                <span style={{ backgroundColor: statusBg, color: statusColor, fontSize: '0.75rem', padding: '0.25rem 0.6rem', borderRadius: '20px', fontWeight: 700, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center' }}>
-                                  {statusLabel}
-                                </span>
-                                <button 
-                                  className="btn btn-secondary" 
-                                  style={{ padding: '0.35rem 0.75rem', width: 'auto', display: 'flex', alignItems: 'center', gap: '0.3rem', borderColor: 'rgba(252,139,114,0.3)', color: 'var(--coral-accent)' }}
-                                  onClick={() => handleDeleteChallenge(c.id)}
-                                >
-                                  <Trash2 size={14} /> Eliminar
-                                </button>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginLeft: 'auto' }}>
+                                  <span style={{ backgroundColor: statusBg, color: statusColor, fontSize: '0.75rem', padding: '0.25rem 0.6rem', borderRadius: '20px', fontWeight: 700, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center' }}>
+                                    {statusLabel}
+                                  </span>
+                                  <button 
+                                    className="btn btn-secondary" 
+                                    style={{ padding: '0.35rem 0.75rem', width: 'auto', display: 'flex', alignItems: 'center', gap: '0.3rem', borderColor: 'rgba(252,139,114,0.3)', color: 'var(--coral-accent)' }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteChallenge(c.id);
+                                    }}
+                                  >
+                                    <Trash2 size={14} /> Eliminar
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
                       </div>
                     )}
                   </div>
@@ -2847,6 +2911,166 @@ function App() {
                     </div>
                   </div>
 
+                </div>
+              </div>
+            )}
+
+            {/* VIEW: DETALLE DE PROGRESO DE RETO */}
+            {activeTab === 'challenge_detail' && adminSelectedChallenge && (
+              <div className="view-container">
+                <header className="view-header">
+                  <div className="view-title-group">
+                    <button className="btn btn-secondary view-back-btn" onClick={() => { setActiveTab('dashboard'); setAdminSelectedChallenge(null); }}>
+                      ← Volver al Dashboard
+                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '1rem' }}>
+                      <span style={{ fontSize: '3rem' }}>{adminSelectedChallenge.image || '🏆'}</span>
+                      <div>
+                        <h1>{adminSelectedChallenge.title}</h1>
+                        <p style={{ margin: '0.25rem 0 0 0', color: 'var(--text-muted)' }}>
+                          {adminSelectedChallenge.description}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </header>
+
+                {/* Challenge Info and Stats Summary */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+                  <div className="stat-card">
+                    <div className="stat-header">
+                      <span className="stat-title">Objetivo del Reto</span>
+                      <div className="stat-icon-wrapper" style={{ backgroundColor: 'var(--sky-bg)', color: 'var(--sky-accent)' }}>
+                        <Trophy size={20} />
+                      </div>
+                    </div>
+                    <div className="stat-value" style={{ fontSize: '1.8rem' }}>
+                      {adminSelectedChallenge.target} {adminSelectedChallenge.unit}
+                    </div>
+                    <div className="stat-footer">
+                      Recompensa: 🪙 +{adminSelectedChallenge.points} pts
+                    </div>
+                  </div>
+
+                  <div className="stat-card">
+                    <div className="stat-header">
+                      <span className="stat-title">Participantes Inscritos</span>
+                      <div className="stat-icon-wrapper" style={{ backgroundColor: 'var(--mint-bg)', color: 'var(--mint-accent)' }}>
+                        <Users size={20} />
+                      </div>
+                    </div>
+                    <div className="stat-value" style={{ fontSize: '1.8rem' }}>
+                      {adminChallengeParticipants.length}
+                    </div>
+                    <div className="stat-footer">
+                      {adminChallengeParticipants.filter(p => p.status === 'completed').length} han completado el reto
+                    </div>
+                  </div>
+
+                  <div className="stat-card">
+                    <div className="stat-header">
+                      <span className="stat-title">Periodo de Vigencia</span>
+                      <div className="stat-icon-wrapper" style={{ backgroundColor: 'var(--lavender-bg)', color: 'var(--lavender-accent)' }}>
+                        <Activity size={20} />
+                      </div>
+                    </div>
+                    <div className="stat-value" style={{ fontSize: '1.1rem', fontWeight: 700, padding: '0.5rem 0' }}>
+                      {adminSelectedChallenge.start_date ? `${formatDate(adminSelectedChallenge.start_date)} al ${formatDate(adminSelectedChallenge.end_date)}` : 'Campaña Permanente'}
+                    </div>
+                    <div className="stat-footer">
+                      Duración estimada: {adminSelectedChallenge.duration || 'N/A'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Participants Progress List */}
+                <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    👥 Progreso Detallado de Colaboradores
+                  </h3>
+
+                  {loadingAdminRanking ? (
+                    <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                      <RefreshCw size={24} style={{ display: 'block', margin: '0 auto 1rem auto', animation: 'spin 1.5s linear infinite' }} />
+                      Cargando lista de participantes y progresos actualizados...
+                    </div>
+                  ) : adminChallengeParticipants.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '3rem 2rem', color: 'var(--text-muted)', border: '2px dashed var(--border-color)', borderRadius: 'var(--radius-lg)' }}>
+                      <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '0.75rem' }}>👥</span>
+                      Aún no hay colaboradores anotados en esta campaña.
+                    </div>
+                  ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600 }}>
+                            <th style={{ padding: '0.75rem 1rem' }}>Puesto</th>
+                            <th style={{ padding: '0.75rem 1rem' }}>Colaborador</th>
+                            <th style={{ padding: '0.75rem 1rem' }}>Área / Depto</th>
+                            <th style={{ padding: '0.75rem 1rem', width: '35%' }}>Progreso</th>
+                            <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {adminChallengeParticipants.map((p, idx) => {
+                            const percent = Math.min((p.progress / adminSelectedChallenge.target) * 100, 100);
+                            const isCompleted = p.status === 'completed' || percent >= 100;
+                            
+                            let rankBadge = `#${idx + 1}`;
+                            if (idx === 0) rankBadge = '🥇 #1';
+                            else if (idx === 1) rankBadge = '🥈 #2';
+                            else if (idx === 2) rankBadge = '🥉 #3';
+
+                            return (
+                              <tr key={p.user_id} style={{ borderBottom: '1px solid var(--border-color)', fontSize: '0.9rem' }} className="table-row-hover">
+                                <td style={{ padding: '1rem', fontWeight: 700, color: idx < 3 ? 'var(--text-main)' : 'var(--text-muted)' }}>
+                                  {rankBadge}
+                                </td>
+                                <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'var(--bg-main)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justify: 'center', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                                      {p.avatar ? (
+                                        <img src={p.avatar} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                                      ) : (
+                                        p.user_name.charAt(0).toUpperCase()
+                                      )}
+                                    </div>
+                                    {p.user_name}
+                                  </div>
+                                </td>
+                                <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
+                                  {p.department || 'Sin área'}
+                                </td>
+                                <td style={{ padding: '1rem' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: 600 }}>
+                                      <span>{p.progress.toLocaleString()} / {adminSelectedChallenge.target.toLocaleString()} {adminSelectedChallenge.unit}</span>
+                                      <span>{Math.round(percent)}%</span>
+                                    </div>
+                                    <div style={{ width: '100%', height: '6px', backgroundColor: 'var(--bg-main)', borderRadius: '10px', overflow: 'hidden' }}>
+                                      <div style={{ width: `${percent}%`, height: '100%', backgroundColor: isCompleted ? 'var(--mint-accent)' : 'var(--sky-accent)', borderRadius: '10px' }} />
+                                    </div>
+                                  </div>
+                                </td>
+                                <td style={{ padding: '1rem', textAlign: 'right' }}>
+                                  <span style={{ 
+                                    padding: '0.25rem 0.6rem', 
+                                    borderRadius: '20px', 
+                                    fontSize: '0.75rem', 
+                                    fontWeight: 700,
+                                    backgroundColor: isCompleted ? 'var(--mint-bg)' : 'var(--sky-bg)',
+                                    color: isCompleted ? 'var(--mint-dark)' : 'var(--sky-accent)'
+                                  }}>
+                                    {isCompleted ? '🏆 Completado' : '🟢 En Curso'}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

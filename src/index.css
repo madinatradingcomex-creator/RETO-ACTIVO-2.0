@@ -458,6 +458,13 @@ h1, h2, h3, h4, h5, h6 {
   overflow: hidden;
 }
 
+.admin-challenge-item-hover:hover {
+  background-color: rgba(28, 188, 140, 0.04) !important;
+  border-color: rgba(28, 188, 140, 0.25) !important;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
 .challenge-badge {
   position: absolute;
   top: 1rem;

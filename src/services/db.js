@@ -858,13 +858,14 @@ export const dbService = {
       });
 
       const enrichedList = list.map(item => {
-        const user = usersMap[item.user_id] || { name: 'Colaborador', lastname: 'Anónimo', avatar: '' };
+        const user = usersMap[item.user_id] || { name: 'Colaborador', lastname: 'Anónimo', avatar: '', department: 'Sin área' };
         return {
           user_id: item.user_id,
           user_name: `${user.name} ${user.lastname || ''}`,
           avatar: user.avatar,
           progress: item.progress,
-          status: item.status
+          status: item.status,
+          department: user.department || 'Sin área'
         };
       }).sort((a, b) => b.progress - a.progress);
 
