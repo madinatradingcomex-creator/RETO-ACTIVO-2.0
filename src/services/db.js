@@ -659,8 +659,14 @@ export const dbService = {
     return !!localStorage.getItem('ra_gfit_token');
   },
   async fetchWeeklyStepsFromGoogleFit(token) {
-    const endTime = Date.now();
-    const startTime = endTime - 7 * 24 * 60 * 60 * 1000;
+    const now = new Date();
+    // Fin del día de hoy: 23:59:59.999 hora local
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const endTime = todayEnd.getTime();
+    
+    // Inicio de hace 6 días (para cubrir 7 días calendario naturales: hace 6, 5, 4, 3, 2, 1 y hoy): 00:00:00.000 hora local
+    const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
+    const startTime = startDay.getTime();
     
     try {
       const response = await fetch('https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate', {
