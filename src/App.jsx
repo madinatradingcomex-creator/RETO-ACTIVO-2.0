@@ -65,6 +65,9 @@ function App() {
   const [regCompanyCode, setRegCompanyCode] = useState('');
   const [regDept, setRegDept] = useState('Tecnología');
 
+  // Admin Challenges Manager & Detail view states (Hoisted for Navigation effects)
+  const [adminSelectedChallenge, setAdminSelectedChallenge] = useState(null);
+
   // Navigation
   const [activeTab, setActiveTab] = useState(() => {
     const hash = window.location.hash.replace('#', '');
@@ -169,8 +172,7 @@ function App() {
   const [cStartDate, setCStartDate] = useState('');
   const [cEndDate, setCEndDate] = useState('');
 
-  // Admin Challenges Manager & Detail view states
-  const [adminSelectedChallenge, setAdminSelectedChallenge] = useState(null);
+  // Admin Challenges Manager & Detail view states (Participants declared here)
   const [adminChallengeParticipants, setAdminChallengeParticipants] = useState([]);
   const [loadingAdminRanking, setLoadingAdminRanking] = useState(false);
   const [adminChallengesFilter, setAdminChallengesFilter] = useState('all');
