@@ -25,7 +25,12 @@ import {
   RefreshCw,
   Mail,
   KeyRound,
-  ShieldCheck
+  ShieldCheck,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { dbService } from './services/db';
 import './App.css';
@@ -123,6 +128,15 @@ function App() {
   const [migratePasswordConfirm, setMigratePasswordConfirm] = useState('');
   const [migrateUserRef, setMigrateUserRef] = useState(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  
+  // Custom Premium UI/UX Toggle States
+  const [showFitBreakdown, setShowFitBreakdown] = useState(false);
+  const [loginError, setLoginError] = useState(null);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showRegPasswordConfirm, setShowRegPasswordConfirm] = useState(false);
+  const [showMigratePassword, setShowMigratePassword] = useState(false);
+  const [showMigratePasswordConfirm, setShowMigratePasswordConfirm] = useState(false);
 
   // Terms & Conditions States
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -263,15 +277,18 @@ function App() {
     }
 
     setIsLoggingIn(true);
+    setLoginError(null);
     try {
       const res = await dbService.loginWithCompanyCode(loginEmail, loginCompanyCode, loginPassword);
       
       if (!res) {
+        setLoginError("No se recibió respuesta del servidor de base de datos.");
         showToastMessage("No se recibió respuesta del servidor de base de datos.", "error");
         return;
       }
 
       if (res.error) {
+        setLoginError(res.error);
         showToastMessage(res.error, "error");
         return;
       }
@@ -296,6 +313,7 @@ function App() {
       }
     } catch (err) {
       console.error("Error crítico en login:", err);
+      setLoginError(`Error de red o conexión: ${err.message || err}`);
       showToastMessage(`Error de red o conexión: ${err.message || err}`, "error");
     } finally {
       setIsLoggingIn(false);
@@ -950,7 +968,7 @@ function App() {
                     placeholder="Ej: sofia.martinez@acme.com" 
                     className="form-input"
                     value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
+                    onChange={(e) => { setLoginEmail(e.target.value); if (loginError) setLoginError(null); }}
                     required 
                   />
                 </div>
@@ -964,7 +982,7 @@ function App() {
                     placeholder="Ej: ACME2026" 
                     className="form-input"
                     value={loginCompanyCode}
-                    onChange={(e) => setLoginCompanyCode(e.target.value)}
+                    onChange={(e) => { setLoginCompanyCode(e.target.value); if (loginError) setLoginError(null); }}
                     style={{ textTransform: 'uppercase' }}
                     required 
                   />
@@ -974,17 +992,48 @@ function App() {
                   <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     <Lock size={14} /> Contraseña
                   </label>
-                  <input 
-                    type="password" 
-                    placeholder="Ingresa tu contraseña" 
-                    className="form-input"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    required 
-                  />
+                  <div className="password-input-container">
+                    <input 
+                      type={showLoginPassword ? "text" : "password"} 
+                      placeholder="Ingresa tu contraseña" 
+                      className="form-input"
+                      value={loginPassword}
+                      onChange={(e) => { setLoginPassword(e.target.value); if (loginError) setLoginError(null); }}
+                      required 
+                    />
+                    <button 
+                      type="button" 
+                      className="password-toggle-btn"
+                      onClick={() => setShowLoginPassword(!showLoginPassword)}
+                      title={showLoginPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                    >
+                      {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                   <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem', lineHeight: '1.3' }}>
                     💡 <em>Si usabas una cuenta anterior sin contraseña, escribe cualquier palabra o tu clave deseada aquí arriba para iniciar el asistente de creación de tu contraseña.</em>
                   </span>
+                  
+                  {loginError && (
+                    <div 
+                      className="animate-shake"
+                      style={{ 
+                        color: 'var(--coral-dark)', 
+                        fontSize: '0.82rem', 
+                        fontWeight: 600, 
+                        marginTop: '0.75rem', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '0.35rem',
+                        backgroundColor: 'rgba(252,139,114,0.05)',
+                        padding: '0.5rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(252,139,114,0.15)'
+                      }}
+                    >
+                      <AlertCircle size={14} /> {loginError}
+                    </div>
+                  )}
                 </div>
 
                 <button 
@@ -1085,25 +1134,45 @@ function App() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
                   <div className="form-group">
                     <label className="form-label">Contraseña</label>
-                    <input 
-                      type="password" 
-                      placeholder="Mínimo 6 caracteres" 
-                      className="form-input"
-                      value={regPassword}
-                      onChange={(e) => setRegPassword(e.target.value)}
-                      required 
-                    />
+                    <div className="password-input-container">
+                      <input 
+                        type={showRegPassword ? "text" : "password"} 
+                        placeholder="Mínimo 6 caracteres" 
+                        className="form-input"
+                        value={regPassword}
+                        onChange={(e) => setRegPassword(e.target.value)}
+                        required 
+                      />
+                      <button 
+                        type="button" 
+                        className="password-toggle-btn"
+                        onClick={() => setShowRegPassword(!showRegPassword)}
+                        title={showRegPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                      >
+                        {showRegPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
                   </div>
                   <div className="form-group">
                     <label className="form-label">Confirmar Contraseña</label>
-                    <input 
-                      type="password" 
-                      placeholder="Repite la contraseña" 
-                      className="form-input"
-                      value={regPasswordConfirm}
-                      onChange={(e) => setRegPasswordConfirm(e.target.value)}
-                      required 
-                    />
+                    <div className="password-input-container">
+                      <input 
+                        type={showRegPasswordConfirm ? "text" : "password"} 
+                        placeholder="Repite la contraseña" 
+                        className="form-input"
+                        value={regPasswordConfirm}
+                        onChange={(e) => setRegPasswordConfirm(e.target.value)}
+                        required 
+                      />
+                      <button 
+                        type="button" 
+                        className="password-toggle-btn"
+                        onClick={() => setShowRegPasswordConfirm(!showRegPasswordConfirm)}
+                        title={showRegPasswordConfirm ? "Ocultar contraseña" : "Mostrar contraseña"}
+                      >
+                        {showRegPasswordConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -1164,26 +1233,46 @@ function App() {
                 <form onSubmit={handleMigratePasswordSubmit}>
                   <div className="form-group">
                     <label className="form-label">Nueva Contraseña</label>
-                    <input 
-                      type="password" 
-                      placeholder="Mínimo 6 caracteres" 
-                      className="form-input"
-                      value={migratePassword}
-                      onChange={(e) => setMigratePassword(e.target.value)}
-                      required 
-                    />
+                    <div className="password-input-container">
+                      <input 
+                        type={showMigratePassword ? "text" : "password"} 
+                        placeholder="Mínimo 6 caracteres" 
+                        className="form-input"
+                        value={migratePassword}
+                        onChange={(e) => setMigratePassword(e.target.value)}
+                        required 
+                      />
+                      <button 
+                        type="button" 
+                        className="password-toggle-btn"
+                        onClick={() => setShowMigratePassword(!showMigratePassword)}
+                        title={showMigratePassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                      >
+                        {showMigratePassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="form-group">
                     <label className="form-label">Confirmar Contraseña</label>
-                    <input 
-                      type="password" 
-                      placeholder="Repite tu contraseña" 
-                      className="form-input"
-                      value={migratePasswordConfirm}
-                      onChange={(e) => setMigratePasswordConfirm(e.target.value)}
-                      required 
-                    />
+                    <div className="password-input-container">
+                      <input 
+                        type={showMigratePasswordConfirm ? "text" : "password"} 
+                        placeholder="Repite tu contraseña" 
+                        className="form-input"
+                        value={migratePasswordConfirm}
+                        onChange={(e) => setMigratePasswordConfirm(e.target.value)}
+                        required 
+                      />
+                      <button 
+                        type="button" 
+                        className="password-toggle-btn"
+                        onClick={() => setShowMigratePasswordConfirm(!showMigratePasswordConfirm)}
+                        title={showMigratePasswordConfirm ? "Ocultar contraseña" : "Mostrar contraseña"}
+                      >
+                        {showMigratePasswordConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
                   </div>
 
                   <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
@@ -1630,7 +1719,7 @@ function App() {
                       </div>
                     </div>
                     <div className="stat-value">{completedChallengesCount}</div>
-                    <div className="stat-footer"><span>{activeChallengesCount} activos</span> actualmente</div>
+                    <div className="stat-footer">¡Desafíos conquistados!</div>
                   </div>
                 </section>
 
@@ -1639,11 +1728,6 @@ function App() {
                     <div>
                       <h3 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>Registro de Movilidad Semanal</h3>
                       <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>Tus pasos registrados día a día durante la última semana.</p>
-                    </div>
-                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--sky-dark)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                        <CheckCircle2 size={14} /> Total: {totalUserSteps.toLocaleString()} pasos
-                      </span>
                     </div>
                   </div>
 
@@ -1668,70 +1752,125 @@ function App() {
                           <span className="chart-day-label" style={isToday ? { color: 'var(--mint-dark)', fontWeight: 800 } : {}}>
                             {weekDays[index]} {isToday && '(Hoy)'}
                           </span>
+                          <span 
+                            style={{ 
+                              fontSize: '0.74rem', 
+                              fontWeight: 700, 
+                              color: isToday ? 'var(--mint-dark)' : 'var(--text-muted)', 
+                              marginTop: '0.15rem' 
+                            }}
+                          >
+                            {steps.toLocaleString()}
+                          </span>
                         </div>
                       );
                     })}
                   </div>
 
-                  {/* Detalle Diario (P10) */}
-                  <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
-                    <h4 style={{ fontFamily: 'Outfit', fontSize: '1.05rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--text-main)' }}>
-                      📊 Desglose Diario de Movilidad
-                    </h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                      {(currentUser.daily_steps_history || [0, 0, 0, 0, 0, 0, 0]).map((steps, index) => {
-                        const date = new Date();
-                        date.setDate(date.getDate() - (6 - index));
-                        const dateStr = date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
-                        const isToday = index === 6;
-                        const km = (steps / 1312).toFixed(1);
-                        const goalMet = steps >= 10000;
+                  {/* Total de Pasos Semanal - Pie de Gráfica Estético */}
+                  <div 
+                    style={{ 
+                      marginTop: '1.25rem', 
+                      backgroundColor: 'var(--sky-bg)', 
+                      border: '1px solid rgba(56,189,248,0.12)', 
+                      borderRadius: '12px', 
+                      padding: '0.85rem 1.25rem', 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center',
+                      boxShadow: 'var(--shadow-sm)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Footprints size={18} style={{ color: 'var(--sky-accent)' }} />
+                      <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--sky-dark)' }}>
+                        Total Acumulado Semanal:
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.25rem' }}>
+                      <span style={{ fontSize: '1.1rem', fontWeight: 850, color: 'var(--sky-dark)' }}>
+                        {totalUserSteps.toLocaleString()}
+                      </span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--sky-dark)', fontWeight: 600 }}> pasos</span>
+                      <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginLeft: '0.5rem', fontWeight: 500 }}>
+                        ({(totalUserSteps / 1312).toFixed(1)} km)
+                      </span>
+                    </div>
+                  </div>
 
-                        return (
-                          <div 
-                            key={index}
-                            style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'space-between',
-                              padding: '0.75rem 1rem', 
-                              backgroundColor: isToday ? 'rgba(28,188,140,0.04)' : '#f8fafc',
-                              border: '1px solid ' + (isToday ? 'rgba(28,188,140,0.15)' : 'var(--border-color)'),
-                              borderRadius: '12px',
-                              fontSize: '0.85rem'
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                              <span style={{ fontWeight: isToday ? 800 : 600, color: isToday ? 'var(--mint-dark)' : 'var(--text-main)' }}>
-                                {weekDays[index]} {isToday && '(Hoy)'}
-                              </span>
-                              <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                                ({dateStr})
-                              </span>
-                            </div>
-                            
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                              <div style={{ textAlign: 'right' }}>
-                                <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{steps.toLocaleString()}</span>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}> pasos</span>
-                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginLeft: '0.5rem' }}>({km} km)</span>
+                  {/* Detalle Diario Colapsable (P10) */}
+                  <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
+                    <button 
+                      type="button"
+                      className="collapsible-breakdown-btn"
+                      onClick={() => setShowFitBreakdown(!showFitBreakdown)}
+                      title="Haz clic para ver el desglose por día"
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Activity size={18} style={{ color: 'var(--mint-accent)' }} />
+                        <span style={{ fontFamily: 'Outfit', fontSize: '1.02rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                          Desglose Diario de Movilidad
+                        </span>
+                      </div>
+                      {showFitBreakdown ? <ChevronUp size={18} className="chevron-rotate open" /> : <ChevronDown size={18} className="chevron-rotate" />}
+                    </button>
+
+                    <div className={`collapsible-content ${showFitBreakdown ? 'open' : ''}`}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', padding: '0.25rem 0.1rem' }}>
+                        {(currentUser.daily_steps_history || [0, 0, 0, 0, 0, 0, 0]).map((steps, index) => {
+                          const date = new Date();
+                          date.setDate(date.getDate() - (6 - index));
+                          const dateStr = date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+                          const isToday = index === 6;
+                          const km = (steps / 1312).toFixed(1);
+                          const goalMet = steps >= 10000;
+
+                          return (
+                            <div 
+                              key={index}
+                              style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'space-between',
+                                padding: '0.75rem 1rem', 
+                                backgroundColor: isToday ? 'rgba(28,188,140,0.04)' : '#f8fafc',
+                                border: '1px solid ' + (isToday ? 'rgba(28,188,140,0.15)' : 'var(--border-color)'),
+                                borderRadius: '12px',
+                                fontSize: '0.85rem'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <span style={{ fontWeight: isToday ? 800 : 600, color: isToday ? 'var(--mint-dark)' : 'var(--text-main)' }}>
+                                  {weekDays[index]} {isToday && '(Hoy)'}
+                                </span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                                  ({dateStr})
+                                </span>
                               </div>
                               
-                              <span style={{
-                                backgroundColor: goalMet ? 'rgba(28,188,140,0.1)' : 'rgba(0,0,0,0.03)',
-                                color: goalMet ? 'var(--mint-dark)' : 'var(--text-muted)',
-                                fontSize: '0.68rem',
-                                fontWeight: 700,
-                                padding: '0.2rem 0.5rem',
-                                borderRadius: '6px',
-                                textTransform: 'uppercase'
-                              }}>
-                                {goalMet ? '🎯 Cumplida' : '🚶 Activo'}
-                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                                <div style={{ textAlign: 'right' }}>
+                                  <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{steps.toLocaleString()}</span>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}> pasos</span>
+                                  <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginLeft: '0.5rem' }}>({km} km)</span>
+                                </div>
+                                
+                                <span style={{
+                                  backgroundColor: goalMet ? 'rgba(28,188,140,0.1)' : 'rgba(0,0,0,0.03)',
+                                  color: goalMet ? 'var(--mint-dark)' : 'var(--text-muted)',
+                                  fontSize: '0.68rem',
+                                  fontWeight: 700,
+                                  padding: '0.2rem 0.5rem',
+                                  borderRadius: '6px',
+                                  textTransform: 'uppercase'
+                                }}>
+                                  {goalMet ? '🎯 Cumplida' : '🚶 Activo'}
+                                </span>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 </section>
