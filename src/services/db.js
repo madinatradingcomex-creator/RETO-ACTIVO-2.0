@@ -986,5 +986,31 @@ export const dbService = {
       console.error("Error updating participant progress:", err);
       return { error: err.message };
     }
+  },
+  async updateReward(rewardId, title, description, pointsCost, category, icon, stock) {
+    try {
+      const ref = doc(db, 'rewards', rewardId);
+      await updateDoc(ref, {
+        title,
+        description,
+        points_cost: parseInt(pointsCost),
+        category,
+        icon: icon || '🥑',
+        stock: parseInt(stock)
+      });
+      return { success: true };
+    } catch(err) {
+      console.error("Error updating reward:", err);
+      return { error: err.message };
+    }
+  },
+  async deleteReward(rewardId) {
+    try {
+      await deleteDoc(doc(db, 'rewards', rewardId));
+      return { success: true };
+    } catch(err) {
+      console.error("Error deleting reward:", err);
+      return { error: err.message };
+    }
   }
 };

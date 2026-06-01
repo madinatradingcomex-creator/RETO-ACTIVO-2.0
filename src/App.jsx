@@ -199,6 +199,17 @@ function App() {
   const [rIcon, setRIcon] = useState('🥑');
   const [rStock, setRStock] = useState('10');
 
+  // Modals for editing reward
+  const [showEditRewardModal, setShowEditRewardModal] = useState(false);
+  const [editingReward, setEditingReward] = useState(null);
+  const [editRTitle, setEditRTitle] = useState('');
+  const [editRDesc, setEditRDesc] = useState('');
+  const [editRPoints, setEditRPoints] = useState('');
+  const [editRCategory, setEditRCategory] = useState('Alimentación');
+  const [editRIcon, setEditRIcon] = useState('🥑');
+  const [editRStock, setEditRStock] = useState('10');
+  const [isSavingReward, setIsSavingReward] = useState(false);
+
   // Search and Filters
   const [leaderboardSearch, setLeaderboardSearch] = useState('');
   const [challengesFilter, setChallengesFilter] = useState('all');
@@ -948,6 +959,62 @@ function App() {
     
     loadViewData(currentUser);
     setActiveTab('dashboard');
+  };
+
+  const handleOpenEditReward = (reward) => {
+    setEditingReward(reward);
+    setEditRTitle(reward.title || '');
+    setEditRDesc(reward.description || '');
+    setEditRPoints(reward.points_cost || '');
+    setEditRCategory(reward.category || 'Alimentación');
+    setEditRIcon(reward.icon || '🥑');
+    setEditRStock(reward.stock || '10');
+    setShowEditRewardModal(true);
+  };
+
+  const handleUpdateReward = async (e) => {
+    e.preventDefault();
+    if (!editRTitle || !editRDesc || !editRPoints || !editRStock) {
+      showToastMessage("Por favor rellena todos los campos requeridos.", "error");
+      return;
+    }
+
+    setIsSavingReward(true);
+    const res = await dbService.updateReward(
+      editingReward.id,
+      editRTitle,
+      editRDesc,
+      editRPoints,
+      editRCategory,
+      editRIcon,
+      editRStock
+    );
+    setIsSavingReward(false);
+
+    if (res.error) {
+      showToastMessage(res.error, "error");
+      return;
+    }
+
+    showToastMessage("🏆 Premio modificado con éxito en la tienda.");
+    loadViewData(currentUser);
+    setShowEditRewardModal(false);
+    setEditingReward(null);
+  };
+
+  const handleDeleteReward = async (rewardId) => {
+    if (!window.confirm("¿Estás seguro de que deseas eliminar este premio de la tienda? Se quitará del catálogo disponible para los colaboradores.")) {
+      return;
+    }
+
+    const res = await dbService.deleteReward(rewardId);
+    if (res.error) {
+      showToastMessage(res.error, "error");
+      return;
+    }
+
+    showToastMessage("🗑️ ¡Premio eliminado de la tienda con éxito!");
+    loadViewData(currentUser);
   };
 
   // --- RENDERS ---
@@ -3592,87 +3659,156 @@ function App() {
                   </div>
                 </header>
 
-                <div style={{ backgroundColor: 'white', padding: '2.5rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', maxWidth: '650px' }}>
-                  <form onSubmit={handleCreateReward}>
-                    <div className="form-group">
-                      <label className="form-label">Nombre del Premio</label>
-                      <input 
-                        type="text" 
-                        placeholder="Ej: Kit de Snacks Saludables" 
-                        className="form-input" 
-                        value={rTitle}
-                        onChange={(e) => setRTitle(e.target.value)}
-                        required
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Descripción del Premio</label>
-                      <textarea 
-                        rows="3"
-                        placeholder="Describe el premio y cómo se retira..." 
-                        className="form-input"
-                        value={rDesc}
-                        onChange={(e) => setRDesc(e.target.value)}
-                        style={{ resize: 'vertical' }}
-                        required
-                      />
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '2rem', alignItems: 'start', maxWidth: '1200px', width: '100%' }}>
+                  {/* COLUMNA IZQUIERDA: FORMULARIO DE CREACIÓN */}
+                  <div style={{ backgroundColor: 'white', padding: '2.5rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-main)' }}>
+                      <span>✨</span> Crear Nuevo Premio
+                    </h3>
+                    <form onSubmit={handleCreateReward}>
                       <div className="form-group">
-                        <label className="form-label">Costo en Puntos</label>
-                        <input 
-                          type="number" 
-                          placeholder="Ej: 450" 
-                          className="form-input" 
-                          value={rPoints}
-                          onChange={(e) => setRPoints(e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Stock de Unidades</label>
-                        <input 
-                          type="number" 
-                          placeholder="Ej: 5" 
-                          className="form-input" 
-                          value={rStock}
-                          onChange={(e) => setRStock(e.target.value)}
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      <div className="form-group">
-                        <label className="form-label">Categoría</label>
-                        <select 
-                          className="form-input" 
-                          value={rCategory}
-                          onChange={(e) => setRCategory(e.target.value)}
-                        >
-                          <option value="Alimentación">Alimentación</option>
-                          <option value="Bienestar">Bienestar</option>
-                          <option value="Tiempo Libre">Tiempo Libre</option>
-                        </select>
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Emoji / Icono</label>
+                        <label className="form-label">Nombre del Premio</label>
                         <input 
                           type="text" 
-                          placeholder="Ej: 🥑" 
+                          placeholder="Ej: Kit de Snacks Saludables" 
                           className="form-input" 
-                          value={rIcon}
-                          onChange={(e) => setRIcon(e.target.value)}
+                          value={rTitle}
+                          onChange={(e) => setRTitle(e.target.value)}
+                          required
                         />
                       </div>
-                    </div>
 
-                    <button type="submit" className="btn btn-primary" style={{ marginTop: '1.5rem' }}>
-                      Publicar Premio en la Tienda
-                    </button>
-                  </form>
+                      <div className="form-group">
+                        <label className="form-label">Descripción del Premio</label>
+                        <textarea 
+                          rows="3"
+                          placeholder="Describe el premio y cómo se retira..." 
+                          className="form-input"
+                          value={rDesc}
+                          onChange={(e) => setRDesc(e.target.value)}
+                          style={{ resize: 'vertical' }}
+                          required
+                        />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div className="form-group">
+                          <label className="form-label">Costo en Puntos</label>
+                          <input 
+                            type="number" 
+                            placeholder="Ej: 450" 
+                            className="form-input" 
+                            value={rPoints}
+                            onChange={(e) => setRPoints(e.target.value)}
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Stock de Unidades</label>
+                          <input 
+                            type="number" 
+                            placeholder="Ej: 5" 
+                            className="form-input" 
+                            value={rStock}
+                            onChange={(e) => setRStock(e.target.value)}
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div className="form-group">
+                          <label className="form-label">Categoría</label>
+                          <select 
+                            className="form-input" 
+                            value={rCategory}
+                            onChange={(e) => setRCategory(e.target.value)}
+                          >
+                            <option value="Alimentación">Alimentación</option>
+                            <option value="Bienestar">Bienestar</option>
+                            <option value="Tiempo Libre">Tiempo Libre</option>
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Emoji / Icono</label>
+                          <input 
+                            type="text" 
+                            placeholder="Ej: 🥑" 
+                            className="form-input" 
+                            value={rIcon}
+                            onChange={(e) => setRIcon(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <button type="submit" className="btn btn-primary" style={{ marginTop: '1.5rem', width: '100%' }}>
+                        Publicar Premio en la Tienda
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* COLUMNA DERECHA: CATÁLOGO DE PREMIOS PUBLICADOS */}
+                  <div style={{ backgroundColor: 'white', padding: '2.5rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-main)' }}>
+                      <span>🏆</span> Premios Cargados
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '500px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+                      {rewards.length === 0 ? (
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textAlign: 'center', padding: '3rem 0' }}>No hay premios cargados aún.</p>
+                      ) : (
+                        rewards.map(r => (
+                          <div 
+                            key={r.id} 
+                            style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'space-between', 
+                              padding: '1.25rem', 
+                              border: '1px solid var(--border-color)', 
+                              borderRadius: 'var(--radius-lg)', 
+                              backgroundColor: 'var(--bg-app)', 
+                              gap: '1rem'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                              <span style={{ fontSize: '2.25rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '50px', height: '50px', backgroundColor: 'white', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                                {r.icon || '🎁'}
+                              </span>
+                              <div>
+                                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>{r.title}</h4>
+                                <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', gap: '0.75rem', fontWeight: 500 }}>
+                                  <span style={{ color: 'var(--mint-dark)', backgroundColor: 'var(--mint-bg)', padding: '0.1rem 0.4rem', borderRadius: 'var(--radius-sm)' }}>
+                                    ⚡ {r.points_cost} pts
+                                  </span>
+                                  <span style={{ color: 'var(--sky-dark)', backgroundColor: 'var(--sky-bg)', padding: '0.1rem 0.4rem', borderRadius: 'var(--radius-sm)' }}>
+                                    📦 Stock: {r.stock}
+                                  </span>
+                                </p>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <button 
+                                onClick={() => handleOpenEditReward(r)}
+                                className="btn btn-secondary" 
+                                style={{ padding: '0.5rem', minWidth: '38px', height: '38px', borderRadius: 'var(--radius-md)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', cursor: 'pointer' }}
+                                title="Editar Premio"
+                              >
+                                ✏️
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteReward(r.id)}
+                                className="btn btn-danger" 
+                                style={{ padding: '0.5rem', minWidth: '38px', height: '38px', borderRadius: 'var(--radius-md)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', backgroundColor: '#FEE2E2', color: '#EF4444', border: '1px solid #FCA5A5', cursor: 'pointer' }}
+                                title="Eliminar Premio"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -4237,6 +4373,106 @@ function App() {
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={isSavingProgress} style={{ flex: 1 }}>
                   {isSavingProgress ? 'Guardando...' : 'Actualizar Progreso'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDITAR DETALLES DE PREMIO */}
+      {showEditRewardModal && editingReward && (
+        <div className="modal-overlay" onClick={() => { setShowEditRewardModal(false); setEditingReward(null); }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '550px', width: '90%' }}>
+            <div className="modal-header">
+              <h3>✏️ Editar Premio Publicado</h3>
+              <button className="close-btn" onClick={() => { setShowEditRewardModal(false); setEditingReward(null); }}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleUpdateReward} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginTop: '1rem' }}>
+              <div className="form-group">
+                <label className="form-label" style={{ fontWeight: 600 }}>Nombre del Premio</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={editRTitle} 
+                  onChange={(e) => setEditRTitle(e.target.value)} 
+                  required 
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontWeight: 600 }}>Descripción del Premio</label>
+                <textarea 
+                  rows="3"
+                  className="form-input"
+                  value={editRDesc}
+                  onChange={(e) => setEditRDesc(e.target.value)}
+                  style={{ resize: 'vertical', width: '100%' }}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 600 }}>Costo en Puntos</label>
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    value={editRPoints} 
+                    onChange={(e) => setEditRPoints(e.target.value)} 
+                    required 
+                    style={{ width: '100%' }}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 600 }}>Stock de Unidades</label>
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    value={editRStock} 
+                    onChange={(e) => setEditRStock(e.target.value)} 
+                    required 
+                    style={{ width: '100%' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 600 }}>Categoría</label>
+                  <select 
+                    className="form-input" 
+                    value={editRCategory}
+                    onChange={(e) => setEditRCategory(e.target.value)}
+                    style={{ width: '100%' }}
+                  >
+                    <option value="Alimentación">Alimentación</option>
+                    <option value="Bienestar">Bienestar</option>
+                    <option value="Tiempo Libre">Tiempo Libre</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 600 }}>Emoji / Icono</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    value={editRIcon} 
+                    onChange={(e) => setEditRIcon(e.target.value)} 
+                    style={{ width: '100%' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowEditRewardModal(false); setEditingReward(null); }} style={{ flex: 1 }}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={isSavingReward} style={{ flex: 1 }}>
+                  {isSavingReward ? 'Guardando...' : 'Guardar Cambios'}
                 </button>
               </div>
             </form>
