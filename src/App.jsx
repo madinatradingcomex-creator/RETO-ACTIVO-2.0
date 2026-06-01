@@ -91,6 +91,9 @@ function App() {
         if (hash === 'challenge_detail' && !adminSelectedChallenge) {
           window.location.hash = 'dashboard';
           setActiveTab('dashboard');
+        } else if (hash === 'user_detail' && !selectedDetailUser) {
+          window.location.hash = 'manage_users';
+          setActiveTab('manage_users');
         } else if (hash !== activeTab) {
           setActiveTab(hash);
         }
@@ -98,7 +101,7 @@ function App() {
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [activeTab, adminSelectedChallenge]);
+  }, [activeTab, adminSelectedChallenge, selectedDetailUser]);
 
   useEffect(() => {
     if (landingView) {
@@ -209,6 +212,12 @@ function App() {
   const [editRIcon, setEditRIcon] = useState('🥑');
   const [editRStock, setEditRStock] = useState('10');
   const [isSavingReward, setIsSavingReward] = useState(false);
+
+  // User detail states (ficha del colaborador)
+  const [selectedDetailUser, setSelectedDetailUser] = useState(null);
+  const [userDetailChallenges, setUserDetailChallenges] = useState([]);
+  const [loadingUserDetail, setLoadingUserDetail] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   // Search and Filters
   const [leaderboardSearch, setLeaderboardSearch] = useState('');
@@ -1015,6 +1024,67 @@ function App() {
 
     showToastMessage("🗑️ ¡Premio eliminado de la tienda con éxito!");
     loadViewData(currentUser);
+  };
+
+  const handleViewUserDetail = async (user) => {
+    setSelectedDetailUser(user);
+    setLoadingUserDetail(true);
+    setActiveTab('user_detail');
+    try {
+      const uChalls = await dbService.getUserChallenges(user.id);
+      const challengesList = await dbService.getChallenges();
+      
+      const enriched = [];
+      for (const uc of uChalls) {
+        const challengeObj = challengesList.find(c => c.id === uc.challenge_id);
+        if (challengeObj) {
+          // Get rank in this challenge
+          const ranking = await dbService.getChallengeRanking(uc.challenge_id);
+          const rankIdx = ranking.findIndex(item => item.user_id === user.id);
+          const rank = rankIdx !== -1 ? rankIdx + 1 : '-';
+          
+          enriched.push({
+            ...uc,
+            challenge_title: challengeObj.title,
+            challenge_icon: challengeObj.image || '🏆',
+            challenge_target: challengeObj.target,
+            challenge_unit: challengeObj.unit,
+            rank: rank
+          });
+        }
+      }
+      setUserDetailChallenges(enriched);
+    } catch (e) {
+      console.error("Error loading user challenges/ranking:", e);
+      showToastMessage("Error al cargar la actividad del colaborador.", "error");
+    } finally {
+      setLoadingUserDetail(false);
+    }
+  };
+
+  const handleResetPassword = async (userId) => {
+    if (!window.confirm("¿Estás seguro de que deseas blanquear la contraseña de este colaborador? El colaborador deberá crear una nueva contraseña en su próximo inicio de sesión.")) {
+      return;
+    }
+    
+    setIsResettingPassword(true);
+    const res = await dbService.resetUserPasswordDirectly(userId);
+    setIsResettingPassword(false);
+    
+    if (res.error) {
+      showToastMessage(res.error, "error");
+      return;
+    }
+    
+    showToastMessage("🔓 ¡Contraseña blanqueada con éxito! Se le solicitará una nueva clave al ingresar.");
+    // Reload user data to make sure local state is updated
+    const updatedUsers = await dbService.getPresetUsers();
+    setActiveUsers(updatedUsers);
+    
+    // Update selectedDetailUser password_hash to null locally
+    if (selectedDetailUser && selectedDetailUser.id === userId) {
+      setSelectedDetailUser(prev => ({ ...prev, password_hash: null }));
+    }
   };
 
   // --- RENDERS ---
@@ -4010,18 +4080,25 @@ function App() {
                               </div>
                             </div>
 
-                            <div style={{ display: 'flex', gap: '0.75rem', marginTop: 'auto' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', width: '100%', marginTop: 'auto' }}>
+                              <button 
+                                className="btn btn-primary" 
+                                onClick={() => handleViewUserDetail(user)}
+                                style={{ gridColumn: 'span 2', padding: '0.55rem 1rem', fontSize: '0.82rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', cursor: 'pointer' }}
+                              >
+                                🔍 Ver Ficha Completa
+                              </button>
                               <button 
                                 className="btn btn-secondary" 
                                 onClick={() => handleEditUser(user)}
-                                style={{ flexGrow: 1, padding: '0.5rem 1rem', fontSize: '0.82rem' }}
+                                style={{ padding: '0.45rem 0.5rem', fontSize: '0.78rem', cursor: 'pointer' }}
                               >
                                 Editar Datos
                               </button>
                               <button 
                                 className="btn btn-secondary" 
                                 onClick={() => handleDeleteUser(user.id, `${user.name} ${user.lastname || ''}`)}
-                                style={{ padding: '0.5rem 1rem', fontSize: '0.82rem', color: 'var(--coral-accent)', borderColor: 'rgba(252,139,114,0.3)' }}
+                                style={{ padding: '0.45rem 0.5rem', fontSize: '0.78rem', color: 'var(--coral-accent)', borderColor: 'rgba(252,139,114,0.3)', cursor: 'pointer' }}
                               >
                                 Dar de Baja
                               </button>
@@ -4031,6 +4108,265 @@ function App() {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* VIEW: FICHA DETALLADA DEL COLABORADOR */}
+            {activeTab === 'user_detail' && selectedDetailUser && (
+              <div className="view-container">
+                <header className="view-header">
+                  <div className="view-title-group">
+                    <button className="btn btn-secondary view-back-btn" onClick={() => setActiveTab('manage_users')} style={{ cursor: 'pointer' }}>
+                      ← Volver a Colaboradores
+                    </button>
+                    <h1>Ficha del Colaborador</h1>
+                    <p>Monitorea y administra la actividad física, racha, sincronizaciones de salud y el desempeño en retos en tiempo real para <strong>{selectedDetailUser.name} {selectedDetailUser.lastname || ''}</strong>.</p>
+                  </div>
+                </header>
+
+                {loadingUserDetail ? (
+                  <div style={{ textAlign: 'center', padding: '5rem 0' }}>
+                    <RefreshCw className="spin-animation" size={36} style={{ color: 'var(--mint-accent)' }} />
+                    <p style={{ marginTop: '1rem', color: 'var(--text-muted)' }}>Cargando actividad y rankings del colaborador...</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: '2rem', alignItems: 'start', maxWidth: '1200px', width: '100%' }}>
+                    
+                    {/* COLUMNA IZQUIERDA: PERFIL Y ACCIONES */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                      {/* Card Perfil Principal */}
+                      <div style={{ backgroundColor: 'white', padding: '2.5rem 2rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', textAlign: 'center', position: 'relative' }}>
+                        <div style={{ position: 'relative', width: '120px', height: '120px', margin: '0 auto 1.5rem', borderRadius: '50%', border: '4px solid white', boxShadow: 'var(--shadow-md)', overflow: 'hidden' }}>
+                          <img 
+                            src={selectedDetailUser.avatar || 'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=120'} 
+                            alt="" 
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                          />
+                        </div>
+
+                        <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 0.25rem 0' }}>
+                          {selectedDetailUser.name} {selectedDetailUser.lastname || ''}
+                        </h2>
+                        
+                        <span 
+                          style={{
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '12px',
+                            display: 'inline-block',
+                            backgroundColor: 'var(--bg-app)',
+                            color: varColorForDept(selectedDetailUser.department),
+                            marginBottom: '1rem'
+                          }}
+                        >
+                          {selectedDetailUser.department || 'Sin Área'}
+                        </span>
+
+                        <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '0 0 1.5rem 0', fontWeight: 500 }}>
+                          🏆 Nivel: <strong style={{ color: 'var(--mint-dark)' }}>{selectedDetailUser.level || 'Wellness Principiante 🌱'}</strong>
+                        </p>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)', padding: '1.25rem 0', marginBottom: '1.5rem' }}>
+                          <div>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>Saldo Acumulado</span>
+                            <strong style={{ fontSize: '1.2rem', color: 'var(--mint-dark)' }}>🪙 {selectedDetailUser.points || 0} pts</strong>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>Racha de Bienestar</span>
+                            <strong style={{ fontSize: '1.2rem', color: 'var(--coral-dark)' }}>🔥 {selectedDetailUser.streak || 0} días</strong>
+                          </div>
+                        </div>
+
+                        {/* Datos de contacto y registro */}
+                        <div style={{ textAlign: 'left', fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>Correo Electrónico:</span>
+                            <strong style={{ color: 'var(--text-main)', wordBreak: 'break-all' }}>{selectedDetailUser.email}</strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>Código de Empresa:</span>
+                            <strong style={{ color: 'var(--text-main)' }}>{selectedDetailUser.company_code}</strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>Estado de Cuenta:</span>
+                            <strong style={{ color: selectedDetailUser.status === 'approved' ? 'var(--mint-accent)' : 'orange' }}>
+                              {selectedDetailUser.status === 'approved' ? '🟢 Activa' : '⏳ Pendiente'}
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Card de Gestión y Blanqueo */}
+                      <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span>⚙️</span> Acciones Administrativas
+                        </h3>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1.25rem', lineHeight: '1.4' }}>
+                          Si el colaborador olvidó sus credenciales de acceso, puedes blanquear su contraseña. Esto removerá su clave actual y se le obligará a definir una contraseña nueva la próxima vez que intente iniciar sesión.
+                        </p>
+
+                        <button 
+                          className="btn btn-primary" 
+                          onClick={() => handleResetPassword(selectedDetailUser.id)}
+                          disabled={isResettingPassword}
+                          style={{ width: '100%', padding: '0.75rem', fontSize: '0.88rem', backgroundColor: '#F0F9FF', color: 'var(--sky-dark)', border: '1px solid rgba(91,166,224,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', cursor: 'pointer', transition: 'var(--transition-fast)' }}
+                        >
+                          🔓 {isResettingPassword ? 'Blanqueando...' : 'Blanquear Contraseña'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* COLUMNA DERECHA: ACTIVIDAD FÍSICA Y RETOS */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                      {/* Historial de Actividad Semanal */}
+                      <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                          <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span>🚶‍♂️</span> Historial de Pasos (Últimos 7 días)
+                          </h3>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, backgroundColor: 'var(--bg-app)', padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-sm)' }}>
+                            Sincronización Fit
+                          </span>
+                        </div>
+
+                        {/* Indicador de Última Sincronización */}
+                        <div style={{ padding: '0.75rem 1rem', backgroundColor: 'var(--bg-app)', borderRadius: 'var(--radius-lg)', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem' }}>
+                          <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Última sincronización en la nube:</span>
+                          <strong style={{ color: 'var(--text-main)' }}>
+                            {selectedDetailUser.last_sync 
+                              ? new Date(selectedDetailUser.last_sync).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) 
+                              : 'Sin registros de sincronización de salud'
+                            }
+                          </strong>
+                        </div>
+
+                        {/* Gráfico Estilo Barras de Pasos */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: '140px', padding: '1rem 0.5rem', backgroundColor: 'var(--bg-app)', borderRadius: 'var(--radius-lg)', gap: '0.75rem' }}>
+                          {(selectedDetailUser.daily_steps_history || [0, 0, 0, 0, 0, 0, 0]).map((steps, idx) => {
+                            const maxSteps = Math.max(...(selectedDetailUser.daily_steps_history || [10000]), 10000);
+                            const heightPct = Math.min((steps / maxSteps) * 100, 100);
+                            
+                            // Get calendar days labels
+                            const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+                            const d = new Date();
+                            d.setDate(d.getDate() - (6 - idx));
+                            const label = dayNames[d.getDay()];
+
+                            return (
+                              <div key={idx} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
+                                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
+                                  {steps > 1000 ? `${(steps / 1000).toFixed(1)}k` : steps}
+                                </div>
+                                <div 
+                                  style={{ 
+                                    width: '100%', 
+                                    backgroundColor: steps >= 10000 ? 'var(--mint-accent)' : 'var(--sky-accent)', 
+                                    height: `${heightPct}%`, 
+                                    borderRadius: '4px 4px 0 0', 
+                                    minHeight: '4px',
+                                    transition: 'var(--transition-smooth)',
+                                    opacity: 0.85
+                                  }}
+                                  title={`${steps} pasos`}
+                                />
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem', fontWeight: 500 }}>
+                                  {label}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Retos y Rankings */}
+                      <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span>🏆</span> Campañas y Puestos en el Ranking
+                        </h3>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                          {userDetailChallenges.length === 0 ? (
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textAlign: 'center', padding: '2rem 0' }}>El colaborador no está inscrito en ningún reto activo en este momento.</p>
+                          ) : (
+                            userDetailChallenges.map(uc => {
+                              const pct = Math.min((uc.progress / (uc.challenge_target || 1)) * 100, 100);
+                              
+                              // Stylized ranking badge
+                              let rankBadge = '';
+                              let rankColor = 'var(--text-muted)';
+                              let rankBg = 'var(--bg-app)';
+                              
+                              if (uc.rank === 1) {
+                                rankBadge = '🥇 1º Puesto';
+                                rankColor = '#B27A00';
+                                rankBg = '#FFFBEB';
+                              } else if (uc.rank === 2) {
+                                rankBadge = '🥈 2º Puesto';
+                                rankColor = '#4B5563';
+                                rankBg = '#F3F4F6';
+                              } else if (uc.rank === 3) {
+                                rankBadge = '🥉 3º Puesto';
+                                rankColor = '#9A3412';
+                                rankBg = '#FFF7ED';
+                              } else if (uc.rank !== '-') {
+                                rankBadge = `🏅 ${uc.rank}º Puesto`;
+                                rankColor = 'var(--sky-dark)';
+                                rankBg = 'var(--sky-bg)';
+                              } else {
+                                rankBadge = 'Sin Ranking';
+                              }
+
+                              return (
+                                <div 
+                                  key={uc.challenge_id} 
+                                  style={{ 
+                                    border: '1px solid var(--border-color)', 
+                                    borderRadius: 'var(--radius-lg)', 
+                                    padding: '1.25rem', 
+                                    backgroundColor: 'var(--bg-app)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '0.75rem'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                      <span style={{ fontSize: '1.75rem' }}>{uc.challenge_icon}</span>
+                                      <h4 style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-main)' }}>{uc.challenge_title}</h4>
+                                    </div>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '10px', color: rankColor, backgroundColor: rankBg }}>
+                                      {rankBadge}
+                                    </span>
+                                  </div>
+
+                                  <div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.35rem', fontWeight: 500 }}>
+                                      <span>Progreso: <strong>{uc.progress} / {uc.challenge_target} {uc.challenge_unit}</strong></span>
+                                      <span>{Math.round(pct)}%</span>
+                                    </div>
+                                    <div style={{ width: '100%', height: '8px', backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: '4px', overflow: 'hidden' }}>
+                                      <div 
+                                        style={{ 
+                                          width: `${pct}%`, 
+                                          height: '100%', 
+                                          backgroundColor: uc.status === 'completed' ? 'var(--mint-accent)' : 'var(--sky-accent)', 
+                                          borderRadius: '4px',
+                                          transition: 'var(--transition-smooth)'
+                                        }} 
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                )}
               </div>
             )}
           </>

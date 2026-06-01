@@ -744,7 +744,10 @@ export const dbService = {
       const { dailySteps, totalSteps } = fitData;
       
       const userRef = doc(db, 'usuarios', userId);
-      await updateDoc(userRef, { daily_steps_history: dailySteps });
+      await updateDoc(userRef, { 
+        daily_steps_history: dailySteps,
+        last_sync: new Date().toISOString()
+      });
 
       const dates = [];
       for (let i = 6; i >= 0; i--) {
@@ -1010,6 +1013,18 @@ export const dbService = {
       return { success: true };
     } catch(err) {
       console.error("Error deleting reward:", err);
+      return { error: err.message };
+    }
+  },
+  async resetUserPasswordDirectly(userId) {
+    try {
+      const ref = doc(db, 'usuarios', userId);
+      await updateDoc(ref, {
+        password_hash: null
+      });
+      return { success: true };
+    } catch(err) {
+      console.error("Error resetting password:", err);
       return { error: err.message };
     }
   }
