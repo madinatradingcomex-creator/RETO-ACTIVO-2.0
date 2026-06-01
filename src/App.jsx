@@ -68,6 +68,7 @@ function App() {
 
   // Admin Challenges Manager & Detail view states (Hoisted for Navigation effects)
   const [adminSelectedChallenge, setAdminSelectedChallenge] = useState(null);
+  const [selectedDetailUser, setSelectedDetailUser] = useState(null);
 
   // Navigation
   const [activeTab, setActiveTab] = useState(() => {
@@ -214,7 +215,6 @@ function App() {
   const [isSavingReward, setIsSavingReward] = useState(false);
 
   // User detail states (ficha del colaborador)
-  const [selectedDetailUser, setSelectedDetailUser] = useState(null);
   const [userDetailChallenges, setUserDetailChallenges] = useState([]);
   const [loadingUserDetail, setLoadingUserDetail] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
