@@ -1667,33 +1667,33 @@ h1, h2, h3, h4, h5, h6 {
 /* Perfect mobile responsiveness for daily breakdown details */
 @media (max-width: 580px) {
   .daily-breakdown-row {
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    justify-content: center;
-    gap: 0.65rem;
-    padding: 1rem;
-    text-align: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.82rem;
   }
 
   .daily-breakdown-row .row-left {
-    flex-direction: column;
-    gap: 0.2rem;
+    flex-direction: row;
+    gap: 0.35rem;
   }
 
   .daily-breakdown-row .row-right {
-    flex-direction: column;
-    gap: 0.5rem;
-    width: 100%;
+    flex-direction: row;
+    gap: 0.65rem;
+    width: auto;
   }
 
   .daily-breakdown-row .steps-metric {
-    text-align: center;
+    text-align: right;
   }
 
   .daily-breakdown-row .steps-km {
-    display: block;
-    margin-left: 0;
-    margin-top: 0.15rem;
+    display: inline;
+    margin-left: 0.25rem;
+    margin-top: 0;
   }
 }
 

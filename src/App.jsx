@@ -1824,7 +1824,16 @@ function App() {
   const maxWeeklySteps = (currentUser?.role === 'employee' && currentUser?.daily_steps_history) 
     ? Math.max(...currentUser.daily_steps_history, 10000) 
     : 10000;
-  const weekDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  const weekDays = (() => {
+    const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const list = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      list.push(dayNames[d.getDay()]);
+    }
+    return list;
+  })();
 
   const formatDate = (dateStr) => {
     if (!dateStr) return 'N/D';
