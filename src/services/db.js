@@ -578,6 +578,22 @@ export const dbService = {
     } catch(err) { console.error(err); return []; }
   },
 
+  async getApprovedEvidencesForUserAndChallenge(userId, challengeId) {
+    try {
+      const q = query(
+        collection(db, 'evidencias'),
+        where('user_id', '==', userId),
+        where('challenge_id', '==', challengeId),
+        where('status', '==', 'approved')
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map(d => d.data());
+    } catch(err) {
+      console.error("Error getting approved evidences:", err);
+      return [];
+    }
+  },
+
   async approveEvidence(evidenceId) {
     try {
       const eRef = doc(db, 'evidencias', evidenceId);

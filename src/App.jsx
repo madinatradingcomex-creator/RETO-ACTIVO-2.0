@@ -219,6 +219,13 @@ function App() {
   const [loadingUserDetail, setLoadingUserDetail] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
 
+  // Employee challenge detailed progress states
+  const [showChallengeProgressModal, setShowChallengeProgressModal] = useState(false);
+  const [selectedProgressEnrollment, setSelectedProgressEnrollment] = useState(null);
+  const [selectedProgressChallenge, setSelectedProgressChallenge] = useState(null);
+  const [challengeDailyBreakdown, setChallengeDailyBreakdown] = useState([]);
+  const [loadingChallengeProgress, setLoadingChallengeProgress] = useState(false);
+
   // Search and Filters
   const [leaderboardSearch, setLeaderboardSearch] = useState('');
   const [challengesFilter, setChallengesFilter] = useState('all');
@@ -302,6 +309,21 @@ function App() {
         if (connected && active.role === 'employee') {
           const lastSync = dbService.getLastSync(active.id);
           setGFitLastSync(lastSync);
+          
+          // Sincronización automática de fondo al cargar sesión activa
+          setTimeout(() => {
+            const token = dbService.getGoogleFitToken();
+            if (token) {
+              setGFitSyncing(true);
+              showToastMessage("🔄 Sincronizando tus pasos de Google Fit automáticamente...");
+              dbService.fetchWeeklyStepsFromGoogleFit(token)
+                .then(fitData => performGFitSync(active, fitData))
+                .catch(err => {
+                  console.error("Error en sincronización silenciosa al iniciar aplicación:", err);
+                  setGFitSyncing(false);
+                });
+            }
+          }, 1000);
         }
       } else {
         setLandingView(true);
@@ -367,6 +389,25 @@ function App() {
         setActiveTab('dashboard');
         showToastMessage(`¡Acceso correcto! Bienvenido, ${res.user.name} ${res.user.lastname || ''} 🌟`);
         loadViewData(res.user);
+        
+        // Sincronización automática de fondo al iniciar sesión
+        const connected = dbService.isGoogleFitConnected();
+        if (connected && res.user.role === 'employee') {
+          setTimeout(() => {
+            const token = dbService.getGoogleFitToken();
+            if (token) {
+              setGFitSyncing(true);
+              showToastMessage("🔄 Sincronizando tus pasos de Google Fit automáticamente...");
+              dbService.fetchWeeklyStepsFromGoogleFit(token)
+                .then(fitData => performGFitSync(res.user, fitData))
+                .catch(err => {
+                  console.error("Error en sincronización silenciosa al iniciar sesión:", err);
+                  setGFitSyncing(false);
+                });
+            }
+          }, 1000);
+        }
+
         setLoginEmail('');
         setLoginCompanyCode('');
         setLoginPassword('');
@@ -1084,6 +1125,73 @@ function App() {
     // Update selectedDetailUser password_hash to null locally
     if (selectedDetailUser && selectedDetailUser.id === userId) {
       setSelectedDetailUser(prev => ({ ...prev, password_hash: null }));
+    }
+  };
+
+  const handleOpenChallengeProgressDetail = async (enrollment, challenge) => {
+    setSelectedProgressEnrollment(enrollment);
+    setSelectedProgressChallenge(challenge);
+    setShowChallengeProgressModal(true);
+    setLoadingChallengeProgress(true);
+    
+    try {
+      // 1. Fetch approved evidences for this user and this challenge from service
+      const approvedEvidences = await dbService.getApprovedEvidencesForUserAndChallenge(currentUser.id, challenge.id);
+      
+      // 2. Generate list of dates between challenge start_date and today (or end_date if ended)
+      const list = [];
+      const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+      
+      const startStr = challenge.start_date || new Date().toISOString().split('T')[0];
+      const todayStr = new Date().toISOString().split('T')[0];
+      let endStr = challenge.end_date || todayStr;
+      if (endStr > todayStr) {
+        endStr = todayStr; // Only show up to today
+      }
+      
+      const startDate = new Date(startStr);
+      const endDate = new Date(endStr);
+      
+      // Let's iterate day by day
+      const curr = new Date(startDate);
+      let safetyCounter = 0;
+      while (curr <= endDate && safetyCounter < 35) {
+        safetyCounter++;
+        const dateKey = curr.toISOString().split('T')[0];
+        
+        // Synced steps from Google Fit daily_syncs map
+        const fitSyncSteps = (enrollment.daily_syncs && enrollment.daily_syncs[dateKey]) || 0;
+        
+        // Manual steps from approved evidences on this date
+        const manualEvidencesOnDate = approvedEvidences.filter(ev => {
+          const evDateKey = ev.submission_date || (ev.date ? ev.date.split('T')[0] : '');
+          return evDateKey === dateKey;
+        });
+        const manualSteps = manualEvidencesOnDate.reduce((sum, ev) => sum + (ev.value || 0), 0);
+        
+        const totalLoggedOnDate = fitSyncSteps + manualSteps;
+        
+        list.push({
+          dateKey,
+          displayDate: dateKey.split('-').reverse().slice(0, 2).join('/'), // e.g. "01/06"
+          dayName: dayNames[curr.getDay()],
+          steps: totalLoggedOnDate,
+          fitSyncSteps,
+          manualSteps,
+          hasEvidence: manualEvidencesOnDate.length > 0,
+          evidences: manualEvidencesOnDate
+        });
+        
+        // Add 1 day
+        curr.setDate(curr.getDate() + 1);
+      }
+      
+      setChallengeDailyBreakdown(list.reverse());
+    } catch(err) {
+      console.error("Error loading challenge daily progress:", err);
+      showToastMessage("Error al cargar el desglose diario.", "error");
+    } finally {
+      setLoadingChallengeProgress(false);
     }
   };
 
@@ -1835,6 +1943,22 @@ function App() {
     return list;
   })();
 
+  const getGracePeriodStatus = (challenge) => {
+    if (!challenge.end_date) return { isEnded: false, isInGrace: false };
+    const todayStr = new Date().toISOString().split('T')[0];
+    const isEnded = todayStr > challenge.end_date;
+    
+    if (!isEnded) return { isEnded: false, isInGrace: false };
+    
+    const endParts = challenge.end_date.split('-');
+    const limitDate = new Date(parseInt(endParts[0]), parseInt(endParts[1]) - 1, parseInt(endParts[2]), 23, 59, 59);
+    const graceLimit = new Date(limitDate.getTime() + 48 * 60 * 60 * 1000);
+    const now = new Date();
+    const isInGrace = now <= graceLimit;
+    
+    return { isEnded, isInGrace };
+  };
+
   const formatDate = (dateStr) => {
     if (!dateStr) return 'N/D';
     const parts = dateStr.split('-');
@@ -2475,7 +2599,7 @@ function App() {
 
                           const todayStr = new Date().toISOString().split('T')[0];
                           const isNotStarted = challenge.start_date && todayStr < challenge.start_date;
-                          const isEnded = challenge.end_date && todayStr > challenge.end_date;
+                          const { isEnded, isInGrace } = getGracePeriodStatus(challenge);
                           
                           return (
                             <div className="challenge-card" key={uc.challenge_id}>
@@ -2517,9 +2641,45 @@ function App() {
                                   </span>
                                 </div>
 
+                                <button 
+                                  className="btn btn-secondary" 
+                                  onClick={() => handleOpenChallengeProgressDetail(uc, challenge)}
+                                  style={{ 
+                                    width: '100%', 
+                                    marginBottom: '0.75rem', 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justifyContent: 'center', 
+                                    gap: '0.4rem' 
+                                  }}
+                                >
+                                  📊 Ver Progreso por Día
+                                </button>
+
                                 {isNotStarted ? (
                                   <button className="btn btn-secondary" style={{ cursor: 'not-allowed', opacity: 0.6 }} disabled>
                                     ⏳ Inicia el {formatDate(challenge.start_date)}
+                                  </button>
+                                ) : isInGrace ? (
+                                  <button 
+                                    className="btn" 
+                                    style={{ 
+                                      background: 'linear-gradient(135deg, #FFF5E6 0%, #FFE5B4 100%)', 
+                                      color: '#B36B00', 
+                                      border: '1px solid rgba(255, 165, 0, 0.4)',
+                                      boxShadow: 'var(--shadow-sm)',
+                                      fontWeight: 700,
+                                      fontSize: '0.88rem',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      alignItems: 'center',
+                                      gap: '0.1rem',
+                                      padding: '0.5rem 1rem'
+                                    }} 
+                                    onClick={() => openLogActivityModal(challenge)}
+                                  >
+                                    <span>⏳ Sincronizar Último Día</span>
+                                    <span style={{ fontSize: '0.68rem', fontWeight: 600, opacity: 0.85 }}>Plazo de gracia activo</span>
                                   </button>
                                 ) : isEnded ? (
                                   <button className="btn btn-disabled" disabled>
@@ -2582,7 +2742,7 @@ function App() {
 
                       const todayStr = new Date().toISOString().split('T')[0];
                       const isNotStarted = c.modality !== 'immediate' && c.start_date && todayStr < c.start_date;
-                      const isEnded = c.end_date && todayStr > c.end_date;
+                      const { isEnded, isInGrace } = getGracePeriodStatus(c);
                       const isEnrollmentClosed = c.modality === 'immediate'
                         ? (c.enrollment_deadline && todayStr > c.enrollment_deadline)
                         : (c.start_date && todayStr >= c.start_date);
@@ -2654,6 +2814,20 @@ function App() {
                                     {enrollment.progress} / {c.target} {c.unit}
                                   </span>
                                 </div>
+                                <button 
+                                  className="btn btn-secondary" 
+                                  onClick={() => handleOpenChallengeProgressDetail(enrollment, c)}
+                                  style={{ 
+                                    width: '100%', 
+                                    marginTop: '0.75rem', 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justifyContent: 'center', 
+                                    gap: '0.4rem' 
+                                  }}
+                                >
+                                  📊 Ver Progreso por Día
+                                </button>
                               </div>
                             )}
 
@@ -2671,6 +2845,27 @@ function App() {
                               isNotStarted ? (
                                 <button className="btn btn-secondary" style={{ cursor: 'not-allowed', opacity: 0.6 }} disabled>
                                   ⏳ Inicia el {formatDate(c.start_date)}
+                                </button>
+                              ) : isInGrace ? (
+                                <button 
+                                  className="btn" 
+                                  style={{ 
+                                    background: 'linear-gradient(135deg, #FFF5E6 0%, #FFE5B4 100%)', 
+                                    color: '#B36B00', 
+                                    border: '1px solid rgba(255, 165, 0, 0.4)',
+                                    boxShadow: 'var(--shadow-sm)',
+                                    fontWeight: 700,
+                                    fontSize: '0.88rem',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    gap: '0.1rem',
+                                    padding: '0.5rem 1rem'
+                                  }} 
+                                  onClick={() => openLogActivityModal(c)}
+                                >
+                                  <span>⏳ Sincronizar Último Día</span>
+                                  <span style={{ fontSize: '0.68rem', fontWeight: 600, opacity: 0.85 }}>Plazo de gracia activo</span>
                                 </button>
                               ) : isEnded ? (
                                 <button className="btn btn-disabled" disabled>
@@ -4476,6 +4671,28 @@ function App() {
               <p className="modal-subtitle">Reto: <strong>{selectedChallenge.title}</strong></p>
             </div>
 
+            {(() => {
+              const { isInGrace } = getGracePeriodStatus(selectedChallenge);
+              return isInGrace && (
+                <div style={{ 
+                  padding: '0.75rem 1rem', 
+                  backgroundColor: '#FFF9E6', 
+                  border: '1px solid rgba(255,179,0,0.25)', 
+                  borderRadius: 'var(--radius-md || 8px)', 
+                  fontSize: '0.8rem', 
+                  color: '#B36B00', 
+                  marginBottom: '1.25rem', 
+                  fontWeight: 500, 
+                  display: 'flex', 
+                  gap: '0.5rem', 
+                  alignItems: 'center' 
+                }}>
+                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                  <span>Solo se sumará actividad realizada hasta el <strong>{formatDate(selectedChallenge.end_date)}</strong>.</span>
+                </div>
+              );
+            })()}
+
             <form onSubmit={handleSubmitProgress}>
               <div className="form-group">
                 <label className="form-label">Cantidad a Registrar ({selectedChallenge.unit})</label>
@@ -4857,8 +5074,256 @@ function App() {
         </div>
       )}
 
+      {/* MODAL: VER PROGRESO POR DÍA */}
+      {showChallengeProgressModal && selectedProgressChallenge && (
+        <div className="modal-overlay" onClick={() => setShowChallengeProgressModal(false)}>
+          <div 
+            className="modal-content" 
+            onClick={(e) => e.stopPropagation()} 
+            style={{ 
+              maxWidth: '650px', 
+              width: '95%', 
+              maxHeight: '92vh', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              padding: '2rem 2.25rem 1.75rem 2.25rem' 
+            }}
+          >
+            <button className="modal-close" onClick={() => setShowChallengeProgressModal(false)}>
+              <X size={20} />
+            </button>
+            
+            {/* Cabecera del Modal */}
+            <div className="modal-header" style={{ marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <span style={{ fontSize: '3rem', backgroundColor: 'var(--bg-app)', padding: '0.5rem', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)' }}>
+                  {selectedProgressChallenge.image}
+                </span>
+                <div>
+                  <h3 className="modal-title" style={{ margin: 0, fontFamily: 'Outfit', fontWeight: 700, color: 'var(--text-main)' }}>
+                    Progreso por Día
+                  </h3>
+                  <p className="modal-subtitle" style={{ margin: '0.2rem 0 0 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                    Reto: <strong>{selectedProgressChallenge.title}</strong>
+                  </p>
+                </div>
+              </div>
+              
+              {selectedProgressChallenge.start_date && (
+                <div style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  🗓️ Vigencia: <strong>{formatDate(selectedProgressChallenge.start_date)} al {formatDate(selectedProgressChallenge.end_date)}</strong>
+                </div>
+              )}
+            </div>
 
+            {loadingChallengeProgress ? (
+              <div style={{ padding: '3rem 0', textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                <RefreshCw className="spin-animation" size={32} style={{ color: 'var(--sky-accent)' }} />
+                <p style={{ marginTop: '1rem', color: 'var(--text-muted)', fontWeight: 500 }}>Cargando desglose de días...</p>
+              </div>
+            ) : (
+              <>
+                {/* Métricas de Resumen */}
+                {(() => {
+                  // Calcular días completados
+                  let totalDays = 7;
+                  if (selectedProgressChallenge.start_date && selectedProgressChallenge.end_date && selectedProgressChallenge.end_date !== 'N/D') {
+                    const start = new Date(selectedProgressChallenge.start_date);
+                    const end = new Date(selectedProgressChallenge.end_date);
+                    const diffTime = Math.abs(end - start);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                    if (!isNaN(diffDays)) {
+                      totalDays = diffDays;
+                    }
+                  } else if (selectedProgressChallenge.duration) {
+                    const match = selectedProgressChallenge.duration.match(/\d+/);
+                    if (match) {
+                      totalDays = parseInt(match[0], 10);
+                    }
+                  }
+                  
+                  const targetPerDay = Math.round(selectedProgressChallenge.target / totalDays);
+                  
+                  // Recuento de días donde se cumplió la meta
+                  const completedDaysCount = challengeDailyBreakdown.filter(day => day.steps >= targetPerDay).length;
+                  const progressPct = Math.min(((selectedProgressEnrollment?.progress || 0) / selectedProgressChallenge.target) * 100, 100);
+                  
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', flex: 1, minHeight: 0 }}>
+                      
+                      {/* Grid de 3 Cards de Métricas */}
+                      <div style={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: 'repeat(3, 1fr)', 
+                        gap: '0.75rem',
+                        paddingBottom: '0.5rem'
+                      }}>
+                        {/* Card 1: Progreso Total */}
+                        <div style={{ backgroundColor: 'var(--bg-app)', padding: '0.85rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                          <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Progreso Total</span>
+                          <span style={{ display: 'block', fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                            {selectedProgressEnrollment?.progress?.toLocaleString() || 0}
+                          </span>
+                          <span style={{ display: 'inline-block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--mint-dark)', backgroundColor: 'var(--mint-bg)', padding: '0.1rem 0.4rem', borderRadius: '10px', marginTop: '0.25rem' }}>
+                            {Math.round(progressPct)}% del total
+                          </span>
+                        </div>
+                        
+                        {/* Card 2: Meta Diaria */}
+                        <div style={{ backgroundColor: 'var(--bg-app)', padding: '0.85rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                          <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Meta Diaria (Ref.)</span>
+                          <span style={{ display: 'block', fontSize: '1.1rem', fontWeight: 700, color: 'var(--sky-dark)' }}>
+                            {targetPerDay.toLocaleString()}
+                          </span>
+                          <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                            {selectedProgressChallenge.unit} / día
+                          </span>
+                        </div>
+                        
+                        {/* Card 3: Racha / Días Logrados */}
+                        <div style={{ backgroundColor: 'var(--bg-app)', padding: '0.85rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                          <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Días Cumplidos</span>
+                          <span style={{ display: 'block', fontSize: '1.1rem', fontWeight: 700, color: 'var(--coral-dark)' }}>
+                            {completedDaysCount} / {challengeDailyBreakdown.length}
+                          </span>
+                          <span style={{ display: 'inline-block', fontSize: '0.72rem', fontWeight: 700, color: '#B38F00', backgroundColor: '#FFF9E6', padding: '0.1rem 0.4rem', borderRadius: '10px', marginTop: '0.25rem' }}>
+                            🏆 Meta lograda
+                          </span>
+                        </div>
+                      </div>
 
+                      {/* Lista de Días Cronológica */}
+                      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
+                          Cronología día a día
+                        </span>
+                        
+                        <div 
+                          className="custom-scrollbar"
+                          style={{ 
+                            flex: 1,
+                            overflowY: 'auto', 
+                            border: '1px solid var(--border-color)', 
+                            borderRadius: 'var(--radius-lg)',
+                            maxHeight: '340px',
+                            backgroundColor: 'white'
+                          }}
+                        >
+                          {challengeDailyBreakdown.length === 0 ? (
+                            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                              No hay registros de actividad dentro del período de este reto.
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              {challengeDailyBreakdown.map((day, idx) => {
+                                const isMet = day.steps >= targetPerDay;
+                                const isPartial = day.steps > 0 && day.steps < targetPerDay;
+                                
+                                return (
+                                  <div 
+                                    key={day.dateKey} 
+                                    style={{ 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      justifyContent: 'space-between', 
+                                      padding: '0.9rem 1.25rem', 
+                                      borderBottom: idx === challengeDailyBreakdown.length - 1 ? 'none' : '1px solid var(--border-color)',
+                                      backgroundColor: idx % 2 === 0 ? 'white' : 'var(--bg-app)'
+                                    }}
+                                  >
+                                    {/* Fecha y Día */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', width: '90px' }}>
+                                      <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                                        {day.dayName} {day.displayDate}
+                                      </span>
+                                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                        {day.dateKey}
+                                      </span>
+                                    </div>
+
+                                    {/* Pill de Estado */}
+                                    <div style={{ width: '110px' }}>
+                                      {isMet ? (
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', fontWeight: 700, color: 'var(--mint-dark)', backgroundColor: 'var(--mint-bg)', padding: '0.25rem 0.6rem', borderRadius: '12px' }}>
+                                          🟢 Meta Lograda
+                                        </span>
+                                      ) : isPartial ? (
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', fontWeight: 700, color: '#B36B00', backgroundColor: '#FFF5E6', padding: '0.25rem 0.6rem', borderRadius: '12px' }}>
+                                          🟡 En Camino
+                                        </span>
+                                      ) : (
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', backgroundColor: 'rgba(0,0,0,0.04)', padding: '0.25rem 0.6rem', borderRadius: '12px' }}>
+                                          ⚪ Sin Actividad
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Cantidad y Desglose */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flex: 1, paddingRight: '1rem' }}>
+                                      <span style={{ fontSize: '0.92rem', fontWeight: 700, color: isMet ? 'var(--mint-dark)' : 'var(--text-main)' }}>
+                                        {day.steps.toLocaleString()} {selectedProgressChallenge.unit}
+                                      </span>
+                                      
+                                      {/* Orígenes de los datos */}
+                                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                                        {day.fitSyncSteps > 0 && `📱 Fit: ${day.fitSyncSteps.toLocaleString()}`}
+                                        {day.fitSyncSteps > 0 && day.manualSteps > 0 && ' | '}
+                                        {day.manualSteps > 0 && `✍️ Manual: ${day.manualSteps.toLocaleString()}`}
+                                      </span>
+                                    </div>
+
+                                    {/* Botón para ver Evidencia manual */}
+                                    <div style={{ width: '40px', display: 'flex', justifyContent: 'center' }}>
+                                      {day.hasEvidence && day.evidences?.[0]?.screenshot_preview && (
+                                        <button 
+                                          title="Ver captura de pantalla de evidencia"
+                                          onClick={() => setPreviewEvidenceImage(day.evidences[0].screenshot_preview)}
+                                          style={{ 
+                                            background: 'none', 
+                                            border: 'none', 
+                                            cursor: 'pointer', 
+                                            color: 'var(--sky-dark)', 
+                                            padding: '0.35rem', 
+                                            borderRadius: '50%',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'background-color 0.2s'
+                                          }}
+                                          onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
+                                          onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                        >
+                                          👁️
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Botón Cerrar */}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+                        <button 
+                          className="btn btn-secondary" 
+                          onClick={() => setShowChallengeProgressModal(false)}
+                          style={{ width: 'auto', padding: '0.6rem 2rem' }}
+                        >
+                          Cerrar
+                        </button>
+                      </div>
+
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
 
       {/* TOAST */}
