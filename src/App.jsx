@@ -4230,16 +4230,18 @@ function App() {
                           </span>
                         </div>
 
-                        {/* Indicador de Última Sincronización */}
-                        <div style={{ padding: '0.75rem 1rem', backgroundColor: 'var(--bg-app)', borderRadius: 'var(--radius-lg)', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem' }}>
-                          <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Última sincronización en la nube:</span>
-                          <strong style={{ color: 'var(--text-main)' }}>
-                            {selectedDetailUser.last_sync 
-                              ? new Date(selectedDetailUser.last_sync).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) 
-                              : 'Sin registros de sincronización de salud'
-                            }
-                          </strong>
-                        </div>
+                         {/* Indicador de Última Sincronización */}
+                         <div style={{ padding: '0.75rem 1rem', backgroundColor: 'var(--bg-app)', borderRadius: 'var(--radius-lg)', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem' }}>
+                           <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Última sincronización en la nube:</span>
+                           <strong style={{ color: 'var(--text-main)' }}>
+                             {selectedDetailUser.last_sync 
+                               ? new Date(selectedDetailUser.last_sync).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) 
+                               : (selectedDetailUser.daily_steps_history && selectedDetailUser.daily_steps_history.some(s => s > 0))
+                                 ? 'Sincronizado recientemente (Google Fit)'
+                                 : 'Sin registros de sincronización de salud'
+                             }
+                           </strong>
+                         </div>
 
                         {/* Gráfico Estilo Barras de Pasos */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: '140px', padding: '1rem 0.5rem', backgroundColor: 'var(--bg-app)', borderRadius: 'var(--radius-lg)', gap: '0.75rem' }}>

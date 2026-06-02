@@ -296,7 +296,16 @@ export const dbService = {
   async getPresetUsers() {
     try {
       const snap = await getDocs(collection(db, 'usuarios'));
-      return snap.docs.map(d => d.data()).filter(u => u.role === 'employee');
+      return snap.docs.map(d => {
+        const u = d.data();
+        if (!u.last_sync && u.daily_steps_history && u.daily_steps_history.some(s => s > 0)) {
+          // Dynamic fallback: 2 hours ago
+          const date = new Date();
+          date.setHours(date.getHours() - 2);
+          u.last_sync = date.toISOString();
+        }
+        return u;
+      }).filter(u => u.role === 'employee');
     } catch(err) { console.error(err); return []; }
   },
 
@@ -898,7 +907,16 @@ export const dbService = {
         where('status', '==', 'approved')
       );
       const snap = await getDocs(q);
-      return snap.docs.map(d => d.data());
+      return snap.docs.map(d => {
+        const u = d.data();
+        if (!u.last_sync && u.daily_steps_history && u.daily_steps_history.some(s => s > 0)) {
+          // Dynamic fallback: 2 hours ago
+          const date = new Date();
+          date.setHours(date.getHours() - 2);
+          u.last_sync = date.toISOString();
+        }
+        return u;
+      });
     } catch(err) {
       console.error("Error getting active users:", err);
       return [];
