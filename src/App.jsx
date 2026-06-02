@@ -33,7 +33,8 @@ import {
   ChevronUp,
   Users,
   Trash2,
-  Edit2
+  Edit2,
+  HelpCircle
 } from 'lucide-react';
 import { dbService } from './services/db';
 import './App.css';
@@ -241,6 +242,7 @@ function App() {
   const [gFitConnected, setGFitConnected] = useState(false);
   const [gFitSyncing, setGFitSyncing] = useState(false);
   const [gFitLastSync, setGFitLastSync] = useState(null);
+  const [showGFitHelpModal, setShowGFitHelpModal] = useState(false);
 
   const [gFitSyncDays, setGFitSyncDays] = useState(7); // 1, 2, 3, 4, 5, or 7
   const [challengeRankings, setChallengeRankings] = useState({});
@@ -2277,6 +2279,218 @@ function App() {
                   </div>
                 </section>
 
+                {/* ===== PANEL GOOGLE FIT ===== */}
+                <section style={{ marginBottom: '2rem' }}>
+                  <div style={{
+                    background: gFitConnected
+                      ? 'linear-gradient(135deg, #F0FBF6, #EAF5FF)'
+                      : 'linear-gradient(135deg, #F8F9FF, #F0F7FF)',
+                    border: gFitConnected
+                      ? '1px solid rgba(28,188,140,0.2)'
+                      : '1px solid var(--border-color)',
+                    borderRadius: '20px',
+                    padding: '1.75rem 2rem',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '1.5rem',
+                    alignItems: 'center',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    boxShadow: 'var(--shadow-sm)',
+                  }}>
+                    {/* Decoración de fondo */}
+                    <div style={{
+                      position: 'absolute', right: '-20px', top: '-20px',
+                      width: '160px', height: '160px',
+                      borderRadius: '50%',
+                      background: gFitConnected
+                        ? 'radial-gradient(circle, rgba(28,188,140,0.07), transparent 70%)'
+                        : 'radial-gradient(circle, rgba(82,130,255,0.06), transparent 70%)',
+                      pointerEvents: 'none'
+                    }} />
+
+                    {/* Ícono principal */}
+                    <div style={{
+                      width: '54px', height: '54px', borderRadius: '16px', flexShrink: 0,
+                      background: gFitConnected
+                        ? 'linear-gradient(135deg, #34C97B, #1CBC8C)'
+                        : 'linear-gradient(135deg, #4285F4, #34A853)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: 'white',
+                      boxShadow: gFitConnected
+                        ? '0 8px 20px rgba(28,188,140,0.25)'
+                        : '0 8px 20px rgba(66,133,244,0.25)',
+                      fontSize: '1.5rem'
+                    }}>
+                      {gFitConnected ? <CheckCircle2 size={26} /> : <Activity size={26} />}
+                    </div>
+
+                    {/* Texto de estado */}
+                    <div style={{ flexGrow: 1, minWidth: '200px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                        <h3 style={{ fontFamily: 'Outfit', fontSize: '1.1rem', fontWeight: 700 }}>
+                          Google Fit
+                        </h3>
+                        {gFitConnected && (
+                          <span style={{
+                            backgroundColor: 'var(--mint-bg)',
+                            color: 'var(--mint-dark)',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '0.2rem 0.6rem',
+                            borderRadius: '20px',
+                            border: '1px solid rgba(28,188,140,0.15)'
+                          }}>● CONECTADO</span>
+                        )}
+                      </div>
+
+                      {gFitConnected ? (
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                          {gFitLastSync
+                            ? `Última sincronización: ${gFitLastSync.steps?.toLocaleString()} pasos · ${new Date(gFitLastSync.syncedAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`
+                            : 'Cuenta conectada · Presiona "Sincronizar" para importar tus pasos de hoy.'}
+                        </p>
+                      ) : (
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                          Conecta tu cuenta de Google Fit para importar tus pasos automáticamente. Los datos se aprueban solos, ¡sin captura manual!
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Selector de Rango de Días (P7) */}
+                    {gFitConnected && (
+                      <div style={{ minWidth: '220px' }}>
+                        <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>
+                          📅 Rango de Sincronización:
+                        </label>
+                        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                          {[
+                            { label: 'Hoy', value: 1 },
+                            { label: '2d', value: 2 },
+                            { label: '3d', value: 3 },
+                            { label: '4d', value: 4 },
+                            { label: '5d', value: 5 },
+                            { label: 'Semana', value: 7 }
+                          ].map(pill => (
+                            <button
+                              key={pill.value}
+                              type="button"
+                              onClick={() => setGFitSyncDays(pill.value)}
+                              style={{
+                                border: '1px solid ' + (gFitSyncDays === pill.value ? 'var(--mint-accent)' : 'var(--border-color)'),
+                                backgroundColor: gFitSyncDays === pill.value ? 'var(--mint-bg)' : 'white',
+                                color: gFitSyncDays === pill.value ? 'var(--mint-dark)' : 'var(--text-main)',
+                                padding: '0.35rem 0.6rem',
+                                borderRadius: '8px',
+                                fontSize: '0.75rem',
+                                fontWeight: gFitSyncDays === pill.value ? 700 : 500,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                                outline: 'none'
+                              }}
+                            >
+                              {pill.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Botones de acción */}
+                    <div style={{ display: 'flex', gap: '0.75rem', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {gFitConnected ? (
+                        <>
+                          <button
+                            className="btn btn-primary"
+                            style={{ width: 'auto', padding: '0.6rem 1.4rem', fontSize: '0.88rem' }}
+                            onClick={handleGFitResync}
+                            disabled={gFitSyncing}
+                          >
+                            {gFitSyncing ? (
+                              <><span className="spin-animation" style={{ display: 'inline-block' }}>🔄</span> Sincronizando...</>
+                            ) : (
+                              <><RefreshCw size={15} /> Sincronizar Ahora</>
+                            )}
+                          </button>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ width: 'auto', padding: '0.6rem 1rem', fontSize: '0.82rem' }}
+                            onClick={handleDisconnectGoogleFit}
+                          >
+                            Desconectar
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => setShowGFitHelpModal(true)}
+                            title="Ayuda sobre la conexión"
+                            style={{
+                              width: 'auto',
+                              padding: '0.6rem',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              border: '1px solid var(--border-color)'
+                            }}
+                          >
+                            <HelpCircle size={16} />
+                          </button>
+                        </>
+                      ) : (
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          <button
+                            className="btn btn-primary"
+                            style={{
+                              width: 'auto', padding: '0.7rem 1.5rem', fontSize: '0.9rem',
+                              background: 'linear-gradient(135deg, #4285F4, #34A853)',
+                              display: 'flex', alignItems: 'center', gap: '0.5rem'
+                            }}
+                            onClick={handleConnectGoogleFit}
+                            disabled={gFitSyncing}
+                          >
+                            {gFitSyncing ? (
+                              <><span className="spin-animation">🔄</span> Conectando...</>
+                            ) : (
+                              <>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+                                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                                </svg>
+                                Conectar Google Fit
+                              </>
+                            )}
+                          </button>
+                          
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => setShowGFitHelpModal(true)}
+                            title="Ayuda sobre la conexión"
+                            style={{
+                              width: 'auto',
+                              padding: '0.7rem',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              minWidth: '38px',
+                              minHeight: '38px',
+                              border: '1px solid var(--border-color)'
+                            }}
+                          >
+                            <HelpCircle size={18} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </section>
+
                 <section className="activity-section">
                   <div className="activity-header">
                     <div>
@@ -2402,176 +2616,7 @@ function App() {
                   </div>
                 </section>
 
-                {/* ===== PANEL GOOGLE FIT ===== */}
-                <section style={{ marginBottom: '2rem' }}>
-                  <div style={{
-                    background: gFitConnected
-                      ? 'linear-gradient(135deg, #F0FBF6, #EAF5FF)'
-                      : 'linear-gradient(135deg, #F8F9FF, #F0F7FF)',
-                    border: gFitConnected
-                      ? '1px solid rgba(28,188,140,0.2)'
-                      : '1px solid var(--border-color)',
-                    borderRadius: '20px',
-                    padding: '1.75rem 2rem',
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '1.5rem',
-                    alignItems: 'center',
-                    position: 'relative',
-                    overflow: 'hidden',
-                    boxShadow: 'var(--shadow-sm)',
-                  }}>
-                    {/* Decoración de fondo */}
-                    <div style={{
-                      position: 'absolute', right: '-20px', top: '-20px',
-                      width: '160px', height: '160px',
-                      borderRadius: '50%',
-                      background: gFitConnected
-                        ? 'radial-gradient(circle, rgba(28,188,140,0.07), transparent 70%)'
-                        : 'radial-gradient(circle, rgba(82,130,255,0.06), transparent 70%)',
-                      pointerEvents: 'none'
-                    }} />
 
-                    {/* Ícono principal */}
-                    <div style={{
-                      width: '54px', height: '54px', borderRadius: '16px', flexShrink: 0,
-                      background: gFitConnected
-                        ? 'linear-gradient(135deg, #34C97B, #1CBC8C)'
-                        : 'linear-gradient(135deg, #4285F4, #34A853)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: 'white',
-                      boxShadow: gFitConnected
-                        ? '0 8px 20px rgba(28,188,140,0.25)'
-                        : '0 8px 20px rgba(66,133,244,0.25)',
-                      fontSize: '1.5rem'
-                    }}>
-                      {gFitConnected ? <CheckCircle2 size={26} /> : <Activity size={26} />}
-                    </div>
-
-                    {/* Texto de estado */}
-                    <div style={{ flexGrow: 1, minWidth: '200px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
-                        <h3 style={{ fontFamily: 'Outfit', fontSize: '1.1rem', fontWeight: 700 }}>
-                          Google Fit
-                        </h3>
-                        {gFitConnected && (
-                          <span style={{
-                            backgroundColor: 'var(--mint-bg)',
-                            color: 'var(--mint-dark)',
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            padding: '0.2rem 0.6rem',
-                            borderRadius: '20px',
-                            border: '1px solid rgba(28,188,140,0.15)'
-                          }}>● CONECTADO</span>
-                        )}
-                      </div>
-
-                      {gFitConnected ? (
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                          {gFitLastSync
-                            ? `Última sincronización: ${gFitLastSync.steps?.toLocaleString()} pasos · ${new Date(gFitLastSync.syncedAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`
-                            : 'Cuenta conectada · Presiona "Sincronizar" para importar tus pasos de hoy.'}
-                        </p>
-                      ) : (
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                          Conecta tu cuenta de Google Fit para importar tus pasos automáticamente. Los datos se aprueban solos, ¡sin captura manual!
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Selector de Rango de Días (P7) */}
-                    {gFitConnected && (
-                      <div style={{ minWidth: '220px' }}>
-                        <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>
-                          📅 Rango de Sincronización:
-                        </label>
-                        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                          {[
-                            { label: 'Hoy', value: 1 },
-                            { label: '2d', value: 2 },
-                            { label: '3d', value: 3 },
-                            { label: '4d', value: 4 },
-                            { label: '5d', value: 5 },
-                            { label: 'Semana', value: 7 }
-                          ].map(pill => (
-                            <button
-                              key={pill.value}
-                              type="button"
-                              onClick={() => setGFitSyncDays(pill.value)}
-                              style={{
-                                border: '1px solid ' + (gFitSyncDays === pill.value ? 'var(--mint-accent)' : 'var(--border-color)'),
-                                backgroundColor: gFitSyncDays === pill.value ? 'var(--mint-bg)' : 'white',
-                                color: gFitSyncDays === pill.value ? 'var(--mint-dark)' : 'var(--text-main)',
-                                padding: '0.35rem 0.6rem',
-                                borderRadius: '8px',
-                                fontSize: '0.75rem',
-                                fontWeight: gFitSyncDays === pill.value ? 700 : 500,
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                outline: 'none'
-                              }}
-                            >
-                              {pill.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Botones de acción */}
-                    <div style={{ display: 'flex', gap: '0.75rem', flexShrink: 0, flexWrap: 'wrap' }}>
-                      {gFitConnected ? (
-                        <>
-                          <button
-                            className="btn btn-primary"
-                            style={{ width: 'auto', padding: '0.6rem 1.4rem', fontSize: '0.88rem' }}
-                            onClick={handleGFitResync}
-                            disabled={gFitSyncing}
-                          >
-                            {gFitSyncing ? (
-                              <><span className="spin-animation" style={{ display: 'inline-block' }}>🔄</span> Sincronizando...</>
-                            ) : (
-                              <><RefreshCw size={15} /> Sincronizar Ahora</>
-                            )}
-                          </button>
-                          <button
-                            className="btn btn-secondary"
-                            style={{ width: 'auto', padding: '0.6rem 1rem', fontSize: '0.82rem' }}
-                            onClick={handleDisconnectGoogleFit}
-                          >
-                            Desconectar
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          className="btn btn-primary"
-                          style={{
-                            width: 'auto', padding: '0.7rem 1.5rem', fontSize: '0.9rem',
-                            background: 'linear-gradient(135deg, #4285F4, #34A853)',
-                            display: 'flex', alignItems: 'center', gap: '0.5rem'
-                          }}
-                          onClick={handleConnectGoogleFit}
-                          disabled={gFitSyncing}
-                        >
-                          {gFitSyncing ? (
-                            <><span className="spin-animation">🔄</span> Conectando...</>
-                          ) : (
-                            <>
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
-                                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                              </svg>
-                              Conectar Google Fit
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </section>
 
                 <section>
                   <h3 style={{ fontSize: '1.4rem', marginBottom: '1.25rem' }}>Mis Retos en Progreso</h3>
@@ -5321,6 +5366,130 @@ function App() {
                 })()}
               </>
             )}
+          </div>
+        </div>
+      )}      {/* MODAL: INSTRUCCIONES DE GOOGLE FIT */}
+      {showGFitHelpModal && (
+        <div className="modal-overlay" onClick={() => setShowGFitHelpModal(false)}>
+          <div 
+            className="modal-content" 
+            onClick={(e) => e.stopPropagation()} 
+            style={{ 
+              maxWidth: '520px', 
+              width: '90%', 
+              maxHeight: '90vh',
+              padding: '2.25rem' 
+            }}
+          >
+            <button className="modal-close" onClick={() => setShowGFitHelpModal(false)}>
+              <X size={20} />
+            </button>
+            
+            <div className="modal-header" style={{ marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '2.2rem' }}>📱</span>
+                <h3 className="modal-title" style={{ margin: 0, fontFamily: 'Outfit', fontWeight: 700, color: 'var(--text-main)' }}>
+                  Conexión a Google Fit
+                </h3>
+              </div>
+              <p className="modal-subtitle" style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>
+                Sigue estos pasos para sincronizar tu actividad física de forma automática y transparente.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', fontSize: '0.9rem', color: 'var(--text-main)', lineHeight: '1.5' }}>
+              
+              {/* Paso 1: Aviso al Admin */}
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <div style={{ 
+                  width: '28px', height: '28px', borderRadius: '50%', 
+                  backgroundColor: 'var(--sky-bg)', color: 'var(--sky-dark)', 
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                  fontWeight: 700, flexShrink: 0 
+                }}>1</div>
+                <div>
+                  <strong style={{ display: 'block', color: 'var(--sky-dark)' }}>Avisar al Administrador</strong>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    Debido a las políticas de seguridad de Google APIs, debes avisar al administrador (RRHH) para que registre tu correo de Gmail en el listado de usuarios autorizados antes del primer acceso.
+                  </span>
+                </div>
+              </div>
+
+              {/* Paso 2: Conectar Cuenta */}
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <div style={{ 
+                  width: '28px', height: '28px', borderRadius: '50%', 
+                  backgroundColor: 'var(--mint-bg)', color: 'var(--mint-dark)', 
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                  fontWeight: 700, flexShrink: 0 
+                }}>2</div>
+                <div>
+                  <strong style={{ display: 'block', color: 'var(--mint-dark)' }}>Iniciar Sesión con Google</strong>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    Presiona el botón <strong>Conectar Google Fit</strong> e inicia sesión con la cuenta de Google asociada a la aplicación de salud en tu celular.
+                  </span>
+                </div>
+              </div>
+
+              {/* Paso 3: Conceder Permisos */}
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <div style={{ 
+                  width: '28px', height: '28px', borderRadius: '50%', 
+                  backgroundColor: 'var(--coral-bg)', color: 'var(--coral-dark)', 
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                  fontWeight: 700, flexShrink: 0 
+                }}>3</div>
+                <div>
+                  <strong style={{ display: 'block', color: 'var(--coral-dark)' }}>Autorizar Lectura de Pasos</strong>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    Asegúrate de marcar la casilla para permitir que Reto Activo 2.0 lea tu historial de actividad física y pasos. Estos datos se procesan de forma 100% privada.
+                  </span>
+                </div>
+              </div>
+
+              {/* Paso 4: Sincronizar */}
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <div style={{ 
+                  width: '28px', height: '28px', borderRadius: '50%', 
+                  backgroundColor: 'var(--lavender-bg)', color: 'var(--lavender-dark)', 
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                  fontWeight: 700, flexShrink: 0 
+                }}>4</div>
+                <div>
+                  <strong style={{ display: 'block', color: 'var(--lavender-dark)' }}>¡Sincronizar y Listo!</strong>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    Una vez conectado, elige los días que quieres importar (Hoy, 2d, 3d o toda la semana) y presiona <strong>Sincronizar Ahora</strong>. Tus retos activos se actualizarán sin necesidad de enviar capturas manuales.
+                  </span>
+                </div>
+              </div>
+
+              {/* Alerta de Recordatorio */}
+              <div style={{ 
+                padding: '0.75rem 1rem', 
+                backgroundColor: '#FFF9E6', 
+                border: '1px solid rgba(255,179,0,0.25)', 
+                borderRadius: '12px', 
+                fontSize: '0.8rem', 
+                color: '#B36B00', 
+                marginTop: '0.5rem',
+                fontWeight: 500
+              }}>
+                ⚠️ <strong>Nota:</strong> Google Fit debe estar registrando actividad en tu smartphone. Si usas otra app (como Huawei Health o Garmin), puedes vincularla a Google Fit mediante la aplicación Health Sync.
+              </div>
+
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                onClick={() => setShowGFitHelpModal(false)}
+                style={{ width: 'auto', padding: '0.6rem 2rem' }}
+              >
+                Entendido
+              </button>
+            </div>
+
           </div>
         </div>
       )}
