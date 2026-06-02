@@ -353,6 +353,13 @@ export const dbService = {
     } catch(err) { console.error(err); return []; }
   },
 
+  async getAllUserChallenges() {
+    try {
+      const snap = await getDocs(collection(db, 'user_challenges'));
+      return snap.docs.map(d => d.data());
+    } catch(err) { console.error(err); return []; }
+  },
+
   async enrollInChallenge(userId, challengeId) {
     try {
       const cRef = doc(db, 'retos', challengeId);
@@ -905,7 +912,8 @@ export const dbService = {
           avatar: user.avatar,
           progress: item.progress,
           status: item.status,
-          department: user.department || 'Sin área'
+          department: user.department || 'Sin área',
+          daily_syncs: item.daily_syncs || {}
         };
       }).sort((a, b) => b.progress - a.progress);
 

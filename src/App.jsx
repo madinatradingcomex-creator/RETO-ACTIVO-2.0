@@ -120,6 +120,7 @@ function App() {
   // Data States
   const [challenges, setChallenges] = useState([]);
   const [userChallenges, setUserChallenges] = useState([]);
+  const [allUserChallenges, setAllUserChallenges] = useState([]);
   const [rewards, setRewards] = useState([]);
   const [redeemedRewards, setRedeemedRewards] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
@@ -271,12 +272,14 @@ function App() {
         const rewardsData = await dbService.getRewards();
         const redeemedData = await dbService.getRedeemedRewards(userSession.id);
         const leaderboardData = await dbService.getLeaderboard();
+        const allUserChalls = await dbService.getAllUserChallenges();
 
         setChallenges(challengesData);
         setUserChallenges(userChallengesData);
         setRewards(rewardsData);
         setRedeemedRewards(redeemedData);
         setLeaderboard(leaderboardData);
+        setAllUserChallenges(allUserChalls);
 
         // Fetch rankings for active employee challenges (P10)
         const rankingsMap = {};
@@ -1137,8 +1140,9 @@ function App() {
     setLoadingChallengeProgress(true);
     
     try {
+      const targetUserId = enrollment.user_id || currentUser.id;
       // 1. Fetch approved evidences for this user and this challenge from service
-      const approvedEvidences = await dbService.getApprovedEvidencesForUserAndChallenge(currentUser.id, challenge.id);
+      const approvedEvidences = await dbService.getApprovedEvidencesForUserAndChallenge(targetUserId, challenge.id);
       
       // 2. Generate list of dates between challenge start_date and today (or end_date if ended)
       const list = [];
@@ -1968,6 +1972,31 @@ function App() {
       return `${parts[2]}/${parts[1]}/${parts[0]}`;
     }
     return dateStr;
+  };
+
+  const calculateTimeRemaining = (startDateStr) => {
+    const start = new Date(startDateStr);
+    const now = new Date();
+    const diffMs = start - now;
+    if (diffMs <= 0) return null;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays > 0) {
+      return `comienza en ${diffDays} ${diffDays === 1 ? 'día' : 'días'}`;
+    }
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    if (diffHours > 0) {
+      return `comienza en ${diffHours} ${diffHours === 1 ? 'hora' : 'horas'}`;
+    }
+    const diffMins = Math.ceil(diffMs / (1000 * 60));
+    return `comienza en ${diffMins} ${diffMins === 1 ? 'minuto' : 'minutos'}`;
+  };
+
+  const getRankInChallenge = (userId, challengeId) => {
+    const enrollments = allUserChallenges.filter(uc => uc.challenge_id === challengeId);
+    // Sort by progress desc
+    enrollments.sort((a, b) => b.progress - a.progress);
+    const index = enrollments.findIndex(uc => uc.user_id === userId);
+    return index !== -1 ? index + 1 : null;
   };
 
   const getCategoryTheme = (category) => {
@@ -3092,9 +3121,74 @@ function App() {
                               <td className="leaderboard-td">
                                 <div className="leaderboard-user-cell">
                                   <img src={p.avatar} alt={p.name} className="leaderboard-avatar" />
-                                  <span style={isCurrentUser ? { fontWeight: 700, color: 'var(--mint-dark)' } : { fontWeight: 600 }}>
-                                    {p.name} {isCurrentUser && '(Tú)'}
-                                  </span>
+                                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <span style={isCurrentUser ? { fontWeight: 700, color: 'var(--mint-dark)' } : { fontWeight: 600 }}>
+                                      {p.name} {isCurrentUser && '(Tú)'}
+                                    </span>
+                                    {(() => {
+                                      const userEnrollments = allUserChallenges.filter(uc => uc.user_id === p.id);
+                                      if (userEnrollments.length === 0) return null;
+                                      
+                                      const todayStr = new Date().toISOString().split('T')[0];
+                                      
+                                      return (
+                                        <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                                          {userEnrollments.map(uc => {
+                                            const ch = challenges.find(c => c.id === uc.challenge_id);
+                                            if (!ch) return null;
+                                            
+                                            const isNotStarted = ch.modality !== 'immediate' && ch.start_date && todayStr < ch.start_date;
+                                            
+                                            if (isNotStarted) {
+                                              const timeRemaining = calculateTimeRemaining(ch.start_date);
+                                              return (
+                                                <span 
+                                                  key={ch.id} 
+                                                  style={{ 
+                                                    fontSize: '0.68rem', 
+                                                    backgroundColor: '#FFF9E6', 
+                                                    color: '#B38F00', 
+                                                    padding: '0.1rem 0.4rem', 
+                                                    borderRadius: '6px', 
+                                                    border: '1px solid rgba(255,215,0,0.15)',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.15rem'
+                                                  }}
+                                                  title={`Reto: ${ch.title}`}
+                                                >
+                                                  ⏳ {ch.image} {timeRemaining || 'Inicia pronto'}
+                                                </span>
+                                              );
+                                            }
+                                            
+                                            const challengeRank = getRankInChallenge(p.id, ch.id);
+                                            const isCompleted = uc.status === 'completed' || uc.progress >= ch.target;
+                                            
+                                            return (
+                                              <span 
+                                                key={ch.id} 
+                                                style={{ 
+                                                  fontSize: '0.68rem', 
+                                                  backgroundColor: isCompleted ? 'var(--mint-bg)' : 'var(--sky-bg)', 
+                                                  color: isCompleted ? 'var(--mint-dark)' : 'var(--sky-dark)', 
+                                                  padding: '0.1rem 0.4rem', 
+                                                  borderRadius: '6px', 
+                                                  border: isCompleted ? '1px solid rgba(28,188,140,0.15)' : '1px solid rgba(56,189,248,0.15)',
+                                                  display: 'inline-flex',
+                                                  alignItems: 'center',
+                                                  gap: '0.15rem'
+                                                }}
+                                                title={`Reto: ${ch.title} (Progreso: ${uc.progress}/${ch.target})`}
+                                              >
+                                                {isCompleted ? '🏆' : '🏃'} {ch.image} #{challengeRank || '-'}
+                                              </span>
+                                            );
+                                          })}
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
                                 </div>
                               </td>
                               <td className="leaderboard-td">
@@ -3633,6 +3727,27 @@ function App() {
                                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: 600 }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                                         <span>{p.progress.toLocaleString()} / {adminSelectedChallenge.target.toLocaleString()} {adminSelectedChallenge.unit}</span>
+                                        <button 
+                                          onClick={() => handleOpenChallengeProgressDetail(p, adminSelectedChallenge)}
+                                          style={{
+                                            background: 'var(--sky-bg)',
+                                            border: '1px solid rgba(56,189,248,0.2)',
+                                            color: 'var(--sky-dark)',
+                                            cursor: 'pointer',
+                                            padding: '0.15rem 0.45rem',
+                                            borderRadius: '6px',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.2rem',
+                                            transition: 'all 0.2s ease',
+                                            fontSize: '0.68rem',
+                                            fontWeight: 650,
+                                            marginLeft: '0.25rem'
+                                          }}
+                                          title="Ver desglose diario y evidencias"
+                                        >
+                                          🔍 Ver Días
+                                        </button>
                                         <button 
                                           onClick={() => {
                                             setEditingParticipant(p);
