@@ -37,7 +37,6 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { dbService } from './services/db';
-import './App.css';
 
 
 
@@ -273,33 +272,14 @@ function App() {
         setChallenges(challengesData);
         setRewards(rewardsData);
       } else {
-        const challengesData = await dbService.getChallenges();
-        const userChallengesData = await dbService.getUserChallenges(userSession.id);
-        const rewardsData = await dbService.getRewards();
-        const redeemedData = await dbService.getRedeemedRewards(userSession.id);
-        const leaderboardData = await dbService.getLeaderboard();
-        
-        let allUserChalls = [];
-        try {
-          if (challengesData && challengesData.length > 0) {
-            for (const ch of challengesData) {
-              const rList = await dbService.getChallengeRanking(ch.id);
-              if (rList && rList.length > 0) {
-                rList.forEach(p => {
-                  allUserChalls.push({
-                    user_id: p.user_id,
-                    challenge_id: ch.id,
-                    progress: p.progress,
-                    status: p.status,
-                    daily_syncs: p.daily_syncs || {}
-                  });
-                });
-              }
-            }
-          }
-        } catch (err) {
-          console.error("Error loading all user challenges rankings dynamically:", err);
-        }
+        const [challengesData, userChallengesData, rewardsData, redeemedData, leaderboardData, allUserChalls] = await Promise.all([
+          dbService.getChallenges(),
+          dbService.getUserChallenges(userSession.id),
+          dbService.getRewards(),
+          dbService.getRedeemedRewards(userSession.id),
+          dbService.getLeaderboard(),
+          dbService.getAllUserChallenges(),
+        ]);
 
         setChallenges(challengesData);
         setUserChallenges(userChallengesData);
@@ -308,18 +288,17 @@ function App() {
         setLeaderboard(leaderboardData);
         setAllUserChallenges(allUserChalls);
 
-        // Fetch rankings for active employee challenges (P10)
+        // Fetch rankings only for challenges where this user is actively enrolled
+        const activeEnrollments = userChallengesData.filter(uc => uc.status === 'active');
+        const rankingEntries = await Promise.all(
+          activeEnrollments.map(uc =>
+            dbService.getChallengeRanking(uc.challenge_id)
+              .then(rList => ({ id: uc.challenge_id, list: rList }))
+              .catch(() => ({ id: uc.challenge_id, list: [] }))
+          )
+        );
         const rankingsMap = {};
-        for (const uc of userChallengesData) {
-          if (uc.status === 'active') {
-            try {
-              const rList = await dbService.getChallengeRanking(uc.challenge_id);
-              rankingsMap[uc.challenge_id] = rList;
-            } catch(e) {
-              console.error("Error loading ranking for challenge " + uc.challenge_id, e);
-            }
-          }
-        }
+        rankingEntries.forEach(({ id, list }) => { rankingsMap[id] = list; });
         setChallengeRankings(rankingsMap);
       }
     } catch (error) {
@@ -341,21 +320,7 @@ function App() {
         if (connected && active.role === 'employee') {
           const lastSync = dbService.getLastSync(active.id);
           setGFitLastSync(lastSync);
-          
-          // Sincronización automática de fondo al cargar sesión activa
-          setTimeout(() => {
-            const token = dbService.getGoogleFitToken();
-            if (token) {
-              setGFitSyncing(true);
-              showToastMessage("🔄 Sincronizando tus pasos de Google Fit automáticamente...");
-              dbService.fetchWeeklyStepsFromGoogleFit(token)
-                .then(fitData => performGFitSync(active, fitData))
-                .catch(err => {
-                  console.error("Error en sincronización silenciosa al iniciar aplicación:", err);
-                  setGFitSyncing(false);
-                });
-            }
-          }, 1000);
+          triggerAutoGFitSync(active);
         }
       } else {
         setLandingView(true);
@@ -369,10 +334,27 @@ function App() {
 
   // Load initial session on mount
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     checkActiveSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Helper: trigger background Google Fit auto-sync for an employee user
+  const triggerAutoGFitSync = (user) => {
+    if (!dbService.isGoogleFitConnected() || user.role !== 'employee') return;
+    setTimeout(() => {
+      const token = dbService.getGoogleFitToken();
+      if (token) {
+        setGFitSyncing(true);
+        showToastMessage('🔄 Sincronizando tus pasos de Google Fit automáticamente...');
+        dbService.fetchWeeklyStepsFromGoogleFit(token)
+          .then(fitData => performGFitSync(user, fitData))
+          .catch(err => {
+            console.error('Error en sincronización silenciosa:', err);
+            setGFitSyncing(false);
+          });
+      }
+    }, 1000);
+  };
 
   const showToastMessage = (message, type = 'success') => {
     setToast({ message, type });
@@ -422,23 +404,8 @@ function App() {
         showToastMessage(`¡Acceso correcto! Bienvenido, ${res.user.name} ${res.user.lastname || ''} 🌟`);
         loadViewData(res.user);
         
-        // Sincronización automática de fondo al iniciar sesión
-        const connected = dbService.isGoogleFitConnected();
-        if (connected && res.user.role === 'employee') {
-          setTimeout(() => {
-            const token = dbService.getGoogleFitToken();
-            if (token) {
-              setGFitSyncing(true);
-              showToastMessage("🔄 Sincronizando tus pasos de Google Fit automáticamente...");
-              dbService.fetchWeeklyStepsFromGoogleFit(token)
-                .then(fitData => performGFitSync(res.user, fitData))
-                .catch(err => {
-                  console.error("Error en sincronización silenciosa al iniciar sesión:", err);
-                  setGFitSyncing(false);
-                });
-            }
-          }, 1000);
-        }
+        // Auto-sync Google Fit in background after login
+        triggerAutoGFitSync(res.user);
 
         setLoginEmail('');
         setLoginCompanyCode('');
@@ -1151,7 +1118,7 @@ function App() {
     
     showToastMessage("🔓 ¡Contraseña blanqueada con éxito! Se le solicitará una nueva clave al ingresar.");
     // Reload user data to make sure local state is updated
-    const updatedUsers = await dbService.getPresetUsers();
+    const updatedUsers = await dbService.getActiveUsers();
     setActiveUsers(updatedUsers);
     
     // Update selectedDetailUser password_hash to null locally

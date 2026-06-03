@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, deleteDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 // --- MOCKS INITIAL DATA FOR SEEDING ---
@@ -293,22 +293,6 @@ export const dbService = {
     setLocalUser(null);
   },
 
-  async getPresetUsers() {
-    try {
-      const snap = await getDocs(collection(db, 'usuarios'));
-      return snap.docs.map(d => {
-        const u = d.data();
-        if (!u.last_sync && u.daily_steps_history && u.daily_steps_history.some(s => s > 0)) {
-          // Dynamic fallback: 2 hours ago
-          const date = new Date();
-          date.setHours(date.getHours() - 2);
-          u.last_sync = date.toISOString();
-        }
-        return u;
-      }).filter(u => u.role === 'employee');
-    } catch(err) { console.error(err); return []; }
-  },
-
   async updateUserStats(userId, pointsAdded, stepsToday = 0) {
     try {
       const ref = doc(db, 'usuarios', userId);
@@ -353,12 +337,14 @@ export const dbService = {
     } catch(err) { console.error(err); return []; }
   },
 
+  // Fetch ALL enrollments in one query (used for leaderboard privacy filter)
   async getAllUserChallenges() {
     try {
       const snap = await getDocs(collection(db, 'user_challenges'));
       return snap.docs.map(d => d.data());
     } catch(err) { console.error(err); return []; }
   },
+
 
   async enrollInChallenge(userId, challengeId) {
     try {
@@ -427,8 +413,7 @@ export const dbService = {
       }
 
       if (screenshotFile || screenshotUrlMock) {
-        // P4 duplicate check: check if user has already submitted evidence for this challenge today
-        const todayStr = new Date().toISOString().split('T')[0];
+        // Duplicate check: check if user has already submitted evidence for this challenge today
         const evQuery = query(
           collection(db, 'evidencias'),
           where('user_id', '==', userId),
@@ -710,13 +695,7 @@ export const dbService = {
     } catch(err) { console.error(err); return { totalCompanySteps: 0, participationPercentage: 0, totalPointsAwarded: 0, deptChartData: [], totalEmployeesCount: 1 }; }
   },
 
-  // --- GOOGLE FIT INTEGRATION (MOCK SIMULATION) ---
-  buildGoogleOAuthUrl() {
-    return '#connected'; 
-  },
-  extractTokenFromUrl() {
-    return { token: 'DEMO', expiresIn: 3600 };
-  },
+  // --- GOOGLE FIT INTEGRATION ---
   saveGoogleFitToken(token) {
     localStorage.setItem('ra_gfit_token', token);
   },
