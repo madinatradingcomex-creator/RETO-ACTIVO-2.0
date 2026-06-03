@@ -247,6 +247,14 @@ export const dbService = {
           return { needsMigration: true, user };
         }
 
+        const lastLogin = new Date().toISOString();
+        try {
+          await updateDoc(doc(db, 'usuarios', user.id), { last_login: lastLogin });
+          user.last_login = lastLogin;
+        } catch(e) {
+          console.error("Error updating last_login:", e);
+        }
+
         setLocalUser(user);
         return { success: true, user };
       }
@@ -257,6 +265,7 @@ export const dbService = {
   async registerUser(name, lastname, email, companyCode, department, password) {
     const newId = `usr_${Math.random().toString(36).substr(2, 9)}`;
     const passwordHash = await this.hashPassword(password);
+    const lastLogin = new Date().toISOString();
     const newUser = {
       id: newId,
       name,
@@ -271,7 +280,8 @@ export const dbService = {
       level: 'Wellness Principiante 🌱',
       streak: 1,
       daily_steps_history: [0, 0, 0, 0, 0, 0, 0],
-      status: 'pending'
+      status: 'pending',
+      last_login: lastLogin
     };
 
     try {

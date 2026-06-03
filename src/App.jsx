@@ -2046,6 +2046,18 @@ function App() {
     return dateStr;
   };
 
+  const formatLastLogin = (isoString) => {
+    if (!isoString) return 'Nunca';
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return 'Nunca';
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
+  };
+
   const calculateTimeRemaining = (startDateStr) => {
     const start = new Date(startDateStr);
     const now = new Date();
@@ -4533,92 +4545,108 @@ function App() {
                       No se encontraron colaboradores que coincidan con la búsqueda.
                     </div>
                   ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
-                      {activeUsers
-                        .filter(u => `${u.name} ${u.lastname || ''}`.toLowerCase().includes(activeUsersSearch.toLowerCase()))
-                        .map(user => (
-                          <div 
-                            key={user.id} 
-                            style={{ 
-                              backgroundColor: 'white', 
-                              border: '1px solid var(--border-color)', 
-                              borderRadius: '16px', 
-                              padding: '1.5rem', 
-                              display: 'flex', 
-                              flexDirection: 'column', 
-                              gap: '1rem',
-                              boxShadow: 'var(--shadow-sm)',
-                              position: 'relative',
-                              overflow: 'hidden'
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                              <img 
-                                src={user.avatar} 
-                                alt={user.name} 
-                                style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover', border: '2px solid white', boxShadow: 'var(--shadow-sm)' }} 
-                              />
-                              <div>
-                                <h4 style={{ margin: 0, fontWeight: 700, color: 'var(--text-main)' }}>
-                                  {user.name} {user.lastname || ''}
-                                </h4>
-                                <span 
-                                  className="leaderboard-dept"
-                                  style={{
-                                    fontSize: '0.72rem',
-                                    padding: '0.15rem 0.45rem',
-                                    borderRadius: '8px',
-                                    display: 'inline-block',
-                                    marginTop: '0.2rem',
-                                    backgroundColor: 'var(--bg-app)',
-                                    color: varColorForDept(user.department)
-                                  }}
-                                >
-                                  {user.department || 'Sin Área'}
-                                </span>
-                              </div>
-                            </div>
-
-                            <div style={{ borderTop: '1px solid rgba(0,0,0,0.05)', borderBottom: '1px solid rgba(0,0,0,0.05)', padding: '0.75rem 0', fontSize: '0.82rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <span>Email:</span>
-                                <strong style={{ color: 'var(--text-main)', wordBreak: 'break-all' }}>{user.email}</strong>
-                              </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <span>Saldo Puntos:</span>
-                                <strong style={{ color: 'var(--mint-dark)' }}>🪙 {user.points || 0} pts</strong>
-                              </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <span>Racha:</span>
-                                <strong style={{ color: 'var(--coral-dark)' }}>🔥 {user.streak || 0} días</strong>
-                              </div>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', width: '100%', marginTop: 'auto' }}>
-                              <button 
-                                className="btn btn-primary" 
-                                onClick={() => handleViewUserDetail(user)}
-                                style={{ gridColumn: 'span 2', padding: '0.55rem 1rem', fontSize: '0.82rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', cursor: 'pointer' }}
+                    <div className="table-responsive" style={{ backgroundColor: 'white', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-xl)', overflowX: 'auto', boxShadow: 'var(--shadow-sm)' }}>
+                      <table style={{ width: '100%', minWidth: '850px', borderCollapse: 'collapse', textAlign: 'left' }}>
+                        <thead>
+                          <tr style={{ backgroundColor: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', fontSize: '0.82rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            <th style={{ padding: '1.25rem 1.5rem', fontWeight: 700 }}>Colaborador</th>
+                            <th style={{ padding: '1.25rem 1.5rem', fontWeight: 700 }}>Email</th>
+                            <th style={{ padding: '1.25rem 1.5rem', fontWeight: 700 }}>Área / Depto</th>
+                            <th style={{ padding: '1.25rem 1.5rem', fontWeight: 700 }}>Saldo / Racha</th>
+                            <th style={{ padding: '1.25rem 1.5rem', fontWeight: 700 }}>Último Ingreso</th>
+                            <th style={{ padding: '1.25rem 1.5rem', fontWeight: 700, textAlign: 'right' }}>Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[...activeUsers]
+                            .filter(u => `${u.name} ${u.lastname || ''}`.toLowerCase().includes(activeUsersSearch.toLowerCase()))
+                            .sort((a, b) => {
+                              const dateA = a.last_login || '';
+                              const dateB = b.last_login || '';
+                              return dateB.localeCompare(dateA);
+                            })
+                            .map(user => (
+                              <tr 
+                                key={user.id} 
+                                style={{ borderBottom: '1px solid var(--border-color)', transition: 'var(--transition-fast)' }}
+                                className="leaderboard-tr"
                               >
-                                🔍 Ver Ficha Completa
-                              </button>
-                              <button 
-                                className="btn btn-secondary" 
-                                onClick={() => handleEditUser(user)}
-                                style={{ padding: '0.45rem 0.5rem', fontSize: '0.78rem', cursor: 'pointer' }}
-                              >
-                                Editar Datos
-                              </button>
-                              <button 
-                                className="btn btn-secondary" 
-                                onClick={() => handleDeleteUser(user.id, `${user.name} ${user.lastname || ''}`)}
-                                style={{ padding: '0.45rem 0.5rem', fontSize: '0.78rem', color: 'var(--coral-accent)', borderColor: 'rgba(252,139,114,0.3)', cursor: 'pointer' }}
-                              >
-                                Dar de Baja
-                              </button>
-                            </div>
-                          </div>
-                        ))}
+                                <td style={{ padding: '1rem 1.5rem' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                    <img 
+                                      src={user.avatar} 
+                                      alt={user.name} 
+                                      style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-color)' }} 
+                                    />
+                                    <div>
+                                      <span style={{ fontWeight: 700, color: 'var(--text-main)', display: 'block' }}>
+                                        {user.name} {user.lastname || ''}
+                                      </span>
+                                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                        {user.level || 'Wellness Principiante 🌱'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td style={{ padding: '1rem 1.5rem', fontSize: '0.88rem', color: 'var(--text-muted)' }}>
+                                  {user.email}
+                                </td>
+                                <td style={{ padding: '1rem 1.5rem' }}>
+                                  <span 
+                                    className="leaderboard-dept"
+                                    style={{
+                                      fontSize: '0.72rem',
+                                      padding: '0.2rem 0.5rem',
+                                      borderRadius: '8px',
+                                      display: 'inline-block',
+                                      backgroundColor: 'var(--bg-app)',
+                                      color: varColorForDept(user.department)
+                                    }}
+                                  >
+                                    {user.department || 'Sin Área'}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '1rem 1.5rem', fontSize: '0.85rem' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                    <span style={{ color: 'var(--mint-dark)', fontWeight: 600 }}>🪙 {user.points || 0} pts</span>
+                                    <span style={{ color: 'var(--coral-dark)', fontWeight: 600 }}>🔥 {user.streak || 0} días</span>
+                                  </div>
+                                </td>
+                                <td style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                                  📅 {formatLastLogin(user.last_login)}
+                                </td>
+                                <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
+                                  <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                                    <button 
+                                      className="btn btn-primary" 
+                                      onClick={() => handleViewUserDetail(user)}
+                                      style={{ padding: '0.45rem 0.8rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer', width: 'auto' }}
+                                      title="Ver Ficha Completa"
+                                    >
+                                      Ver Ficha
+                                    </button>
+                                    <button 
+                                      className="btn btn-secondary" 
+                                      onClick={() => handleEditUser(user)}
+                                      style={{ padding: '0.45rem 0.6rem', fontSize: '0.78rem', cursor: 'pointer', width: 'auto' }}
+                                      title="Editar Datos"
+                                    >
+                                      ✏️
+                                    </button>
+                                    <button 
+                                      className="btn btn-secondary" 
+                                      onClick={() => handleDeleteUser(user.id, `${user.name} ${user.lastname || ''}`)}
+                                      style={{ padding: '0.45rem 0.6rem', fontSize: '0.78rem', color: 'var(--coral-accent)', borderColor: 'rgba(252,139,114,0.3)', cursor: 'pointer', width: 'auto' }}
+                                      title="Dar de Baja"
+                                    >
+                                      🗑️
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>
