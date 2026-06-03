@@ -39,18 +39,19 @@ import {
 import { dbService } from './services/db';
 
 const AVATAR_OPTIONS = [
-  // Humanos
-  'https://api.dicebear.com/7.x/micah/svg?seed=Leo&backgroundColor=b6e3f4',
-  'https://api.dicebear.com/7.x/micah/svg?seed=Mia&backgroundColor=ffdfbf',
-  'https://api.dicebear.com/7.x/micah/svg?seed=Felix&backgroundColor=c0aede',
-  'https://api.dicebear.com/7.x/micah/svg?seed=Sara&backgroundColor=b6e3f4',
-  'https://api.dicebear.com/7.x/micah/svg?seed=Jack&backgroundColor=ffdfbf',
-  'https://api.dicebear.com/7.x/micah/svg?seed=Luna&backgroundColor=c0aede',
-  // Divertidos / Animales / Neutros
-  'https://api.dicebear.com/7.x/bottts/svg?seed=Gizmo&backgroundColor=ffdfbf', // Robot
-  'https://api.dicebear.com/7.x/bottts/svg?seed=Tinker&backgroundColor=c0aede', // Robot
-  'https://api.dicebear.com/7.x/fun-emoji/svg?seed=Happy&backgroundColor=b6e3f4', // Emoji
-  'https://api.dicebear.com/7.x/identicon/svg?seed=Random&backgroundColor=ffdfbf'  // Abstracto
+  // Mujeres
+  'https://api.dicebear.com/9.x/avataaars/svg?seed=Maria&top=longHair,straight02,curly&hairColor=auburn,black,blonde&clothing=blazerAndShirt',
+  'https://api.dicebear.com/9.x/avataaars/svg?seed=Ana&top=straight02&hairColor=blonde&clothing=collarAndSweater',
+  'https://api.dicebear.com/9.x/avataaars/svg?seed=Sofia&top=curly&hairColor=black&clothing=graphicShirt',
+  // Hombres
+  'https://api.dicebear.com/9.x/avataaars/svg?seed=Juan&top=shortHair,shortHairTheCaesar&hairColor=brown,black&facialHair=beardLight&clothing=hoodie',
+  'https://api.dicebear.com/9.x/avataaars/svg?seed=Pedro&top=shortHairTheCaesar&hairColor=black&clothing=shirtCrewNeck',
+  'https://api.dicebear.com/9.x/avataaars/svg?seed=Lucas&top=dreads,shortHair&hairColor=blonde,brown&clothing=blazerAndSweater',
+  // Divertidos / Robots / Emojis
+  'https://api.dicebear.com/9.x/bottts/svg?seed=Gizmo&backgroundColor=ffdfbf',
+  'https://api.dicebear.com/9.x/bottts/svg?seed=Tinker&backgroundColor=c0aede',
+  'https://api.dicebear.com/9.x/fun-emoji/svg?seed=Wink&backgroundColor=b6e3f4',
+  'https://api.dicebear.com/9.x/fun-emoji/svg?seed=Crazy&backgroundColor=ffdfbf'
 ];
 
 function App() {
