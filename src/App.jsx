@@ -39,19 +39,18 @@ import {
 import { dbService } from './services/db';
 
 const AVATAR_OPTIONS = [
-  // Hombres
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=120',
-  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=120',
-  'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=120',
-  // Mujeres
-  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=120',
-  'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=120',
-  'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=120',
+  // Humanos
+  'https://api.dicebear.com/7.x/micah/svg?seed=Leo&backgroundColor=b6e3f4',
+  'https://api.dicebear.com/7.x/micah/svg?seed=Mia&backgroundColor=ffdfbf',
+  'https://api.dicebear.com/7.x/micah/svg?seed=Felix&backgroundColor=c0aede',
+  'https://api.dicebear.com/7.x/micah/svg?seed=Sara&backgroundColor=b6e3f4',
+  'https://api.dicebear.com/7.x/micah/svg?seed=Jack&backgroundColor=ffdfbf',
+  'https://api.dicebear.com/7.x/micah/svg?seed=Luna&backgroundColor=c0aede',
   // Divertidos / Animales / Neutros
-  'https://images.unsplash.com/photo-1517849845537-4d257902454a?auto=format&fit=crop&q=80&w=120', // Perro con gafas
-  'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=120', // Gato
-  'https://images.unsplash.com/photo-1543852786-1cf6624b9987?auto=format&fit=crop&q=80&w=120', // Gato asomado
-  'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?auto=format&fit=crop&q=80&w=120'  // Pug
+  'https://api.dicebear.com/7.x/bottts/svg?seed=Gizmo&backgroundColor=ffdfbf', // Robot
+  'https://api.dicebear.com/7.x/bottts/svg?seed=Tinker&backgroundColor=c0aede', // Robot
+  'https://api.dicebear.com/7.x/fun-emoji/svg?seed=Happy&backgroundColor=b6e3f4', // Emoji
+  'https://api.dicebear.com/7.x/identicon/svg?seed=Random&backgroundColor=ffdfbf'  // Abstracto
 ];
 
 function App() {
@@ -968,6 +967,49 @@ function App() {
     showToastMessage("🖼️ Avatar actualizado correctamente.");
     setCurrentUser(prev => ({ ...prev, avatar: avatarUrl }));
     setShowAvatarModal(false);
+  };
+
+  const handleAvatarUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    if (file.size > 2 * 1024 * 1024) {
+      showToastMessage("La imagen es muy grande. Máximo 2MB.", "error");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_SIZE = 150;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        handleAvatarSelect(dataUrl);
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSaveChallengeDetails = async (e) => {
@@ -6023,8 +6065,25 @@ function App() {
             </div>
             
             <p style={{ margin: '1rem 0', color: 'var(--text-muted)', fontSize: '0.9rem', textAlign: 'center' }}>
-              Selecciona el avatar que más te represente para mostrar en tu perfil y en el ranking de retos.
+              Selecciona un avatar de la lista o sube tu propia imagen.
             </p>
+
+            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+              <input 
+                type="file" 
+                id="avatar-upload" 
+                accept="image/*" 
+                style={{ display: 'none' }} 
+                onChange={handleAvatarUpload}
+              />
+              <label 
+                htmlFor="avatar-upload" 
+                className="btn btn-secondary" 
+                style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}
+              >
+                <Upload size={16} /> Subir Imagen Propia
+              </label>
+            </div>
 
             {isSavingAvatar ? (
               <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
