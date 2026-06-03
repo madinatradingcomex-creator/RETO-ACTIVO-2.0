@@ -39,19 +39,16 @@ import {
 import { dbService } from './services/db';
 
 const AVATAR_OPTIONS = [
-  // Mujeres
-  'https://api.dicebear.com/9.x/avataaars/svg?seed=Sarah&backgroundColor=b6e3f4',
-  'https://api.dicebear.com/9.x/avataaars/svg?seed=Jessica&backgroundColor=ffdfbf',
-  'https://api.dicebear.com/9.x/avataaars/svg?seed=Maria&backgroundColor=c0aede',
-  // Hombres
-  'https://api.dicebear.com/9.x/avataaars/svg?seed=Felix&backgroundColor=c0aede',
-  'https://api.dicebear.com/9.x/avataaars/svg?seed=Jack&backgroundColor=b6e3f4',
-  'https://api.dicebear.com/9.x/avataaars/svg?seed=Alex&backgroundColor=ffdfbf',
-  // Divertidos / Robots / Emojis
-  'https://api.dicebear.com/9.x/bottts/svg?seed=Gizmo&backgroundColor=ffdfbf',
-  'https://api.dicebear.com/9.x/bottts/svg?seed=Tinker&backgroundColor=c0aede',
-  'https://api.dicebear.com/9.x/fun-emoji/svg?seed=Wink&backgroundColor=b6e3f4',
-  'https://api.dicebear.com/9.x/fun-emoji/svg?seed=Crazy&backgroundColor=ffdfbf'
+  'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f436.svg', // Perro
+  'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f431.svg', // Gato
+  'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f98a.svg', // Zorro
+  'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f43b.svg', // Oso
+  'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f43c.svg', // Panda
+  'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f428.svg', // Koala
+  'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f981.svg', // León
+  'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f42f.svg', // Tigre
+  'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f438.svg', // Rana
+  'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f435.svg'  // Mono
 ];
 
 function App() {
@@ -6105,7 +6102,8 @@ function App() {
                       transition: 'transform 0.2s, border-color 0.2s',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center'
+                      justifyContent: 'center',
+                      backgroundColor: 'var(--sky-bg)'
                     }}
                     onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
                     onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
