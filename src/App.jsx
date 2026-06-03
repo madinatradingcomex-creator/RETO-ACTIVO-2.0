@@ -40,13 +40,13 @@ import { dbService } from './services/db';
 
 const AVATAR_OPTIONS = [
   // Mujeres
-  'https://api.dicebear.com/9.x/avataaars/svg?seed=Maria&top=longHair,straight02,curly&hairColor=auburn,black,blonde&clothing=blazerAndShirt',
-  'https://api.dicebear.com/9.x/avataaars/svg?seed=Ana&top=straight02&hairColor=blonde&clothing=collarAndSweater',
-  'https://api.dicebear.com/9.x/avataaars/svg?seed=Sofia&top=curly&hairColor=black&clothing=graphicShirt',
+  'https://api.dicebear.com/9.x/avataaars/svg?seed=Sarah&backgroundColor=b6e3f4',
+  'https://api.dicebear.com/9.x/avataaars/svg?seed=Jessica&backgroundColor=ffdfbf',
+  'https://api.dicebear.com/9.x/avataaars/svg?seed=Maria&backgroundColor=c0aede',
   // Hombres
-  'https://api.dicebear.com/9.x/avataaars/svg?seed=Juan&top=shortHair,shortHairTheCaesar&hairColor=brown,black&facialHair=beardLight&clothing=hoodie',
-  'https://api.dicebear.com/9.x/avataaars/svg?seed=Pedro&top=shortHairTheCaesar&hairColor=black&clothing=shirtCrewNeck',
-  'https://api.dicebear.com/9.x/avataaars/svg?seed=Lucas&top=dreads,shortHair&hairColor=blonde,brown&clothing=blazerAndSweater',
+  'https://api.dicebear.com/9.x/avataaars/svg?seed=Felix&backgroundColor=c0aede',
+  'https://api.dicebear.com/9.x/avataaars/svg?seed=Jack&backgroundColor=b6e3f4',
+  'https://api.dicebear.com/9.x/avataaars/svg?seed=Alex&backgroundColor=ffdfbf',
   // Divertidos / Robots / Emojis
   'https://api.dicebear.com/9.x/bottts/svg?seed=Gizmo&backgroundColor=ffdfbf',
   'https://api.dicebear.com/9.x/bottts/svg?seed=Tinker&backgroundColor=c0aede',
