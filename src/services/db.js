@@ -986,6 +986,20 @@ export const dbService = {
       return { error: err.message };
     }
   },
+  async updateChallengeDetails(challengeId, title, description, target) {
+    try {
+      const ref = doc(db, 'retos', challengeId);
+      await updateDoc(ref, {
+        title,
+        description,
+        target: parseFloat(target)
+      });
+      return { success: true };
+    } catch(err) {
+      console.error("Error updating challenge details:", err);
+      return { error: err.message };
+    }
+  },
   async updateParticipantProgress(userId, challengeId, newProgress) {
     try {
       const q = query(

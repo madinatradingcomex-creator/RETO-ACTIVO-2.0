@@ -191,6 +191,13 @@ function App() {
   const [editEndDate, setEditEndDate] = useState('');
   const [isSavingDates, setIsSavingDates] = useState(false);
 
+  const [showEditChallengeModal, setShowEditChallengeModal] = useState(false);
+  const [editChallengeTitle, setEditChallengeTitle] = useState('');
+  const [editChallengeDesc, setEditChallengeDesc] = useState('');
+  const [editChallengeTarget, setEditChallengeTarget] = useState('');
+  const [isSavingChallengeDetails, setIsSavingChallengeDetails] = useState(false);
+
+
   const [showEditProgressModal, setShowEditProgressModal] = useState(false);
   const [editingParticipant, setEditingParticipant] = useState(null);
   const [editProgressValue, setEditProgressValue] = useState('');
@@ -930,6 +937,36 @@ function App() {
     loadViewData(currentUser);
     setShowEditDatesModal(false);
   };
+
+  const handleSaveChallengeDetails = async (e) => {
+    e.preventDefault();
+    if (!editChallengeTitle.trim() || !editChallengeDesc.trim() || !editChallengeTarget) {
+      showToastMessage("Por favor completa todos los campos del reto.", "error");
+      return;
+    }
+
+    setIsSavingChallengeDetails(true);
+    const res = await dbService.updateChallengeDetails(adminSelectedChallenge.id, editChallengeTitle, editChallengeDesc, editChallengeTarget);
+    setIsSavingChallengeDetails(false);
+
+    if (res.error) {
+      showToastMessage(res.error, "error");
+      return;
+    }
+
+    showToastMessage("✏️ Detalles del reto actualizados correctamente.");
+    
+    const updated = { 
+      ...adminSelectedChallenge, 
+      title: editChallengeTitle, 
+      description: editChallengeDesc,
+      target: parseFloat(editChallengeTarget)
+    };
+    setAdminSelectedChallenge(updated);
+    loadViewData(currentUser);
+    setShowEditChallengeModal(false);
+  };
+
 
   const handleSaveParticipantProgress = async (e) => {
     e.preventDefault();
@@ -3626,6 +3663,18 @@ function App() {
                         <p style={{ margin: '0.25rem 0 0 0', color: 'var(--text-muted)' }}>
                           {adminSelectedChallenge.description}
                         </p>
+                        <button
+                          onClick={() => {
+                            setEditChallengeTitle(adminSelectedChallenge.title);
+                            setEditChallengeDesc(adminSelectedChallenge.description);
+                            setEditChallengeTarget(adminSelectedChallenge.target);
+                            setShowEditChallengeModal(true);
+                          }}
+                          className="btn btn-secondary"
+                          style={{ marginTop: '0.75rem', padding: '0.25rem 0.5rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem', width: 'fit-content' }}
+                        >
+                          <Edit2 size={12} /> Modificar Detalles
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -5140,6 +5189,70 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* MODAL: EDITAR DETALLES DE RETO */}
+      {showEditChallengeModal && adminSelectedChallenge && (
+        <div className="modal-overlay" onClick={() => setShowEditChallengeModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px', width: '90%' }}>
+            <div className="modal-header">
+              <h3>✏️ Editar Detalles del Reto</h3>
+              <button className="close-btn" onClick={() => setShowEditChallengeModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveChallengeDetails} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginTop: '1rem' }}>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>Título del Reto</label>
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  value={editChallengeTitle} 
+                  onChange={(e) => setEditChallengeTitle(e.target.value)} 
+                  required 
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>Descripción</label>
+                <textarea 
+                  className="form-control" 
+                  value={editChallengeDesc} 
+                  onChange={(e) => setEditChallengeDesc(e.target.value)} 
+                  required 
+                  style={{ width: '100%', minHeight: '80px', resize: 'vertical' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>Objetivo ({adminSelectedChallenge.unit})</label>
+                <input 
+                  type="number" 
+                  className="form-control" 
+                  value={editChallengeTarget} 
+                  onChange={(e) => setEditChallengeTarget(e.target.value)} 
+                  required 
+                  min="1"
+                  step="any"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowEditChallengeModal(false)} style={{ flex: 1 }}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={isSavingChallengeDetails} style={{ flex: 1 }}>
+                  {isSavingChallengeDetails ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
 
       {/* MODAL: AJUSTAR PROGRESO DE COLABORADOR */}
       {showEditProgressModal && editingParticipant && adminSelectedChallenge && (
