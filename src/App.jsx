@@ -281,17 +281,18 @@ function App() {
     
     try {
       if (userSession.role === 'company') {
-        const pending = await dbService.getPendingEvidences();
-        const pendingUsrs = await dbService.getPendingUsers();
-        const stats = await dbService.getCompanyStats();
-        const activeUsrs = await dbService.getActiveUsers();
+        const [pending, pendingUsrs, stats, activeUsrs, challengesData, rewardsData] = await Promise.all([
+          dbService.getPendingEvidences(),
+          dbService.getPendingUsers(),
+          dbService.getCompanyStats(),
+          dbService.getActiveUsers(),
+          dbService.getChallenges(),
+          dbService.getRewards()
+        ]);
         setPendingEvidences(pending);
         setPendingUsers(pendingUsrs);
         setCompanyStats(stats);
         setActiveUsers(activeUsrs);
-        
-        const challengesData = await dbService.getChallenges();
-        const rewardsData = await dbService.getRewards();
         setChallenges(challengesData);
         setRewards(rewardsData);
       } else {
@@ -1349,15 +1350,7 @@ function App() {
           }}
         >
           {/* Header de la Landing */}
-          <header 
-            style={{ 
-              maxWidth: '1100px', 
-              margin: '0 auto 4rem', 
-              display: 'flex', 
-              justifyContent: 'between', 
-              alignItems: 'center' 
-            }}
-          >
+          <header className="landing-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <div 
                 style={{ 
@@ -1423,17 +1416,7 @@ function App() {
             >
               🌱 Bienestar Corporativo Activo
             </span>
-            <h1 
-              style={{ 
-                fontFamily: 'Outfit', 
-                fontSize: '3.6rem', 
-                fontWeight: 800, 
-                letterSpacing: '-1.5px', 
-                lineHeight: 1.15,
-                color: 'var(--text-main)',
-                marginBottom: '1.5rem'
-              }}
-            >
+            <h1 className="landing-hero-title">
               Tu empresa en movimiento, <br />
               <span style={{ background: 'linear-gradient(135deg, var(--mint-accent), var(--sky-accent))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>saludable y feliz</span>
             </h1>
@@ -1441,7 +1424,7 @@ function App() {
               Desafía a tus equipos a adoptar hábitos saludables cotidianos. Fomenta la movilidad activa, registra tus pasos y recompensa el esfuerzo diario con increíbles premios.
             </p>
             
-            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+            <div className="landing-hero-buttons">
               {currentUser ? (
                 <button 
                   className="btn btn-primary" 
@@ -1507,47 +1490,16 @@ function App() {
 
     // 2. FORMULARIOS DE AUTENTICACIÓN (LOGIN/REGISTRO) CON BOTÓN "VOLVER AL INICIO"
     return (
-      <div 
-        style={{ 
-          minHeight: '100vh', 
-          background: 'linear-gradient(135deg, #F0F7F4 0%, #E6EEF8 100%)', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          padding: '2rem',
-          position: 'relative',
-          fontFamily: 'Inter, sans-serif'
-        }}
-      >
+      <div className="auth-container">
         {/* Botón flotante para regresar al inicio */}
         <button 
-          className="btn btn-secondary"
+          className="btn btn-secondary auth-back-btn"
           onClick={() => setLandingView(true)}
-          style={{
-            position: 'absolute',
-            top: '2rem',
-            left: '2rem',
-            width: 'auto',
-            padding: '0.5rem 1.25rem',
-            fontSize: '0.85rem',
-            boxShadow: 'var(--shadow-sm)'
-          }}
         >
           ← Volver al inicio
         </button>
 
-        <div 
-          style={{ 
-            backgroundColor: 'white', 
-            borderRadius: '28px', 
-            boxShadow: '0 20px 50px rgba(28,41,33,0.08)', 
-            border: '1px solid rgba(0,0,0,0.03)',
-            padding: '3rem', 
-            width: '100%', 
-            maxWidth: '520px',
-            textAlign: 'left'
-          }}
-        >
+        <div className="auth-card">
           {/* Formulario de Login o Registro */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
@@ -3139,7 +3091,7 @@ function App() {
                   </div>
                 </header>
 
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
                   {['Todos', 'Alimentación', 'Bienestar', 'Tiempo Libre'].map(cat => (
                     <button
                       className={`btn ${rewardsFilter === cat ? 'btn-primary' : 'btn-secondary'}`}
@@ -3269,7 +3221,8 @@ function App() {
                     />
                   </div>
 
-                  <table className="leaderboard-table">
+                  <div className="table-responsive">
+                    <table className="leaderboard-table" style={{ minWidth: '650px' }}>
                     <thead>
                       <tr>
                         <th className="leaderboard-th">Posición</th>
@@ -3383,6 +3336,7 @@ function App() {
                         })}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </div>
               );
@@ -3405,9 +3359,9 @@ function App() {
                   <img src={currentUser.avatar} alt={currentUser.name} className="profile-hero-avatar" />
                   <div className="profile-hero-details">
                     <h2>{currentUser.name} {currentUser.lastname || ''}</h2>
-                    <p style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    <p className="profile-meta-p">
                       <span>🏢 {currentUser.department}</span>
-                      <span>•</span>
+                      <span className="profile-meta-dot">•</span>
                       <span>🏆 {currentUser.level}</span>
                     </p>
                     <div className="badge-row">
@@ -3856,7 +3810,7 @@ function App() {
                     </div>
                   ) : (
                     <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                      <table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse', textAlign: 'left' }}>
                         <thead>
                           <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600 }}>
                             <th style={{ padding: '0.75rem 1rem' }}>Puesto</th>
@@ -5839,6 +5793,7 @@ function App() {
                   style={{ 
                     flex: 1,
                     overflowY: 'auto', 
+                    overflowX: 'auto',
                     border: '1px solid var(--border-color)', 
                     borderRadius: 'var(--radius-lg)',
                     maxHeight: '380px',
@@ -5850,7 +5805,7 @@ function App() {
                       Aún no hay participantes registrados en este reto.
                     </div>
                   ) : (
-                    <table className="leaderboard-table" style={{ margin: 0, border: 'none', width: '100%' }}>
+                    <table className="leaderboard-table" style={{ margin: 0, border: 'none', width: '100%', minWidth: '550px' }}>
                       <thead>
                         <tr style={{ backgroundColor: 'var(--bg-app)' }}>
                           <th className="leaderboard-th" style={{ padding: '0.75rem 1rem', fontSize: '0.78rem' }}>Posición</th>

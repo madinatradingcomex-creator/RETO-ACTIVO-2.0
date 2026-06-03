@@ -138,7 +138,36 @@ const setLocalUser = (u) => {
   else sessionStorage.removeItem('ra_current_user');
 };
 
+// Local cache state for query result caching to avoid redundant queries during load
+const _queryCache = {};
+const _queryCacheTime = {};
+
+const getCachedData = (key, ttl = 5000) => {
+  const now = Date.now();
+  if (_queryCache[key] !== undefined && _queryCacheTime[key] && (now - _queryCacheTime[key] < ttl)) {
+    return _queryCache[key];
+  }
+  return null;
+};
+
+const setCachedData = (key, data) => {
+  _queryCache[key] = data;
+  _queryCacheTime[key] = Date.now();
+};
+
+const clearCache = () => {
+  for (const key in _queryCache) {
+    delete _queryCache[key];
+  }
+  for (const key in _queryCacheTime) {
+    delete _queryCacheTime[key];
+  }
+};
+
 export const dbService = {
+  clearCache() {
+    clearCache();
+  },
   async seedDatabase() {
     try {
       const usersSnap = await getDocs(collection(db, 'usuarios'));
@@ -162,11 +191,15 @@ export const dbService = {
   async getCurrentUser() {
     const local = getLocalUser();
     if (!local) return null;
+    const cacheKey = `current_user_${local.id}`;
+    const cached = getCachedData(cacheKey, 5000);
+    if (cached) return cached;
     try {
       const docSnap = await getDoc(doc(db, 'usuarios', local.id));
       if (docSnap.exists()) {
         const u = docSnap.data();
         setLocalUser(u);
+        setCachedData(cacheKey, u);
         return u;
       }
     } catch(err) { console.error(err); }
@@ -266,18 +299,22 @@ export const dbService = {
       return { error: "No se pudo establecer la contraseña." };
     }
   },
-
   async getPendingUsers() {
+    const cached = getCachedData('pending_users', 5000);
+    if (cached) return cached;
     try {
       const q = query(collection(db, 'usuarios'), where('status', '==', 'pending'));
       const snap = await getDocs(q);
-      return snap.docs.map(d => d.data());
+      const list = snap.docs.map(d => d.data());
+      setCachedData('pending_users', list);
+      return list;
     } catch(err) { console.error(err); return []; }
   },
 
   async approveUser(userId) {
     try {
       await updateDoc(doc(db, 'usuarios', userId), { status: 'approved' });
+      clearCache();
       return true;
     } catch(err) { console.error(err); return false; }
   },
@@ -285,12 +322,14 @@ export const dbService = {
   async rejectUser(userId) {
     try {
       await deleteDoc(doc(db, 'usuarios', userId));
+      clearCache();
       return true;
     } catch(err) { console.error(err); return false; }
   },
 
   async logout() {
     setLocalUser(null);
+    clearCache();
   },
 
   async updateUserStats(userId, pointsAdded, stepsToday = 0) {
@@ -311,40 +350,56 @@ export const dbService = {
           local.daily_steps_history = hist;
           setLocalUser(local);
         }
+        clearCache();
       }
     } catch(err) { console.error(err); }
   },
 
   async getChallenges() {
+    const cached = getCachedData('challenges', 10000);
+    if (cached) return cached;
     try {
       const snap = await getDocs(collection(db, 'retos'));
-      return snap.docs.map(d => d.data());
+      const list = snap.docs.map(d => d.data());
+      setCachedData('challenges', list);
+      return list;
     } catch(err) { console.error(err); return []; }
   },
 
   async getRewards() {
+    const cached = getCachedData('rewards', 10000);
+    if (cached) return cached;
     try {
       const snap = await getDocs(collection(db, 'rewards'));
-      return snap.docs.map(d => d.data());
+      const list = snap.docs.map(d => d.data());
+      setCachedData('rewards', list);
+      return list;
     } catch(err) { console.error(err); return []; }
   },
 
   async getUserChallenges(userId) {
+    const cacheKey = `user_challenges_${userId}`;
+    const cached = getCachedData(cacheKey, 5000);
+    if (cached) return cached;
     try {
       const q = query(collection(db, 'user_challenges'), where('user_id', '==', userId));
       const snap = await getDocs(q);
-      return snap.docs.map(d => d.data());
+      const list = snap.docs.map(d => d.data());
+      setCachedData(cacheKey, list);
+      return list;
     } catch(err) { console.error(err); return []; }
   },
-
   // Fetch ALL enrollments in one query (used for leaderboard privacy filter)
   async getAllUserChallenges() {
+    const cached = getCachedData('all_user_challenges', 10000);
+    if (cached) return cached;
     try {
       const snap = await getDocs(collection(db, 'user_challenges'));
-      return snap.docs.map(d => d.data());
+      const list = snap.docs.map(d => d.data());
+      setCachedData('all_user_challenges', list);
+      return list;
     } catch(err) { console.error(err); return []; }
   },
-
 
   async enrollInChallenge(userId, challengeId) {
     try {
@@ -378,6 +433,7 @@ export const dbService = {
         await addDoc(collection(db, 'user_challenges'), newEnrollment);
         await updateDoc(cRef, { participantsCount: (challenge.participantsCount || 0) + 1 });
       }
+      clearCache();
       return await this.getUserChallenges(userId);
     } catch(err) { console.error(err); return { error: "Error de servidor al inscribirse." }; }
   },
@@ -454,6 +510,7 @@ export const dbService = {
           submission_date: todayStr
         };
         await setDoc(doc(db, 'evidencias', newEvidence.id), newEvidence);
+        clearCache();
         return { pendingApproval: true, message: "Enviado a RRHH." };
       }
 
@@ -473,6 +530,7 @@ export const dbService = {
         }
       }
 
+      clearCache();
       return { enrollment: { ...enrollment, progress: newProgress, status: completedNow ? 'completed' : 'active' }, completed: completedNow, pointsAwarded: pointsAdded };
     } catch(err) { console.error(err); return { error: "Error interno" }; }
   },
@@ -517,19 +575,26 @@ export const dbService = {
         setLocalUser(local);
       }
 
+      clearCache();
       return { success: true, newPoints, redemption: newRedemption };
     } catch(err) { console.error(err); return { error: "Error interno" }; }
   },
 
   async getRedeemedRewards(userId) {
+    const cacheKey = `redeemed_rewards_${userId}`;
+    const cached = getCachedData(cacheKey, 5000);
+    if (cached) return cached;
     try {
       const q = query(collection(db, 'redeemed_rewards'), where('user_id', '==', userId));
       const snap = await getDocs(q);
-      return snap.docs.map(d => d.data());
+      const list = snap.docs.map(d => d.data());
+      setCachedData(cacheKey, list);
+      return list;
     } catch(err) { console.error(err); return []; }
   },
-
   async getLeaderboard() {
+    const cached = getCachedData('leaderboard', 10000);
+    if (cached) return cached;
     try {
       const q = query(collection(db, 'usuarios'), where('status', '==', 'approved'), where('role', '==', 'employee'));
       const snap = await getDocs(q);
@@ -539,7 +604,7 @@ export const dbService = {
         return data;
       });
       list.sort((a, b) => (b.points || 0) - (a.points || 0));
-      return list.map((u, idx) => ({
+      const enriched = list.map((u, idx) => ({
         id: u.id,
         name: `${u.name} ${u.lastname || ''}`,
         avatar: u.avatar,
@@ -547,40 +612,64 @@ export const dbService = {
         department: u.department,
         rank: idx + 1
       }));
+      setCachedData('leaderboard', enriched);
+      return enriched;
     } catch(err) { console.error("Error in getLeaderboard:", err); return []; }
   },
 
   async getPendingEvidences() {
+    const cached = getCachedData('pending_evidences', 5000);
+    if (cached) return cached;
     try {
       const q = query(collection(db, 'evidencias'), where('status', '==', 'pending'));
       const snap = await getDocs(q);
-      const evs = [];
-      for (const d of snap.docs) {
+      
+      const userCache = {};
+      const challengeCache = {};
+      
+      const evs = await Promise.all(snap.docs.map(async (d) => {
         const e = d.data();
-        const uSnap = await getDoc(doc(db, 'usuarios', e.user_id));
-        const u = uSnap.exists() ? uSnap.data() : {};
-        const cSnap = await getDoc(doc(db, 'retos', e.challenge_id));
-        const c = cSnap.exists() ? cSnap.data() : {};
         
-        evs.push({
-          id: e.id,
+        let u = {};
+        if (e.user_id) {
+          if (!userCache[e.user_id]) {
+            userCache[e.user_id] = getDoc(doc(db, 'usuarios', e.user_id)).then(snap => snap.exists() ? snap.data() : {});
+          }
+          u = await userCache[e.user_id];
+        }
+        
+        let c = {};
+        if (e.challenge_id) {
+          if (!challengeCache[e.challenge_id]) {
+            challengeCache[e.challenge_id] = getDoc(doc(db, 'retos', e.challenge_id)).then(snap => snap.exists() ? snap.data() : {});
+          }
+          c = await challengeCache[e.challenge_id];
+        }
+        
+        return {
+          id: d.id,
           user_id: e.user_id,
-          user_name: e.user_name,
+          user_name: e.user_name || `${u.name || ''} ${u.lastname || ''}`.trim(),
           user_avatar: u.avatar,
           user_department: u.department,
           challenge_id: e.challenge_id,
-          challenge_title: c.title,
+          challenge_title: c.title || 'Reto sin título',
           amount: e.value,
-          unit: c.unit,
+          unit: c.unit || '',
           screenshot_preview: e.screenshot_url,
           submitted_at: e.date
-        });
-      }
+        };
+      }));
+      
+      setCachedData('pending_evidences', evs);
       return evs;
     } catch(err) { console.error(err); return []; }
   },
 
   async getApprovedEvidencesForUserAndChallenge(userId, challengeId) {
+    const cacheKey = `approved_evidences_${userId}_${challengeId}`;
+    const cached = getCachedData(cacheKey, 5000);
+    if (cached) return cached;
     try {
       const q = query(
         collection(db, 'evidencias'),
@@ -589,7 +678,9 @@ export const dbService = {
         where('status', '==', 'approved')
       );
       const snap = await getDocs(q);
-      return snap.docs.map(d => d.data());
+      const list = snap.docs.map(d => d.data());
+      setCachedData(cacheKey, list);
+      return list;
     } catch(err) {
       console.error("Error getting approved evidences:", err);
       return [];
@@ -607,6 +698,7 @@ export const dbService = {
 
       const q = query(collection(db, 'user_challenges'), where('user_id', '==', evidence.user_id), where('challenge_id', '==', evidence.challenge_id));
       const uChalls = await getDocs(q);
+      let res = { success: true, completed: false, pointsAwarded: 0 };
       if (!uChalls.empty) {
         const enrollDoc = uChalls.docs[0];
         const enrollment = enrollDoc.data();
@@ -618,21 +710,23 @@ export const dbService = {
           if (newProgress >= c.target && enrollment.status !== 'completed') {
             await updateDoc(enrollDoc.ref, { progress: c.target, status: 'completed' });
             await this.updateUserStats(evidence.user_id, c.points, c.unit === 'pasos' ? evidence.value : 0);
-            return { success: true, completed: true, pointsAwarded: c.points };
+            res = { success: true, completed: true, pointsAwarded: c.points };
           } else {
             await updateDoc(enrollDoc.ref, { progress: newProgress });
             await this.updateUserStats(evidence.user_id, 0, c.unit === 'pasos' ? evidence.value : 0);
-            return { success: true, completed: false, pointsAwarded: 0 };
+            res = { success: true, completed: false, pointsAwarded: 0 };
           }
         }
       }
-      return { success: true, completed: false, pointsAwarded: 0 };
+      clearCache();
+      return res;
     } catch(err) { console.error(err); return { error: "Error interno" }; }
   },
 
   async rejectEvidence(evidenceId) {
     try {
       await updateDoc(doc(db, 'evidencias', evidenceId), { status: 'rejected' });
+      clearCache();
       return { success: true };
     } catch(err) { console.error(err); return { error: "Error interno" }; }
   },
@@ -648,6 +742,7 @@ export const dbService = {
         enrollment_deadline: enrollmentDeadline || ''
       };
       await setDoc(doc(db, 'retos', newChallenge.id), newChallenge);
+      clearCache();
       return newChallenge;
     } catch(err) { console.error(err); return null; }
   },
@@ -659,11 +754,14 @@ export const dbService = {
         title, description, points_cost: parseInt(points_cost), stock: parseInt(stock), category, icon: icon || '🥑'
       };
       await setDoc(doc(db, 'rewards', newReward.id), newReward);
+      clearCache();
       return newReward;
     } catch(err) { console.error(err); return null; }
   },
 
   async getCompanyStats() {
+    const cached = getCachedData('company_stats', 10000);
+    if (cached) return cached;
     try {
       const usersSnap = await getDocs(query(collection(db, 'usuarios'), where('status', '==', 'approved')));
       const users = usersSnap.docs.map(d => d.data());
@@ -691,7 +789,9 @@ export const dbService = {
         name, steps: deptStats[name].steps, points: deptStats[name].points, avgSteps: Math.round(deptStats[name].steps / (deptStats[name].members || 1))
       }));
 
-      return { totalCompanySteps, participationPercentage, totalPointsAwarded, deptChartData, totalEmployeesCount };
+      const stats = { totalCompanySteps, participationPercentage, totalPointsAwarded, deptChartData, totalEmployeesCount };
+      setCachedData('company_stats', stats);
+      return stats;
     } catch(err) { console.error(err); return { totalCompanySteps: 0, participationPercentage: 0, totalPointsAwarded: 0, deptChartData: [], totalEmployeesCount: 1 }; }
   },
 
@@ -858,6 +958,7 @@ export const dbService = {
       }
 
       const kmEquivalent = parseFloat((totalSteps / 1312).toFixed(2));
+      clearCache();
       return { 
         totalSteps, 
         kmEquivalent, 
@@ -878,6 +979,9 @@ export const dbService = {
     return raw ? JSON.parse(raw) : null;
   },
   async getChallengeRanking(challengeId) {
+    const cacheKey = `ranking_${challengeId}`;
+    const cached = getCachedData(cacheKey, 10000);
+    if (cached) return cached;
     try {
       const q = query(
         collection(db, 'user_challenges'),
@@ -886,12 +990,7 @@ export const dbService = {
       const snap = await getDocs(q);
       const list = snap.docs.map(doc => doc.data());
       
-      const uSnap = await getDocs(collection(db, 'usuarios'));
-      const usersMap = {};
-      uSnap.docs.forEach(doc => {
-        const u = doc.data();
-        usersMap[u.id] = u;
-      });
+      const usersMap = await this._getUsersMapCached();
 
       const enrichedList = list.map(item => {
         const user = usersMap[item.user_id] || { name: 'Colaborador', lastname: 'Anónimo', avatar: '', department: 'Sin área' };
@@ -906,13 +1005,34 @@ export const dbService = {
         };
       }).sort((a, b) => b.progress - a.progress);
 
+      setCachedData(cacheKey, enrichedList);
       return enrichedList;
     } catch(err) {
       console.error(err);
       return [];
     }
   },
+  async _getUsersMapCached() {
+    const cacheKey = 'users_map';
+    const cached = getCachedData(cacheKey, 15000);
+    if (cached) return cached;
+    try {
+      const uSnap = await getDocs(collection(db, 'usuarios'));
+      const usersMap = {};
+      uSnap.docs.forEach(doc => {
+        const u = doc.data();
+        usersMap[u.id] = u;
+      });
+      setCachedData(cacheKey, usersMap);
+      return usersMap;
+    } catch(err) {
+      console.error("Error fetching users map:", err);
+      return {};
+    }
+  },
   async getActiveUsers() {
+    const cached = getCachedData('active_users', 10000);
+    if (cached) return cached;
     try {
       const q = query(
         collection(db, 'usuarios'), 
@@ -920,16 +1040,17 @@ export const dbService = {
         where('status', '==', 'approved')
       );
       const snap = await getDocs(q);
-      return snap.docs.map(d => {
+      const list = snap.docs.map(d => {
         const u = d.data();
         if (!u.last_sync && u.daily_steps_history && u.daily_steps_history.some(s => s > 0)) {
-          // Dynamic fallback: 2 hours ago
           const date = new Date();
           date.setHours(date.getHours() - 2);
           u.last_sync = date.toISOString();
         }
         return u;
       });
+      setCachedData('active_users', list);
+      return list;
     } catch(err) {
       console.error("Error getting active users:", err);
       return [];
@@ -939,6 +1060,7 @@ export const dbService = {
     try {
       const ref = doc(db, 'usuarios', userId);
       await updateDoc(ref, { points: parseInt(newPoints) });
+      clearCache();
       return { success: true };
     } catch(err) {
       console.error("Error updating user points:", err);
@@ -949,6 +1071,7 @@ export const dbService = {
     try {
       const ref = doc(db, 'usuarios', userId);
       await updateDoc(ref, { department });
+      clearCache();
       return { success: true };
     } catch(err) {
       console.error("Error updating user department:", err);
@@ -965,6 +1088,7 @@ export const dbService = {
         local.avatar = avatarUrl;
         setLocalUser(local);
       }
+      clearCache();
       return { success: true };
     } catch(err) {
       console.error("Error updating user avatar:", err);
@@ -974,6 +1098,7 @@ export const dbService = {
   async deleteUser(userId) {
     try {
       await deleteDoc(doc(db, 'usuarios', userId));
+      clearCache();
       return { success: true };
     } catch(err) {
       console.error("Error deleting user:", err);
@@ -983,6 +1108,7 @@ export const dbService = {
   async deleteChallenge(challengeId) {
     try {
       await deleteDoc(doc(db, 'retos', challengeId));
+      clearCache();
       return { success: true };
     } catch(err) {
       console.error("Error deleting challenge:", err);
@@ -996,6 +1122,7 @@ export const dbService = {
         start_date: startDate || '',
         end_date: endDate || ''
       });
+      clearCache();
       return { success: true };
     } catch(err) {
       console.error("Error updating challenge dates:", err);
@@ -1010,6 +1137,7 @@ export const dbService = {
         description,
         target: parseFloat(target)
       });
+      clearCache();
       return { success: true };
     } catch(err) {
       console.error("Error updating challenge details:", err);
@@ -1031,7 +1159,6 @@ export const dbService = {
       const enrollDoc = snap.docs[0];
       const targetProgress = parseFloat(newProgress);
       
-      // Let's get the challenge to check if target is met
       const cSnap = await getDoc(doc(db, 'retos', challengeId));
       let status = 'active';
       if (cSnap.exists()) {
@@ -1045,6 +1172,7 @@ export const dbService = {
         progress: targetProgress,
         status: status
       });
+      clearCache();
       return { success: true };
     } catch(err) {
       console.error("Error updating participant progress:", err);
@@ -1062,6 +1190,7 @@ export const dbService = {
         icon: icon || '🥑',
         stock: parseInt(stock)
       });
+      clearCache();
       return { success: true };
     } catch(err) {
       console.error("Error updating reward:", err);
@@ -1071,6 +1200,7 @@ export const dbService = {
   async deleteReward(rewardId) {
     try {
       await deleteDoc(doc(db, 'rewards', rewardId));
+      clearCache();
       return { success: true };
     } catch(err) {
       console.error("Error deleting reward:", err);
@@ -1083,6 +1213,7 @@ export const dbService = {
       await updateDoc(ref, {
         password_hash: null
       });
+      clearCache();
       return { success: true };
     } catch(err) {
       console.error("Error resetting password:", err);
