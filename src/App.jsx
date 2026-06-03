@@ -38,7 +38,21 @@ import {
 } from 'lucide-react';
 import { dbService } from './services/db';
 
-
+const AVATAR_OPTIONS = [
+  // Hombres
+  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=120',
+  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=120',
+  'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=120',
+  // Mujeres
+  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=120',
+  'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=120',
+  'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=120',
+  // Divertidos / Animales / Neutros
+  'https://images.unsplash.com/photo-1517849845537-4d257902454a?auto=format&fit=crop&q=80&w=120', // Perro con gafas
+  'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=120', // Gato
+  'https://images.unsplash.com/photo-1543852786-1cf6624b9987?auto=format&fit=crop&q=80&w=120', // Gato asomado
+  'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?auto=format&fit=crop&q=80&w=120'  // Pug
+];
 
 function App() {
   // Authentication State
@@ -202,6 +216,11 @@ function App() {
   const [editingParticipant, setEditingParticipant] = useState(null);
   const [editProgressValue, setEditProgressValue] = useState('');
   const [isSavingProgress, setIsSavingProgress] = useState(false);
+
+  // Avatar edit modal
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [isSavingAvatar, setIsSavingAvatar] = useState(false);
+
 
   // Forms - Admin Create Reward
   const [rTitle, setRTitle] = useState('');
@@ -936,6 +955,19 @@ function App() {
     // Also reload overall challenges list in parent state
     loadViewData(currentUser);
     setShowEditDatesModal(false);
+  };
+
+  const handleAvatarSelect = async (avatarUrl) => {
+    setIsSavingAvatar(true);
+    const res = await dbService.updateUserAvatar(currentUser.id, avatarUrl);
+    setIsSavingAvatar(false);
+    if (res.error) {
+      showToastMessage(res.error, "error");
+      return;
+    }
+    showToastMessage("🖼️ Avatar actualizado correctamente.");
+    setCurrentUser(prev => ({ ...prev, avatar: avatarUrl }));
+    setShowAvatarModal(false);
   };
 
   const handleSaveChallengeDetails = async (e) => {
@@ -3346,6 +3378,14 @@ function App() {
                         🪙 {currentUser.points} puntos totales
                       </span>
                     </div>
+                    <button 
+                      onClick={() => setShowAvatarModal(true)} 
+                      className="btn btn-secondary" 
+                      style={{ marginTop: '1rem', padding: '0.4rem 0.8rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem', width: 'fit-content' }}
+                    >
+                      <Edit2 size={14} />
+                      Cambiar Avatar
+                    </button>
                   </div>
                 </div>
 
@@ -5970,6 +6010,64 @@ function App() {
         </div>
       )}
 
+
+      {/* MODAL: ELEGIR AVATAR */}
+      {showAvatarModal && (
+        <div className="modal-overlay" onClick={() => setShowAvatarModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', width: '90%' }}>
+            <div className="modal-header">
+              <h3>🖼️ Elige tu Avatar</h3>
+              <button className="close-btn" onClick={() => setShowAvatarModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <p style={{ margin: '1rem 0', color: 'var(--text-muted)', fontSize: '0.9rem', textAlign: 'center' }}>
+              Selecciona el avatar que más te represente para mostrar en tu perfil y en el ranking de retos.
+            </p>
+
+            {isSavingAvatar ? (
+              <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <RefreshCw size={32} style={{ margin: '0 auto 1rem', display: 'block', animation: 'spin 1s linear infinite' }} />
+                Guardando tu nuevo avatar...
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '1rem', marginTop: '1.5rem', maxHeight: '400px', overflowY: 'auto', padding: '0.5rem' }}>
+                {AVATAR_OPTIONS.map((url, idx) => (
+                  <div 
+                    key={idx} 
+                    onClick={() => handleAvatarSelect(url)}
+                    style={{
+                      cursor: 'pointer',
+                      borderRadius: '50%',
+                      padding: '4px',
+                      border: currentUser.avatar === url ? '3px solid var(--accent-color)' : '3px solid transparent',
+                      transition: 'transform 0.2s, border-color 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                  >
+                    <img 
+                      src={url} 
+                      alt={`Avatar option ${idx + 1}`} 
+                      style={{ 
+                        width: '100%', 
+                        aspectRatio: '1/1', 
+                        objectFit: 'cover', 
+                        borderRadius: '50%',
+                        boxShadow: 'var(--shadow-sm)'
+                      }} 
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* TOAST */}
       {toast && (

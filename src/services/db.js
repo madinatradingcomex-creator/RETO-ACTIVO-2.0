@@ -955,6 +955,22 @@ export const dbService = {
       return { error: err.message };
     }
   },
+  async updateUserAvatar(userId, avatarUrl) {
+    try {
+      const ref = doc(db, 'usuarios', userId);
+      await updateDoc(ref, { avatar: avatarUrl });
+      
+      const local = getLocalUser();
+      if (local && local.id === userId) {
+        local.avatar = avatarUrl;
+        setLocalUser(local);
+      }
+      return { success: true };
+    } catch(err) {
+      console.error("Error updating user avatar:", err);
+      return { error: err.message };
+    }
+  },
   async deleteUser(userId) {
     try {
       await deleteDoc(doc(db, 'usuarios', userId));
