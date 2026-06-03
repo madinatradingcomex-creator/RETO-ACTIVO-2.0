@@ -548,7 +548,11 @@ export const dbService = {
     try {
       const q = query(collection(db, 'usuarios'), where('status', '==', 'approved'), where('role', '==', 'employee'));
       const snap = await getDocs(q);
-      const list = snap.docs.map(d => d.data());
+      const list = snap.docs.map(d => {
+        const data = d.data();
+        data.id = data.id || d.id;
+        return data;
+      });
       list.sort((a, b) => (b.points || 0) - (a.points || 0));
       return list.map((u, idx) => ({
         id: u.id,

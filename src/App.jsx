@@ -3119,7 +3119,18 @@ function App() {
             )}
 
             {/* VIEW: LEADERBOARD */}
-            {activeTab === 'leaderboard' && (
+            {activeTab === 'leaderboard' && (() => {
+              const myChallengeIds = userChallenges.map(uc => uc.challenge_id);
+              const filteredLeaderboard = leaderboard.filter(p => {
+                if (p.id === currentUser.id) return true;
+                const otherUserEnrollments = allUserChallenges.filter(uc => uc.user_id === p.id);
+                return otherUserEnrollments.some(uc => myChallengeIds.includes(uc.challenge_id));
+              });
+
+              // Re-assign rank to the filtered list so podium and table look correct
+              filteredLeaderboard.forEach((p, idx) => { p.filteredRank = idx + 1; });
+
+              return (
               <div className="view-container">
                 <header className="view-header">
                   <div className="view-title-group">
@@ -3132,38 +3143,38 @@ function App() {
                 </header>
 
                 <div className="podium-container">
-                  {leaderboard[1] && (
+                  {filteredLeaderboard[1] && (
                     <div className="podium-item podium-2nd">
                       <div className="podium-avatar-wrapper">
-                        <img src={leaderboard[1].avatar} alt={leaderboard[1].name} className="podium-avatar" />
+                        <img src={filteredLeaderboard[1].avatar} alt={filteredLeaderboard[1].name} className="podium-avatar" />
                         <span className="podium-badge">2</span>
                       </div>
-                      <span className="podium-name">{leaderboard[1].name.split(' ')[0]}</span>
-                      <span className="podium-pts">{leaderboard[1].points} pts</span>
+                      <span className="podium-name">{filteredLeaderboard[1].name.split(' ')[0]}</span>
+                      <span className="podium-pts">{filteredLeaderboard[1].points} pts</span>
                       <div className="podium-column"></div>
                     </div>
                   )}
 
-                  {leaderboard[0] && (
+                  {filteredLeaderboard[0] && (
                     <div className="podium-item podium-1st">
                       <div className="podium-avatar-wrapper">
-                        <img src={leaderboard[0].avatar} alt={leaderboard[0].name} className="podium-avatar" />
+                        <img src={filteredLeaderboard[0].avatar} alt={filteredLeaderboard[0].name} className="podium-avatar" />
                         <span className="podium-badge">1</span>
                       </div>
-                      <span className="podium-name" style={{ fontSize: '1rem', fontWeight: 800 }}>{leaderboard[0].name.split(' ')[0]} 👑</span>
-                      <span className="podium-pts" style={{ color: 'var(--coral-dark)', fontWeight: 700 }}>{leaderboard[0].points} pts</span>
+                      <span className="podium-name" style={{ fontSize: '1rem', fontWeight: 800 }}>{filteredLeaderboard[0].name.split(' ')[0]} 👑</span>
+                      <span className="podium-pts" style={{ color: 'var(--coral-dark)', fontWeight: 700 }}>{filteredLeaderboard[0].points} pts</span>
                       <div className="podium-column"></div>
                     </div>
                   )}
 
-                  {leaderboard[2] && (
+                  {filteredLeaderboard[2] && (
                     <div className="podium-item podium-3rd">
                       <div className="podium-avatar-wrapper">
-                        <img src={leaderboard[2].avatar} alt={leaderboard[2].name} className="podium-avatar" />
+                        <img src={filteredLeaderboard[2].avatar} alt={filteredLeaderboard[2].name} className="podium-avatar" />
                         <span className="podium-badge">3</span>
                       </div>
-                      <span className="podium-name">{leaderboard[2].name.split(' ')[0]}</span>
-                      <span className="podium-pts">{leaderboard[2].points} pts</span>
+                      <span className="podium-name">{filteredLeaderboard[2].name.split(' ')[0]}</span>
+                      <span className="podium-pts">{filteredLeaderboard[2].points} pts</span>
                       <div className="podium-column"></div>
                     </div>
                   )}
@@ -3192,7 +3203,7 @@ function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {leaderboard
+                      {filteredLeaderboard
                         .filter(p => p.name.toLowerCase().includes(leaderboardSearch.toLowerCase()))
                         .map(p => {
                           const isCurrentUser = p.id === currentUser.id;
@@ -3200,7 +3211,7 @@ function App() {
                           return (
                             <tr className="leaderboard-tr" key={p.id} style={isCurrentUser ? { backgroundColor: 'var(--mint-bg)' } : {}}>
                               <td className="leaderboard-td leaderboard-td-rank">
-                                {p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : `#${p.rank}`}
+                                {p.filteredRank === 1 ? '🥇' : p.filteredRank === 2 ? '🥈' : p.filteredRank === 3 ? '🥉' : `#${p.filteredRank}`}
                               </td>
                               <td className="leaderboard-td">
                                 <div className="leaderboard-user-cell">
@@ -3298,7 +3309,8 @@ function App() {
                   </table>
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             {/* VIEW: PROFILE */}
             {activeTab === 'profile' && (
@@ -4799,7 +4811,7 @@ function App() {
                                       <span>Progreso: <strong>{uc.progress} / {uc.challenge_target} {uc.challenge_unit}</strong></span>
                                       <span>{Math.round(pct)}%</span>
                                     </div>
-                                    <div style={{ width: '100%', height: '8px', backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: '4px', overflow: 'hidden' }}>
+                                    <div style={{ width: '100%', height: '8px', backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: '4px', overflow: 'hidden', marginBottom: '1rem' }}>
                                       <div 
                                         style={{ 
                                           width: `${pct}%`, 
@@ -4809,6 +4821,41 @@ function App() {
                                           transition: 'var(--transition-smooth)'
                                         }} 
                                       />
+                                    </div>
+                                    
+                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                      <button 
+                                        className="btn btn-secondary" 
+                                        onClick={() => handleOpenChallengeProgressDetail(uc, challenges.find(c => c.id === uc.challenge_id))}
+                                        style={{ 
+                                          flex: 1,
+                                          display: 'flex', 
+                                          alignItems: 'center', 
+                                          justifyContent: 'center', 
+                                          gap: '0.3rem',
+                                          fontSize: '0.82rem',
+                                          padding: '0.5rem'
+                                        }}
+                                        title="Ver el progreso acumulado por día del colaborador"
+                                      >
+                                        📊 Ver Días
+                                      </button>
+                                      <button 
+                                        className="btn btn-secondary" 
+                                        onClick={() => handleOpenChallengeRanking(uc.challenge_id)}
+                                        style={{ 
+                                          flex: 1,
+                                          display: 'flex', 
+                                          alignItems: 'center', 
+                                          justifyContent: 'center', 
+                                          gap: '0.3rem',
+                                          fontSize: '0.82rem',
+                                          padding: '0.5rem'
+                                        }}
+                                        title="Ver ranking de posiciones de este reto"
+                                      >
+                                        🏆 Ver Ranking
+                                      </button>
                                     </div>
                                   </div>
                                 </div>
