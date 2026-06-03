@@ -546,13 +546,19 @@ export const dbService = {
 
   async getLeaderboard() {
     try {
-      const q = query(collection(db, 'usuarios'), where('status', '==', 'approved'), where('role', '==', 'employee'), orderBy('points', 'desc'));
+      const q = query(collection(db, 'usuarios'), where('status', '==', 'approved'), where('role', '==', 'employee'));
       const snap = await getDocs(q);
-      return snap.docs.map((d, idx) => {
-        const u = d.data();
-        return { id: u.id, name: `${u.name} ${u.lastname || ''}`, avatar: u.avatar, points: u.points, department: u.department, rank: idx + 1 };
-      });
-    } catch(err) { console.error(err); return []; }
+      const list = snap.docs.map(d => d.data());
+      list.sort((a, b) => (b.points || 0) - (a.points || 0));
+      return list.map((u, idx) => ({
+        id: u.id,
+        name: `${u.name} ${u.lastname || ''}`,
+        avatar: u.avatar,
+        points: u.points || 0,
+        department: u.department,
+        rank: idx + 1
+      }));
+    } catch(err) { console.error("Error in getLeaderboard:", err); return []; }
   },
 
   async getPendingEvidences() {

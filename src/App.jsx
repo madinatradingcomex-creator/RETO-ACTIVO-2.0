@@ -228,6 +228,12 @@ function App() {
   const [challengeDailyBreakdown, setChallengeDailyBreakdown] = useState([]);
   const [loadingChallengeProgress, setLoadingChallengeProgress] = useState(false);
 
+  // Challenge ranking states
+  const [showChallengeRankingModal, setShowChallengeRankingModal] = useState(false);
+  const [selectedRankingChallenge, setSelectedRankingChallenge] = useState(null);
+  const [selectedRankingList, setSelectedRankingList] = useState([]);
+  const [loadingRankingList, setLoadingRankingList] = useState(false);
+
   // Search and Filters
   const [leaderboardSearch, setLeaderboardSearch] = useState('');
   const [challengesFilter, setChallengesFilter] = useState('all');
@@ -1219,6 +1225,23 @@ function App() {
       showToastMessage("Error al cargar el desglose diario.", "error");
     } finally {
       setLoadingChallengeProgress(false);
+    }
+  };
+
+  const handleOpenChallengeRanking = async (challengeId) => {
+    const ch = challenges.find(c => c.id === challengeId);
+    if (!ch) return;
+    setSelectedRankingChallenge(ch);
+    setShowChallengeRankingModal(true);
+    setLoadingRankingList(true);
+    try {
+      const rList = await dbService.getChallengeRanking(challengeId);
+      setSelectedRankingList(rList);
+    } catch (err) {
+      console.error("Error loading challenge ranking:", err);
+      setSelectedRankingList([]);
+    } finally {
+      setLoadingRankingList(false);
     }
   };
 
@@ -2736,20 +2759,40 @@ function App() {
                                   </span>
                                 </div>
 
-                                <button 
-                                  className="btn btn-secondary" 
-                                  onClick={() => handleOpenChallengeProgressDetail(uc, challenge)}
-                                  style={{ 
-                                    width: '100%', 
-                                    marginBottom: '0.75rem', 
-                                    display: 'flex', 
-                                    alignItems: 'center', 
-                                    justifyContent: 'center', 
-                                    gap: '0.4rem' 
-                                  }}
-                                >
-                                  📊 Ver Progreso por Día
-                                </button>
+                                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                                  <button 
+                                    className="btn btn-secondary" 
+                                    onClick={() => handleOpenChallengeProgressDetail(uc, challenge)}
+                                    style={{ 
+                                      flex: 1,
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      justifyContent: 'center', 
+                                      gap: '0.3rem',
+                                      fontSize: '0.82rem',
+                                      padding: '0.5rem 0.5rem'
+                                    }}
+                                    title="Ver tu progreso acumulado por día"
+                                  >
+                                    📊 Mis Días
+                                  </button>
+                                  <button 
+                                    className="btn btn-secondary" 
+                                    onClick={() => handleOpenChallengeRanking(challenge.id)}
+                                    style={{ 
+                                      flex: 1,
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      justifyContent: 'center', 
+                                      gap: '0.3rem',
+                                      fontSize: '0.82rem',
+                                      padding: '0.5rem 0.5rem'
+                                    }}
+                                    title="Ver ranking de posiciones de todos los participantes"
+                                  >
+                                    🏆 Ver Ranking
+                                  </button>
+                                </div>
 
                                 {isNotStarted ? (
                                   <button className="btn btn-secondary" style={{ cursor: 'not-allowed', opacity: 0.6 }} disabled>
@@ -2909,20 +2952,40 @@ function App() {
                                     {enrollment.progress} / {c.target} {c.unit}
                                   </span>
                                 </div>
-                                <button 
-                                  className="btn btn-secondary" 
-                                  onClick={() => handleOpenChallengeProgressDetail(enrollment, c)}
-                                  style={{ 
-                                    width: '100%', 
-                                    marginTop: '0.75rem', 
-                                    display: 'flex', 
-                                    alignItems: 'center', 
-                                    justifyContent: 'center', 
-                                    gap: '0.4rem' 
-                                  }}
-                                >
-                                  📊 Ver Progreso por Día
-                                </button>
+                                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+                                  <button 
+                                    className="btn btn-secondary" 
+                                    onClick={() => handleOpenChallengeProgressDetail(enrollment, c)}
+                                    style={{ 
+                                      flex: 1,
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      justifyContent: 'center', 
+                                      gap: '0.3rem',
+                                      fontSize: '0.82rem',
+                                      padding: '0.5rem 0.5rem'
+                                    }}
+                                    title="Ver tu progreso acumulado por día"
+                                  >
+                                    📊 Mis Días
+                                  </button>
+                                  <button 
+                                    className="btn btn-secondary" 
+                                    onClick={() => handleOpenChallengeRanking(c.id)}
+                                    style={{ 
+                                      flex: 1,
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      justifyContent: 'center', 
+                                      gap: '0.3rem',
+                                      fontSize: '0.82rem',
+                                      padding: '0.5rem 0.5rem'
+                                    }}
+                                    title="Ver ranking de posiciones de todos los participantes"
+                                  >
+                                    🏆 Ver Ranking
+                                  </button>
+                                </div>
                               </div>
                             )}
 
@@ -3165,6 +3228,7 @@ function App() {
                                               return (
                                                 <span 
                                                   key={ch.id} 
+                                                  onClick={() => handleOpenChallengeRanking(ch.id)}
                                                   style={{ 
                                                     fontSize: '0.68rem', 
                                                     backgroundColor: '#FFF9E6', 
@@ -3174,9 +3238,10 @@ function App() {
                                                     border: '1px solid rgba(255,215,0,0.15)',
                                                     display: 'inline-flex',
                                                     alignItems: 'center',
-                                                    gap: '0.15rem'
+                                                    gap: '0.15rem',
+                                                    cursor: 'pointer'
                                                   }}
-                                                  title={`Reto: ${ch.title}`}
+                                                  title={`Ver ranking de: ${ch.title} (Comienza en ${timeRemaining || 'pronto'})`}
                                                 >
                                                   ⏳ {ch.image} {timeRemaining || 'Inicia pronto'}
                                                 </span>
@@ -3189,6 +3254,7 @@ function App() {
                                             return (
                                               <span 
                                                 key={ch.id} 
+                                                onClick={() => handleOpenChallengeRanking(ch.id)}
                                                 style={{ 
                                                   fontSize: '0.68rem', 
                                                   backgroundColor: isCompleted ? 'var(--mint-bg)' : 'var(--sky-bg)', 
@@ -3198,9 +3264,10 @@ function App() {
                                                   border: isCompleted ? '1px solid rgba(28,188,140,0.15)' : '1px solid rgba(56,189,248,0.15)',
                                                   display: 'inline-flex',
                                                   alignItems: 'center',
-                                                  gap: '0.15rem'
+                                                  gap: '0.15rem',
+                                                  cursor: 'pointer'
                                                 }}
-                                                title={`Reto: ${ch.title} (Progreso: ${uc.progress}/${ch.target})`}
+                                                title={`Ver ranking de: ${ch.title} (Puesto: #${challengeRank || '-'})`}
                                               >
                                                 {isCompleted ? '🏆' : '🏃'} {ch.image} #{challengeRank || '-'}
                                               </span>
@@ -5504,7 +5571,153 @@ function App() {
             )}
           </div>
         </div>
-      )}      {/* MODAL: INSTRUCCIONES DE GOOGLE FIT */}
+      )}
+
+      {/* MODAL: VER RANKING COMPLETO DEL RETO */}
+      {showChallengeRankingModal && selectedRankingChallenge && (
+        <div className="modal-overlay" onClick={() => setShowChallengeRankingModal(false)}>
+          <div 
+            className="modal-content" 
+            onClick={(e) => e.stopPropagation()} 
+            style={{ 
+              maxWidth: '650px', 
+              width: '95%', 
+              maxHeight: '92vh', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              padding: '2rem 2.25rem 1.75rem 2.25rem' 
+            }}
+          >
+            <button className="modal-close" onClick={() => setShowChallengeRankingModal(false)}>
+              <X size={20} />
+            </button>
+            
+            {/* Cabecera del Modal */}
+            <div className="modal-header" style={{ marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <span style={{ fontSize: '3rem', backgroundColor: 'var(--bg-app)', padding: '0.5rem', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)' }}>
+                  {selectedRankingChallenge.image}
+                </span>
+                <div>
+                  <h3 className="modal-title" style={{ margin: 0, fontFamily: 'Outfit', fontWeight: 700, color: 'var(--text-main)' }}>
+                    Ranking del Reto
+                  </h3>
+                  <p className="modal-subtitle" style={{ margin: '0.2rem 0 0 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                    Reto: <strong>{selectedRankingChallenge.title}</strong>
+                  </p>
+                </div>
+              </div>
+              
+              {selectedRankingChallenge.start_date && (
+                <div style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  🗓️ Vigencia: <strong>{formatDate(selectedRankingChallenge.start_date)} al {formatDate(selectedRankingChallenge.end_date)}</strong>
+                </div>
+              )}
+            </div>
+
+            {loadingRankingList ? (
+              <div style={{ padding: '3rem 0', textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                <RefreshCw className="spin-animation" size={32} style={{ color: 'var(--sky-accent)' }} />
+                <p style={{ marginTop: '1rem', color: 'var(--text-muted)', fontWeight: 500 }}>Cargando tabla de posiciones...</p>
+              </div>
+            ) : (
+              <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.75rem' }}>
+                  <span>Posiciones actuales de los participantes</span>
+                  <span style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>Meta: {selectedRankingChallenge.target} {selectedRankingChallenge.unit}</span>
+                </div>
+                
+                <div 
+                  className="custom-scrollbar"
+                  style={{ 
+                    flex: 1,
+                    overflowY: 'auto', 
+                    border: '1px solid var(--border-color)', 
+                    borderRadius: 'var(--radius-lg)',
+                    maxHeight: '380px',
+                    backgroundColor: 'white'
+                  }}
+                >
+                  {selectedRankingList.length === 0 ? (
+                    <div style={{ padding: '3rem 2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      Aún no hay participantes registrados en este reto.
+                    </div>
+                  ) : (
+                    <table className="leaderboard-table" style={{ margin: 0, border: 'none', width: '100%' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: 'var(--bg-app)' }}>
+                          <th className="leaderboard-th" style={{ padding: '0.75rem 1rem', fontSize: '0.78rem' }}>Posición</th>
+                          <th className="leaderboard-th" style={{ padding: '0.75rem 1rem', fontSize: '0.78rem' }}>Colaborador</th>
+                          <th className="leaderboard-th" style={{ padding: '0.75rem 1rem', fontSize: '0.78rem' }}>Área</th>
+                          <th className="leaderboard-th" style={{ padding: '0.75rem 1rem', fontSize: '0.78rem', textAlign: 'right' }}>Progreso</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedRankingList.map((p, idx) => {
+                          const isCurrentUser = p.user_id === currentUser?.id;
+                          const progressPercent = Math.min((p.progress / selectedRankingChallenge.target) * 100, 100);
+                          const isCompleted = p.status === 'completed' || p.progress >= selectedRankingChallenge.target;
+                          
+                          return (
+                            <tr key={p.user_id} className="leaderboard-tr" style={isCurrentUser ? { backgroundColor: 'var(--mint-bg)' } : {}}>
+                              <td className="leaderboard-td leaderboard-td-rank" style={{ padding: '0.75rem 1rem', fontSize: '0.85rem' }}>
+                                {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
+                              </td>
+                              <td className="leaderboard-td" style={{ padding: '0.75rem 1rem' }}>
+                                <div className="leaderboard-user-cell" style={{ gap: '0.5rem' }}>
+                                  <img src={p.avatar} alt={p.user_name} className="leaderboard-avatar" style={{ width: '28px', height: '28px' }} />
+                                  <span style={isCurrentUser ? { fontWeight: 700, color: 'var(--mint-dark)', fontSize: '0.85rem' } : { fontWeight: 600, fontSize: '0.85rem' }}>
+                                    {p.user_name} {isCurrentUser && '(Tú)'}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="leaderboard-td" style={{ padding: '0.75rem 1rem' }}>
+                                <span 
+                                  className="leaderboard-dept"
+                                  style={{
+                                    fontSize: '0.7rem',
+                                    padding: '0.15rem 0.45rem',
+                                    backgroundColor: isCurrentUser ? 'rgba(255,255,255,0.7)' : 'var(--bg-app)',
+                                    color: varColorForDept(p.department)
+                                  }}
+                                >
+                                  {p.department}
+                                </span>
+                              </td>
+                              <td className="leaderboard-td" style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                  <span style={{ fontWeight: 700, fontSize: '0.85rem', color: isCompleted ? 'var(--mint-dark)' : 'var(--text-main)' }}>
+                                    {p.progress.toLocaleString()} {selectedRankingChallenge.unit}
+                                  </span>
+                                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                    {Math.round(progressPercent)}% {isCompleted && '🏆'}
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+                
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+                  <button 
+                    className="btn btn-secondary" 
+                    onClick={() => setShowChallengeRankingModal(false)}
+                    style={{ width: 'auto', padding: '0.6rem 2rem' }}
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: INSTRUCCIONES DE GOOGLE FIT */}
       {showGFitHelpModal && (
         <div className="modal-overlay" onClick={() => setShowGFitHelpModal(false)}>
           <div 
