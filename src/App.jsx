@@ -272,7 +272,28 @@ function App() {
         const rewardsData = await dbService.getRewards();
         const redeemedData = await dbService.getRedeemedRewards(userSession.id);
         const leaderboardData = await dbService.getLeaderboard();
-        const allUserChalls = await dbService.getAllUserChallenges();
+        
+        let allUserChalls = [];
+        try {
+          if (challengesData && challengesData.length > 0) {
+            for (const ch of challengesData) {
+              const rList = await dbService.getChallengeRanking(ch.id);
+              if (rList && rList.length > 0) {
+                rList.forEach(p => {
+                  allUserChalls.push({
+                    user_id: p.user_id,
+                    challenge_id: ch.id,
+                    progress: p.progress,
+                    status: p.status,
+                    daily_syncs: p.daily_syncs || {}
+                  });
+                });
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Error loading all user challenges rankings dynamically:", err);
+        }
 
         setChallenges(challengesData);
         setUserChallenges(userChallengesData);
