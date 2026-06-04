@@ -190,6 +190,7 @@ function App() {
   const [cEndDate, setCEndDate] = useState('');
   const [cModality, setCModality] = useState('scheduled');
   const [cEnrollmentDeadline, setCEnrollmentDeadline] = useState('');
+  const [cIsDaily, setCIsDaily] = useState(false);
 
   // Admin Challenges Manager & Detail view states (Participants declared here)
   const [adminChallengeParticipants, setAdminChallengeParticipants] = useState([]);
@@ -875,19 +876,34 @@ function App() {
       finalEnrollmentDeadline = cEnrollmentDeadline;
     }
 
+    let durationDays = 7;
+    if (cModality === 'scheduled' && cStartDate && cEndDate) {
+      durationDays = Math.ceil((new Date(cEndDate) - new Date(cStartDate)) / (1000 * 60 * 60 * 24)) + 1;
+    } else if (cEndDate) {
+      durationDays = Math.ceil((new Date(cEndDate) - new Date(todayStr)) / (1000 * 60 * 60 * 24)) + 1;
+    } else {
+      const match = cDuration.match(/\d+/);
+      if (match) durationDays = parseInt(match[0], 10);
+    }
+    if (durationDays < 1) durationDays = 1;
+
+    const finalTarget = cIsDaily ? parseFloat(cTarget) * durationDays : parseFloat(cTarget);
+
     const newChallenge = await dbService.createChallenge(
       cTitle,
       cDesc,
       cPoints,
       cCategory,
-      cTarget,
+      finalTarget,
       cUnit,
       cDuration,
       cIcon,
       finalStartDate,
       finalEndDate,
       cModality,
-      finalEnrollmentDeadline
+      finalEnrollmentDeadline,
+      cIsDaily,
+      cIsDaily ? parseFloat(cTarget) : null
     );
 
     showToastMessage(`🚀 ¡Reto "${newChallenge.title}" publicado con éxito! Ya se encuentra en la biblioteca.`);
@@ -900,6 +916,7 @@ function App() {
     setCEndDate('');
     setCEnrollmentDeadline('');
     setCModality('scheduled');
+    setCIsDaily(false);
     
     loadViewData(currentUser);
     setActiveTab('dashboard');
@@ -2792,11 +2809,19 @@ function App() {
                                   <div className="challenge-progress-fill" style={{ width: `${progressPercent}%`, backgroundColor: theme.accent }} />
                                 </div>
 
-                                <div style={{ display: 'flex', justifyContent: 'between', alignItems: 'center', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-                                  <span style={{ color: 'var(--text-muted)' }}>Progreso actual:</span>
-                                  <span style={{ fontWeight: 700, marginLeft: 'auto' }}>
-                                    {uc.progress} / {challenge.target} {challenge.unit} ({Math.round(progressPercent)}%)
-                                  </span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginBottom: '1.25rem' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Progreso actual:</span>
+                                    <span style={{ fontWeight: 700 }}>
+                                      {uc.progress} / {challenge.target} {challenge.unit} ({Math.round(progressPercent)}%)
+                                    </span>
+                                  </div>
+                                  {challenge.is_daily && challenge.daily_target && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                      <span>Meta diaria:</span>
+                                      <span style={{ fontWeight: 600 }}>{challenge.daily_target} {challenge.unit}/día</span>
+                                    </div>
+                                  )}
                                 </div>
 
                                 <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
@@ -2959,9 +2984,14 @@ function App() {
                             <p className="challenge-desc">{c.description}</p>
 
                             <div className="challenge-stats">
-                              <div className="challenge-stat-item">
+                              <div className="challenge-stat-item" style={{ minWidth: c.is_daily ? '140px' : 'auto' }}>
                                 <span className="challenge-stat-label">Objetivo</span>
-                                <span className="challenge-stat-value">{c.target} {c.unit}</span>
+                                <span className="challenge-stat-value">
+                                  {c.is_daily && c.daily_target
+                                    ? `${c.daily_target} ${c.unit}/día (Total: ${c.target})`
+                                    : `${c.target} ${c.unit}`
+                                  }
+                                </span>
                               </div>
                               <div className="challenge-stat-item" style={{ minWidth: '120px' }}>
                                 <span className="challenge-stat-label">Vigencia</span>
@@ -2986,11 +3016,19 @@ function App() {
                                 <div className="challenge-progress-bar" style={{ marginBottom: '0.5rem' }}>
                                   <div className="challenge-progress-fill" style={{ width: `${progressPercent}%`, backgroundColor: theme.accent }} />
                                 </div>
-                                <div style={{ display: 'flex', justifyContent: 'between', fontSize: '0.8rem', fontWeight: 600 }}>
-                                  <span>Progreso:</span>
-                                  <span style={{ marginLeft: 'auto' }}>
-                                    {enrollment.progress} / {c.target} {c.unit}
-                                  </span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600 }}>
+                                    <span>Progreso:</span>
+                                    <span>
+                                      {enrollment.progress} / {c.target} {c.unit}
+                                    </span>
+                                  </div>
+                                  {c.is_daily && c.daily_target && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                                      <span>Meta diaria:</span>
+                                      <span>{c.daily_target} {c.unit}/día</span>
+                                    </div>
+                                  )}
                                 </div>
                                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
                                   <button 
@@ -3637,7 +3675,7 @@ function App() {
                                   <div>
                                     <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.96rem', fontWeight: 700, color: 'var(--text-main)' }}>{c.title}</h4>
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem 0.8rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                                      <span>🎯 {c.target} {c.unit}</span>
+                                      <span>🎯 {c.is_daily && c.daily_target ? `${c.daily_target} ${c.unit}/día (Total: ${c.target})` : `${c.target} ${c.unit}`}</span>
                                       <span>🪙 +{c.points} pts</span>
                                       <span>👥 {c.participantsCount || 0} personas</span>
                                       {c.modality === 'immediate' ? (
@@ -3735,11 +3773,17 @@ function App() {
                         <Trophy size={20} />
                       </div>
                     </div>
-                    <div className="stat-value" style={{ fontSize: '1.8rem' }}>
-                      {adminSelectedChallenge.target} {adminSelectedChallenge.unit}
+                    <div className="stat-value" style={{ fontSize: adminSelectedChallenge.is_daily ? '1.4rem' : '1.8rem', lineHeight: '1.2' }}>
+                      {adminSelectedChallenge.is_daily && adminSelectedChallenge.daily_target
+                        ? `${adminSelectedChallenge.daily_target} ${adminSelectedChallenge.unit}/día`
+                        : `${adminSelectedChallenge.target} ${adminSelectedChallenge.unit}`
+                      }
                     </div>
                     <div className="stat-footer">
-                      Recompensa: 🪙 +{adminSelectedChallenge.points} pts
+                      {adminSelectedChallenge.is_daily
+                        ? `Meta Total: ${adminSelectedChallenge.target} ${adminSelectedChallenge.unit} | Recompensa: 🪙 +${adminSelectedChallenge.points} pts`
+                        : `Recompensa: 🪙 +${adminSelectedChallenge.points} pts`
+                      }
                     </div>
                   </div>
 
@@ -4069,175 +4113,244 @@ function App() {
                   </div>
                 </header>
 
-                <div style={{ backgroundColor: 'white', padding: '2.5rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', maxWidth: '650px' }}>
-                  <form onSubmit={handleCreateChallenge}>
-                    <div className="form-group">
-                      <label className="form-label">Título del Reto</label>
-                      <input 
-                        type="text" 
-                        placeholder="Ej: Desafío Bici-Oficina Primavera" 
-                        className="form-input" 
-                        value={cTitle}
-                        onChange={(e) => setCTitle(e.target.value)}
-                        required
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Descripción / Instrucciones</label>
-                      <textarea 
-                        rows="3"
-                        placeholder="Explica a los empleados en qué consiste el reto..." 
-                        className="form-input"
-                        value={cDesc}
-                        onChange={(e) => setCDesc(e.target.value)}
-                        style={{ resize: 'vertical' }}
-                        required
-                      />
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="create-challenge-split">
+                  <div style={{ backgroundColor: 'white', padding: '2.5rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
+                    <form onSubmit={handleCreateChallenge}>
                       <div className="form-group">
-                        <label className="form-label">Objetivo Numérico</label>
-                        <input 
-                          type="number" 
-                          placeholder="Ej: 30" 
-                          className="form-input" 
-                          value={cTarget}
-                          onChange={(e) => setCTarget(e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Unidad de Medida</label>
-                        <select 
-                          className="form-input" 
-                          value={cUnit}
-                          onChange={(e) => setCUnit(e.target.value)}
-                        >
-                          <option value="km">Kilómetros (km)</option>
-                          <option value="pasos">Pasos</option>
-                          <option value="sesiones">Sesiones</option>
-                          <option value="litros">Litros</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      <div className="form-group">
-                        <label className="form-label">Puntos a Otorgar</label>
-                        <input 
-                          type="number" 
-                          placeholder="Ej: 300" 
-                          className="form-input" 
-                          value={cPoints}
-                          onChange={(e) => setCPoints(e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Icono / Emoji</label>
+                        <label className="form-label">Título del Reto</label>
                         <input 
                           type="text" 
-                          placeholder="Ej: 🚴‍♀️" 
+                          placeholder="Ej: Desafío Bici-Oficina Primavera" 
                           className="form-input" 
-                          value={cIcon}
-                          onChange={(e) => setCIcon(e.target.value)}
+                          value={cTitle}
+                          onChange={(e) => setCTitle(e.target.value)}
+                          required
                         />
                       </div>
-                    </div>
 
-                    <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-                      <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 700 }}>🎯 Modalidad de Programación</label>
-                      <div style={{ display: 'flex', gap: '2rem' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)' }}>
-                          <input 
-                            type="radio" 
-                            name="c_modality" 
-                            value="scheduled" 
-                            checked={cModality === 'scheduled'} 
-                            onChange={() => setCModality('scheduled')}
-                            style={{ accentColor: 'var(--accent-color)', width: '16px', height: '16px' }}
-                          />
-                          Programado (Fechas pactadas)
-                        </label>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)' }}>
-                          <input 
-                            type="radio" 
-                            name="c_modality" 
-                            value="immediate" 
-                            checked={cModality === 'immediate'} 
-                            onChange={() => setCModality('immediate')}
-                            style={{ accentColor: 'var(--accent-color)', width: '16px', height: '16px' }}
-                          />
-                          Inicio Inmediato (Se activa hoy)
-                        </label>
+                      <div className="form-group">
+                        <label className="form-label">Descripción / Instrucciones</label>
+                        <textarea 
+                          rows="3"
+                          placeholder="Explica a los empleados en qué consiste el reto..." 
+                          className="form-input"
+                          value={cDesc}
+                          onChange={(e) => setCDesc(e.target.value)}
+                          style={{ resize: 'vertical' }}
+                          required
+                        />
                       </div>
-                    </div>
 
-                    {cModality === 'scheduled' ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label">{cIsDaily ? 'Objetivo por día' : 'Objetivo Numérico'}</label>
+                          <input 
+                            type="number" 
+                            placeholder={cIsDaily ? 'Ej: 10000' : 'Ej: 30'} 
+                            className="form-input" 
+                            value={cTarget}
+                            onChange={(e) => setCTarget(e.target.value)}
+                            required
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label">Unidad de Medida</label>
+                          <select 
+                            className="form-input" 
+                            value={cUnit}
+                            onChange={(e) => setCUnit(e.target.value)}
+                          >
+                            <option value="km">Kilómetros (km)</option>
+                            <option value="pasos">Pasos</option>
+                            <option value="sesiones">Sesiones</option>
+                            <option value="litros">Litros</option>
+                          </select>
+                        </div>
+                        
+                        <div style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
+                          <input 
+                            type="checkbox" 
+                            id="cIsDaily" 
+                            checked={cIsDaily} 
+                            onChange={(e) => setCIsDaily(e.target.checked)} 
+                            style={{ width: 'auto', height: 'auto', cursor: 'pointer' }}
+                          />
+                          <label htmlFor="cIsDaily" style={{ fontSize: '0.82rem', color: 'var(--text-muted)', cursor: 'pointer', userSelect: 'none', fontWeight: 500 }}>
+                            Definir como objetivo diario (el sistema calculará los pasos/km totales automáticamente)
+                          </label>
+                        </div>
+                      </div>
+
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div className="form-group">
-                          <label className="form-label">📅 Fecha de Inicio (Apertura)</label>
+                          <label className="form-label">Puntos a Otorgar</label>
                           <input 
-                            type="date" 
+                            type="number" 
+                            placeholder="Ej: 300" 
                             className="form-input" 
-                            value={cStartDate}
-                            onChange={(e) => setCStartDate(e.target.value)}
+                            value={cPoints}
+                            onChange={(e) => setCPoints(e.target.value)}
                             required
                           />
                         </div>
                         <div className="form-group">
-                          <label className="form-label">🏁 Fecha de Finalización</label>
+                          <label className="form-label">Icono / Emoji</label>
                           <input 
-                            type="date" 
+                            type="text" 
+                            placeholder="Ej: 🚴‍♀️" 
                             className="form-input" 
-                            value={cEndDate}
-                            onChange={(e) => setCEndDate(e.target.value)}
-                            required
+                            value={cIcon}
+                            onChange={(e) => setCIcon(e.target.value)}
                           />
                         </div>
                       </div>
-                    ) : (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                        <div className="form-group">
-                          <label className="form-label">⏳ Límite de Inscripción</label>
-                          <input 
-                            type="date" 
-                            className="form-input" 
-                            value={cEnrollmentDeadline}
-                            onChange={(e) => setCEnrollmentDeadline(e.target.value)}
-                            required
-                          />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">🏁 Fecha de Finalización (Opcional)</label>
-                          <input 
-                            type="date" 
-                            className="form-input" 
-                            value={cEndDate}
-                            onChange={(e) => setCEndDate(e.target.value)}
-                            placeholder="Ej: dd/mm/aaaa"
-                          />
-                        </div>
-                      </div>
-                    )}
 
-                    <div className="form-group">
-                      <label className="form-label">Duración Estimada</label>
-                      <input 
-                        type="text" 
-                        placeholder="Ej: 15 días" 
-                        className="form-input" 
-                        value={cDuration}
-                        onChange={(e) => setCDuration(e.target.value)}
-                      />
+                      <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                        <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 700 }}>🎯 Modalidad de Programación</label>
+                        <div style={{ display: 'flex', gap: '2rem' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                            <input 
+                              type="radio" 
+                              name="c_modality" 
+                              value="scheduled" 
+                              checked={cModality === 'scheduled'} 
+                              onChange={() => setCModality('scheduled')}
+                              style={{ accentColor: 'var(--accent-color)', width: '16px', height: '16px' }}
+                            />
+                            Programado (Fechas pactadas)
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                            <input 
+                              type="radio" 
+                              name="c_modality" 
+                              value="immediate" 
+                              checked={cModality === 'immediate'} 
+                              onChange={() => setCModality('immediate')}
+                              style={{ accentColor: 'var(--accent-color)', width: '16px', height: '16px' }}
+                            />
+                            Inicio Inmediato (Se activa hoy)
+                          </label>
+                        </div>
+                      </div>
+
+                      {cModality === 'scheduled' ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                          <div className="form-group">
+                            <label className="form-label">📅 Fecha de Inicio (Apertura)</label>
+                            <input 
+                              type="date" 
+                              className="form-input" 
+                              value={cStartDate}
+                              onChange={(e) => setCStartDate(e.target.value)}
+                              required
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">🏁 Fecha de Finalización</label>
+                            <input 
+                              type="date" 
+                              className="form-input" 
+                              value={cEndDate}
+                              onChange={(e) => setCEndDate(e.target.value)}
+                              required
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                          <div className="form-group">
+                            <label className="form-label">⏳ Límite de Inscripción</label>
+                            <input 
+                              type="date" 
+                              className="form-input" 
+                              value={cEnrollmentDeadline}
+                              onChange={(e) => setCEnrollmentDeadline(e.target.value)}
+                              required
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">🏁 Fecha de Finalización (Opcional)</label>
+                            <input 
+                              type="date" 
+                              className="form-input" 
+                              value={cEndDate}
+                              onChange={(e) => setCEndDate(e.target.value)}
+                              placeholder="Ej: dd/mm/aaaa"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="form-group">
+                        <label className="form-label">Duración Estimada</label>
+                        <input 
+                          type="text" 
+                          placeholder="Ej: 15 días" 
+                          className="form-input" 
+                          value={cDuration}
+                          onChange={(e) => setCDuration(e.target.value)}
+                        />
+                      </div>
+
+                      <button type="submit" className="btn btn-primary" style={{ marginTop: '1.5rem' }}>
+                        Lanzar Reto a la Empresa
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Vista Previa Interactiva */}
+                  <div style={{ position: 'sticky', top: '2rem' }}>
+                    <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', fontFamily: 'Outfit', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      👁️ Vista Previa en Tiempo Real
+                    </h3>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+                      Así es como los colaboradores verán la tarjeta del reto en su panel de control.
+                    </p>
+                    
+                    <div className="challenge-card" style={{ margin: 0, opacity: 0.95, transform: 'scale(1)', boxShadow: 'var(--shadow-md)', backgroundColor: 'white' }}>
+                      <div className="challenge-image-container" style={{ height: '160px' }}>
+                        <span style={{ fontSize: '3.5rem' }}>{cIcon || '🏆'}</span>
+                        <div style={{ display: 'flex', gap: '0.35rem', position: 'absolute', top: '0.75rem', left: '0.75rem', zIndex: 2 }}>
+                          <span className="challenge-badge" style={{ backgroundColor: 'var(--sky-bg)', color: 'var(--sky-dark)' }}>
+                            {cModality === 'scheduled' ? '📅 Programado' : '⚡ Inicio Inmediato'}
+                          </span>
+                        </div>
+                        <span className="challenge-points-badge">
+                          🪙 +{cPoints || '0'} pts
+                        </span>
+                      </div>
+                      
+                      <div className="challenge-content">
+                        <h4 className="challenge-title">{cTitle || 'Título del reto'}</h4>
+                        <p className="challenge-desc" style={{ marginBottom: '0.5rem', minHeight: '40px' }}>
+                          {cDesc || 'Aquí aparecerán las instrucciones del reto para los colaboradores...'}
+                        </p>
+                        
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '1.25rem', fontWeight: 500 }}>
+                          🗓️ Vigencia: <strong>
+                            {cModality === 'scheduled' 
+                              ? `${cStartDate ? formatDate(cStartDate) : 'dd/mm/aaaa'} al ${cEndDate ? formatDate(cEndDate) : 'dd/mm/aaaa'}` 
+                              : `Desde hoy ${cEnrollmentDeadline ? `(Límite de inscripción: ${formatDate(cEnrollmentDeadline)})` : ''}`
+                            }
+                          </strong>
+                        </div>
+                        
+                        <div className="challenge-progress-bar" style={{ marginBottom: '0.75rem' }}>
+                          <div className="challenge-progress-fill" style={{ width: '0%', backgroundColor: 'var(--sky-accent)' }} />
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Meta:</span>
+                          <span style={{ fontWeight: 700 }}>
+                            {cIsDaily 
+                              ? `${cTarget || '0'} ${cUnit}/día` 
+                              : `${cTarget || '0'} ${cUnit}`
+                            }
+                          </span>
+                        </div>
+                      </div>
                     </div>
-
-                    <button type="submit" className="btn btn-primary" style={{ marginTop: '1.5rem' }}>
-                      Lanzar Reto a la Empresa
-                    </button>
-                  </form>
+                  </div>
                 </div>
               </div>
             )}
@@ -5579,7 +5692,9 @@ function App() {
                     }
                   }
                   
-                  const targetPerDay = Math.round(selectedProgressChallenge.target / totalDays);
+                  const targetPerDay = selectedProgressChallenge.is_daily && selectedProgressChallenge.daily_target
+                    ? selectedProgressChallenge.daily_target
+                    : Math.round(selectedProgressChallenge.target / totalDays);
                   
                   // Recuento de días donde se cumplió la meta
                   const completedDaysCount = challengeDailyBreakdown.filter(day => day.steps >= targetPerDay).length;
@@ -5608,7 +5723,9 @@ function App() {
                         
                         {/* Card 2: Meta Diaria */}
                         <div style={{ backgroundColor: 'var(--bg-app)', padding: '0.85rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-                          <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Meta Diaria (Ref.)</span>
+                          <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
+                            {selectedProgressChallenge.is_daily ? 'Meta Diaria' : 'Meta Diaria (Ref.)'}
+                          </span>
                           <span style={{ display: 'block', fontSize: '1.1rem', fontWeight: 700, color: 'var(--sky-dark)' }}>
                             {targetPerDay.toLocaleString()}
                           </span>
