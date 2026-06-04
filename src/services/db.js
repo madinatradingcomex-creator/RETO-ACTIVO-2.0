@@ -1,6 +1,12 @@
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
+export const getLocalDateString = (date = new Date()) => {
+  const offset = date.getTimezoneOffset();
+  const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+  return localDate.toISOString().split('T')[0];
+};
+
 // --- MOCKS INITIAL DATA FOR SEEDING ---
 const INITIAL_PRESET_USERS = [
   {
@@ -419,7 +425,7 @@ export const dbService = {
       const challenge = cSnap.data();
 
       // Restrict enrollment after the challenge has started or deadline has passed
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getLocalDateString();
       if (challenge.modality === 'immediate') {
         if (challenge.enrollment_deadline && todayStr > challenge.enrollment_deadline) {
           return { error: `Inscripción cerrada. El límite para anotarse era el ${challenge.enrollment_deadline.split('-').reverse().join('/')}.` };
@@ -463,7 +469,7 @@ export const dbService = {
       const challengeObj = cSnap.data();
 
       // Check date constraints for logging progress
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getLocalDateString();
       if (challengeObj.modality !== 'immediate' && challengeObj.start_date && todayStr < challengeObj.start_date) {
         return { error: `El reto inicia el ${challengeObj.start_date.split('-').reverse().join('/')}. Aún no puedes registrar progreso.` };
       }
@@ -886,7 +892,7 @@ export const dbService = {
       for (let i = 6; i >= 0; i--) {
         const d = new Date();
         d.setDate(d.getDate() - i);
-        dates.push(d.toISOString().split('T')[0]);
+        dates.push(getLocalDateString(d));
       }
 
       const q = query(

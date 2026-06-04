@@ -38,6 +38,12 @@ import {
 } from 'lucide-react';
 import { dbService } from './services/db';
 
+export const getLocalDateString = (date = new Date()) => {
+  const offset = date.getTimezoneOffset();
+  const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+  return localDate.toISOString().split('T')[0];
+};
+
 const AVATAR_OPTIONS = [
   'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f436.svg', // Perro
   'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f431.svg', // Gato
@@ -836,7 +842,7 @@ function App() {
       return;
     }
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     let finalStartDate = '';
     let finalEndDate = '';
     let finalEnrollmentDeadline = '';
@@ -1269,8 +1275,8 @@ function App() {
       const list = [];
       const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
       
-      const startStr = challenge.start_date || new Date().toISOString().split('T')[0];
-      const todayStr = new Date().toISOString().split('T')[0];
+      const startStr = challenge.start_date || getLocalDateString();
+      const todayStr = getLocalDateString();
       let endStr = challenge.end_date || todayStr;
       if (endStr > todayStr) {
         endStr = todayStr; // Only show up to today
@@ -2040,7 +2046,7 @@ function App() {
 
   const getGracePeriodStatus = (challenge) => {
     if (!challenge.end_date) return { isEnded: false, isInGrace: false };
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     const isEnded = todayStr > challenge.end_date;
     
     if (!isEnded) return { isEnded: false, isInGrace: false };
@@ -2772,7 +2778,7 @@ function App() {
                           const myIndex = rankings.findIndex(r => r.user_id === currentUser.id);
                           const myRank = myIndex !== -1 ? myIndex + 1 : null;
 
-                          const todayStr = new Date().toISOString().split('T')[0];
+                          const todayStr = getLocalDateString();
                           const isNotStarted = challenge.start_date && todayStr < challenge.start_date;
                           const { isEnded, isInGrace } = getGracePeriodStatus(challenge);
                           
@@ -2943,7 +2949,7 @@ function App() {
                       const theme = getCategoryTheme(c.category);
                       const progressPercent = enrollment ? Math.min((enrollment.progress / c.target) * 100, 100) : 0;
 
-                      const todayStr = new Date().toISOString().split('T')[0];
+                      const todayStr = getLocalDateString();
                       const isNotStarted = c.modality !== 'immediate' && c.start_date && todayStr < c.start_date;
                       const { isEnded, isInGrace } = getGracePeriodStatus(c);
                       const isEnrollmentClosed = c.modality === 'immediate'
@@ -3303,7 +3309,7 @@ function App() {
                                       const userEnrollments = allUserChallenges.filter(uc => uc.user_id === p.id);
                                       if (userEnrollments.length === 0) return null;
                                       
-                                      const todayStr = new Date().toISOString().split('T')[0];
+                                      const todayStr = getLocalDateString();
                                       
                                       return (
                                         <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
@@ -3622,7 +3628,7 @@ function App() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         {challenges
                           .filter(c => {
-                            const todayStr = new Date().toISOString().split('T')[0];
+                            const todayStr = getLocalDateString();
                             const isNotStarted = c.modality !== 'immediate' && c.start_date && todayStr < c.start_date;
                             const isEnded = c.end_date && todayStr > c.end_date;
                             const isActive = !isNotStarted && !isEnded;
@@ -3633,7 +3639,7 @@ function App() {
                             return true;
                           })
                           .map(c => {
-                            const todayStr = new Date().toISOString().split('T')[0];
+                            const todayStr = getLocalDateString();
                             const isNotStarted = c.modality !== 'immediate' && c.start_date && todayStr < c.start_date;
                             const isEnded = c.end_date && todayStr > c.end_date;
                             
@@ -3881,7 +3887,7 @@ function App() {
                             const percent = Math.min((p.progress / adminSelectedChallenge.target) * 100, 100);
                             const isCompleted = p.status === 'completed' || percent >= 100;
                             
-                            const todayStr = new Date().toISOString().split('T')[0];
+                            const todayStr = getLocalDateString();
                             const isNotStarted = adminSelectedChallenge.modality !== 'immediate' && adminSelectedChallenge.start_date && todayStr < adminSelectedChallenge.start_date;
                             const isEnded = adminSelectedChallenge.end_date && todayStr > adminSelectedChallenge.end_date;
 
