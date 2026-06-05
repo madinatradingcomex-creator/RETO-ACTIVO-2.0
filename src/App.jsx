@@ -279,7 +279,7 @@ function App() {
 
   // Search and Filters
   const [leaderboardSearch, setLeaderboardSearch] = useState('');
-  const [challengesFilter, setChallengesFilter] = useState('all');
+  const [challengesFilter, setChallengesFilter] = useState('available');
   const [rewardsFilter, setRewardsFilter] = useState('Todos');
   
   // Full screen preview of evidences
@@ -2996,7 +2996,7 @@ function App() {
                 </header>
 
                 <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
-                  {['all', 'available', 'active', 'completed'].map(f => (
+                  {['available', 'active', 'completed', 'all'].map(f => (
                     <button 
                       key={f}
                       className={`btn ${challengesFilter === f ? 'btn-primary' : 'btn-secondary'}`}
