@@ -3012,7 +3012,14 @@ function App() {
                   {challenges
                     .filter(c => {
                       const enrollment = userChallenges.find(uc => uc.challenge_id === c.id);
-                      if (challengesFilter === 'available') return !enrollment;
+                      if (challengesFilter === 'available') {
+                        if (enrollment) return false;
+                        const todayStr = getLocalDateString();
+                        const isEnrollmentClosed = c.modality === 'immediate'
+                          ? (c.enrollment_deadline && todayStr > c.enrollment_deadline)
+                          : (c.start_date && todayStr >= c.start_date);
+                        return !isEnrollmentClosed;
+                      }
                       if (challengesFilter === 'active') return enrollment && enrollment.status === 'active';
                       if (challengesFilter === 'completed') return enrollment && enrollment.status === 'completed';
                       return true;
