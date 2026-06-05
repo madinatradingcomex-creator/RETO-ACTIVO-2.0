@@ -235,6 +235,16 @@ function App() {
   const [editProgressValue, setEditProgressValue] = useState('');
   const [isSavingProgress, setIsSavingProgress] = useState(false);
 
+  // Edit Stats Modal and settings
+  const [showEditStatsModal, setShowEditStatsModal] = useState(false);
+  const [selectedStatCard, setSelectedStatCard] = useState(1);
+  const [statCardTitle, setStatCardTitle] = useState('');
+  const [statCardValue, setStatCardValue] = useState('');
+  const [statCardFooter, setStatCardFooter] = useState('');
+  const [statCardOverride, setStatCardOverride] = useState(false);
+  const [isSavingStatsSettings, setIsSavingStatsSettings] = useState(false);
+  const [isResettingDatabase, setIsResettingDatabase] = useState(false);
+
   // Avatar edit modal
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [isSavingAvatar, setIsSavingAvatar] = useState(false);
@@ -1155,6 +1165,107 @@ function App() {
     } catch (err) {
       console.error(err);
       showToastMessage("Error al cambiar el estado del reto.", "error");
+    }
+  };
+
+  const handleOpenEditStatsModal = (cardNum) => {
+    setSelectedStatCard(cardNum);
+    const stats = companyStats;
+    if (cardNum === 1) {
+      setStatCardTitle(stats.card_1_title);
+      setStatCardValue(stats.settings?.card_1_override ? stats.settings.card_1_value : stats.totalCompanySteps.toLocaleString());
+      setStatCardFooter(stats.card_1_footer);
+      setStatCardOverride(!!stats.settings?.card_1_override);
+    } else if (cardNum === 2) {
+      setStatCardTitle(stats.card_2_title);
+      setStatCardValue(stats.settings?.card_2_override ? stats.settings.card_2_value : `${stats.participationPercentage}%`);
+      setStatCardFooter(stats.card_2_footer);
+      setStatCardOverride(!!stats.settings?.card_2_override);
+    } else if (cardNum === 3) {
+      setStatCardTitle(stats.card_3_title);
+      setStatCardValue(stats.settings?.card_3_override ? stats.settings.card_3_value : `${stats.totalPointsAwarded} pts`);
+      setStatCardFooter(stats.card_3_footer);
+      setStatCardOverride(!!stats.settings?.card_3_override);
+    } else if (cardNum === 4) {
+      setStatCardTitle(stats.card_4_title);
+      setStatCardValue(stats.settings?.card_4_override ? stats.settings.card_4_value : stats.totalEmployeesCount.toString());
+      setStatCardFooter(stats.card_4_footer);
+      setStatCardOverride(!!stats.settings?.card_4_override);
+    }
+    setShowEditStatsModal(true);
+  };
+
+  const handleSaveStatsSettings = async (e) => {
+    e.preventDefault();
+    if (!statCardTitle.trim() || !statCardFooter.trim()) {
+      showToastMessage("Por favor ingresa un título y descripción válidos.", "error");
+      return;
+    }
+
+    setIsSavingStatsSettings(true);
+    try {
+      const currentSettings = companyStats.settings || {};
+      const updatedSettings = {
+        ...currentSettings,
+        [`card_${selectedStatCard}_title`]: statCardTitle,
+        [`card_${selectedStatCard}_footer`]: statCardFooter,
+        [`card_${selectedStatCard}_value`]: statCardValue,
+        [`card_${selectedStatCard}_override`]: statCardOverride
+      };
+
+      const res = await dbService.saveDashboardStatsSettings(updatedSettings);
+      if (res && res.error) {
+        showToastMessage(res.error, "error");
+        return;
+      }
+
+      await loadViewData(currentUser);
+      showToastMessage("✏️ Tarjeta de métrica actualizada correctamente.");
+      setShowEditStatsModal(false);
+    } catch(err) {
+      console.error(err);
+      showToastMessage("Error al guardar la configuración.", "error");
+    } finally {
+      setIsSavingStatsSettings(false);
+    }
+  };
+
+  const handleResetDatabase = async () => {
+    const confirmReset = window.confirm(
+      "⚠️ ¡ATENCIÓN: RESET COMPLETO DE DATOS DE PRUEBA!\n\n" +
+      "Esta acción restablecerá a CERO el progreso de todos los colaboradores:\n" +
+      "- Puntos acumulados de colaboradores ➔ 0\n" +
+      "- Historial de pasos diarios ➔ 0\n" +
+      "- Se eliminarán todas las evidencias cargadas\n" +
+      "- Se cancelarán todas las inscripciones a retos\n" +
+      "- Se eliminará el historial de cupones canjeados\n\n" +
+      "¿Estás seguro de que deseas volver todo a cero para iniciar las pruebas desde cero?"
+    );
+    if (!confirmReset) return;
+
+    const confirmResetDouble = window.confirm(
+      "🔒 CONFIRMACIÓN ADICIONAL:\n\n" +
+      "Esta acción es irreversible y borrará todo el progreso de los colaboradores en la base de datos.\n" +
+      "¿Deseas proceder con el reset completo?"
+    );
+    if (!confirmResetDouble) return;
+
+    setIsResettingDatabase(true);
+    try {
+      const res = await dbService.resetDatabaseData();
+      if (res && res.error) {
+        showToastMessage(res.error, "error");
+        return;
+      }
+
+      await loadViewData(currentUser);
+      showToastMessage("💥 Base de datos y métricas restablecidas a cero. ¡Listo para comenzar la prueba! 🌱");
+      setShowEditStatsModal(false);
+    } catch(err) {
+      console.error(err);
+      showToastMessage("Error al restablecer la base de datos.", "error");
+    } finally {
+      setIsResettingDatabase(false);
     }
   };
 
@@ -3741,48 +3852,48 @@ function App() {
                 </header>
 
                 <section className="stats-grid">
-                  <div className="stat-card">
+                  <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => handleOpenEditStatsModal(1)} title="Haga clic para editar la tarjeta">
                     <div className="stat-header">
-                      <span className="stat-title">Movilidad Total Acme</span>
+                      <span className="stat-title">{companyStats.card_1_title}</span>
                       <div className="stat-icon-wrapper" style={{ backgroundColor: 'var(--sky-bg)', color: 'var(--sky-accent)' }}>
                         <Footprints size={20} />
                       </div>
                     </div>
-                    <div className="stat-value">{companyStats.totalCompanySteps.toLocaleString()}</div>
-                    <div className="stat-footer">Pasos acumulados por empleados</div>
+                    <div className="stat-value">{companyStats.card_1_val_display}</div>
+                    <div className="stat-footer">{companyStats.card_1_footer}</div>
                   </div>
 
-                  <div className="stat-card">
+                  <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => handleOpenEditStatsModal(2)} title="Haga clic para editar la tarjeta">
                     <div className="stat-header">
-                      <span className="stat-title">Índice de Participación</span>
+                      <span className="stat-title">{companyStats.card_2_title}</span>
                       <div className="stat-icon-wrapper" style={{ backgroundColor: 'var(--mint-bg)', color: 'var(--mint-accent)' }}>
                         <CheckCircle2 size={20} />
                       </div>
                     </div>
-                    <div className="stat-value">{companyStats.participationPercentage}%</div>
-                    <div className="stat-footer">Colaboradores con retos activos</div>
+                    <div className="stat-value">{companyStats.card_2_val_display}</div>
+                    <div className="stat-footer">{companyStats.card_2_footer}</div>
                   </div>
 
-                  <div className="stat-card">
+                  <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => handleOpenEditStatsModal(3)} title="Haga clic para editar la tarjeta">
                     <div className="stat-header">
-                      <span className="stat-title">Puntos Otorgados</span>
+                      <span className="stat-title">{companyStats.card_3_title}</span>
                       <div className="stat-icon-wrapper" style={{ backgroundColor: 'var(--lavender-bg)', color: 'var(--lavender-accent)' }}>
                         <Sparkles size={20} style={{ fill: 'var(--lavender-accent)' }} />
                       </div>
                     </div>
-                    <div className="stat-value">{companyStats.totalPointsAwarded} pts</div>
-                    <div className="stat-footer">Premio al esfuerzo acumulado</div>
+                    <div className="stat-value">{companyStats.card_3_val_display}</div>
+                    <div className="stat-footer">{companyStats.card_3_footer}</div>
                   </div>
 
-                  <div className="stat-card">
+                  <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => handleOpenEditStatsModal(4)} title="Haga clic para editar la tarjeta">
                     <div className="stat-header">
-                      <span className="stat-title">Plantilla Registrada</span>
+                      <span className="stat-title">{companyStats.card_4_title}</span>
                       <div className="stat-icon-wrapper" style={{ backgroundColor: 'var(--coral-bg)', color: 'var(--coral-accent)' }}>
                         <User size={20} />
                       </div>
                     </div>
-                    <div className="stat-value">{companyStats.totalEmployeesCount}</div>
-                    <div className="stat-footer">Colaboradores activos</div>
+                    <div className="stat-value">{companyStats.card_4_val_display}</div>
+                    <div className="stat-footer">{companyStats.card_4_footer}</div>
                   </div>
                 </section>
 
@@ -5602,6 +5713,113 @@ function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDITAR METRICAS Y RESETEAR BASE DE DATOS */}
+      {showEditStatsModal && (
+        <div className="modal-overlay" onClick={() => setShowEditStatsModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px', width: '90%' }}>
+            <div className="modal-header">
+              <h3>✏️ Editar Tarjeta de Métrica #{selectedStatCard}</h3>
+              <button className="close-btn" onClick={() => setShowEditStatsModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveStatsSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginTop: '1rem' }}>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>Título de la Tarjeta</label>
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  value={statCardTitle} 
+                  onChange={(e) => setStatCardTitle(e.target.value)} 
+                  required 
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>Descripción / Pie de Tarjeta</label>
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  value={statCardFooter} 
+                  onChange={(e) => setStatCardFooter(e.target.value)} 
+                  required 
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', backgroundColor: 'var(--bg-app)', padding: '1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input 
+                    type="checkbox" 
+                    id="statCardOverrideCheckbox"
+                    checked={statCardOverride} 
+                    onChange={(e) => setStatCardOverride(e.target.checked)} 
+                  />
+                  <label htmlFor="statCardOverrideCheckbox" style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer' }}>
+                    Sobrescribir Valor Automático
+                  </label>
+                </div>
+
+                {statCardOverride && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.5rem' }}>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-muted)' }}>Valor Personalizado a Mostrar</label>
+                    <input 
+                      type="text" 
+                      className="form-control" 
+                      value={statCardValue} 
+                      onChange={(e) => setStatCardValue(e.target.value)} 
+                      required={statCardOverride}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowEditStatsModal(false)} style={{ flex: 1 }}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={isSavingStatsSettings} style={{ flex: 1 }}>
+                  {isSavingStatsSettings ? 'Guardando...' : 'Guardar Tarjeta'}
+                </button>
+              </div>
+            </form>
+
+            <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '1.75rem 0' }} />
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--coral-dark)', margin: 0 }}>
+                ⚙️ Zona de Control de Pruebas
+              </h4>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0, lineHeight: '1.4' }}>
+                Si deseas iniciar las pruebas de bienestar desde cero (restableciendo a cero los puntos, pasos e inscripciones de colaboradores para simular un inicio limpio):
+              </p>
+              <button
+                type="button"
+                className="btn"
+                onClick={handleResetDatabase}
+                disabled={isResettingDatabase}
+                style={{
+                  backgroundColor: 'var(--coral-bg)',
+                  color: 'var(--coral-dark)',
+                  border: '1px solid rgba(252, 139, 114, 0.3)',
+                  fontWeight: 700,
+                  padding: '0.6rem 1rem',
+                  fontSize: '0.82rem',
+                  cursor: 'pointer'
+                }}
+              >
+                {isResettingDatabase ? 'Restableciendo...' : '💥 Resetear todos los datos de prueba a cero'}
+              </button>
+            </div>
+
           </div>
         </div>
       )}

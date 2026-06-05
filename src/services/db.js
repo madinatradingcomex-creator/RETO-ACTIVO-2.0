@@ -849,10 +849,66 @@ export const dbService = {
         name, steps: deptStats[name].steps, points: deptStats[name].points, avgSteps: Math.round(deptStats[name].steps / (deptStats[name].members || 1))
       }));
 
-      const stats = { totalCompanySteps, participationPercentage, totalPointsAwarded, deptChartData, totalEmployeesCount };
+      let settings = null;
+      try {
+        const dSnap = await getDoc(doc(db, 'settings', 'dashboard_stats'));
+        if (dSnap.exists()) {
+          settings = dSnap.data();
+        }
+      } catch(e) {
+        console.error("Error loading stats overrides settings:", e);
+      }
+
+      const stats = { 
+        totalCompanySteps, 
+        participationPercentage, 
+        totalPointsAwarded, 
+        deptChartData, 
+        totalEmployeesCount,
+        card_1_title: settings?.card_1_title || "Movilidad Total Acme",
+        card_1_footer: settings?.card_1_footer || "Pasos acumulados por empleados",
+        card_1_val_display: settings?.card_1_override ? settings.card_1_value : totalCompanySteps.toLocaleString(),
+        
+        card_2_title: settings?.card_2_title || "Índice de Participación",
+        card_2_footer: settings?.card_2_footer || "Colaboradores con retos activos",
+        card_2_val_display: settings?.card_2_override ? settings.card_2_value : `${participationPercentage}%`,
+        
+        card_3_title: settings?.card_3_title || "Puntos Otorgados",
+        card_3_footer: settings?.card_3_footer || "Premio al esfuerzo acumulado",
+        card_3_val_display: settings?.card_3_override ? settings.card_3_value : `${totalPointsAwarded} pts`,
+        
+        card_4_title: settings?.card_4_title || "Plantilla Registrada",
+        card_4_footer: settings?.card_4_footer || "Colaboradores activos",
+        card_4_val_display: settings?.card_4_override ? settings.card_4_value : totalEmployeesCount.toString(),
+        
+        settings: settings || {}
+      };
+      
       setCachedData('company_stats', stats);
       return stats;
-    } catch(err) { console.error(err); return { totalCompanySteps: 0, participationPercentage: 0, totalPointsAwarded: 0, deptChartData: [], totalEmployeesCount: 1 }; }
+    } catch(err) { 
+      console.error(err); 
+      return { 
+        totalCompanySteps: 0, 
+        participationPercentage: 0, 
+        totalPointsAwarded: 0, 
+        deptChartData: [], 
+        totalEmployeesCount: 1,
+        card_1_title: "Movilidad Total Acme",
+        card_1_footer: "Pasos acumulados por empleados",
+        card_1_val_display: "0",
+        card_2_title: "Índice de Participación",
+        card_2_footer: "Colaboradores con retos activos",
+        card_2_val_display: "0%",
+        card_3_title: "Puntos Otorgados",
+        card_3_footer: "Premio al esfuerzo acumulado",
+        card_3_val_display: "0 pts",
+        card_4_title: "Plantilla Registrada",
+        card_4_footer: "Colaboradores activos",
+        card_4_val_display: "0",
+        settings: {}
+      }; 
+    }
   },
 
   // --- GOOGLE FIT INTEGRATION ---
@@ -1313,6 +1369,79 @@ export const dbService = {
       return { success: true };
     } catch(err) {
       console.error("Error resetting password:", err);
+      return { error: err.message };
+    }
+  },
+  async getDashboardStatsSettings() {
+    try {
+      const dRef = doc(db, 'settings', 'dashboard_stats');
+      const dSnap = await getDoc(dRef);
+      if (dSnap.exists()) return dSnap.data();
+      return null;
+    } catch(err) {
+      console.error("Error fetching dashboard stats settings:", err);
+      return null;
+    }
+  },
+  async saveDashboardStatsSettings(settings) {
+    try {
+      const dRef = doc(db, 'settings', 'dashboard_stats');
+      await setDoc(dRef, settings);
+      clearCache();
+      return { success: true };
+    } catch(err) {
+      console.error("Error saving dashboard stats settings:", err);
+      return { error: err.message };
+    }
+  },
+  async resetDatabaseData() {
+    try {
+      const usersSnap = await getDocs(collection(db, 'usuarios'));
+      for (const d of usersSnap.docs) {
+        const userData = d.data();
+        if (userData.role !== 'company') {
+          const userRef = doc(db, 'usuarios', d.id);
+          await updateDoc(userRef, {
+            points: 0,
+            streak: 0,
+            daily_steps_history: [0, 0, 0, 0, 0, 0, 0],
+            last_sync: null,
+            last_login: null
+          });
+        }
+      }
+
+      const ucSnap = await getDocs(collection(db, 'user_challenges'));
+      for (const d of ucSnap.docs) {
+        await deleteDoc(doc(db, 'user_challenges', d.id));
+      }
+
+      const evSnap = await getDocs(collection(db, 'evidencias'));
+      for (const d of evSnap.docs) {
+        await deleteDoc(doc(db, 'evidencias', d.id));
+      }
+
+      const rrSnap = await getDocs(collection(db, 'redeemed_rewards'));
+      for (const d of rrSnap.docs) {
+        await deleteDoc(doc(db, 'redeemed_rewards', d.id));
+      }
+
+      const retosSnap = await getDocs(collection(db, 'retos'));
+      for (const d of retosSnap.docs) {
+        const retoRef = doc(db, 'retos', d.id);
+        await updateDoc(retoRef, {
+          participantsCount: 0
+        });
+      }
+
+      try {
+        await deleteDoc(doc(db, 'settings', 'dashboard_stats'));
+      } catch(e) {}
+
+      clearCache();
+      return { success: true };
+    } catch(err) {
+      console.error("Error resetting database:", err);
       return { error: err.message };
     }
   }
