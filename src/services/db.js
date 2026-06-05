@@ -506,6 +506,10 @@ export const dbService = {
       if (!cSnap.exists()) return { error: "Reto no encontrado." };
       const challengeObj = cSnap.data();
 
+      if (challengeObj.status === 'inactive') {
+        return { error: "El reto está inactivo o pausado por el administrador." };
+      }
+
       // Check date constraints for logging progress
       const todayStr = getLocalDateString();
       if (challengeObj.modality !== 'immediate' && challengeObj.start_date && todayStr < challengeObj.start_date) {
@@ -1220,6 +1224,19 @@ export const dbService = {
       return { success: true };
     } catch(err) {
       console.error("Error updating challenge details:", err);
+      return { error: err.message };
+    }
+  },
+  async updateChallengeStatus(challengeId, newStatus) {
+    try {
+      const ref = doc(db, 'retos', challengeId);
+      await updateDoc(ref, {
+        status: newStatus
+      });
+      clearCache();
+      return { success: true };
+    } catch(err) {
+      console.error("Error updating challenge status:", err);
       return { error: err.message };
     }
   },

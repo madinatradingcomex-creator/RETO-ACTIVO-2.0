@@ -1129,6 +1129,35 @@ function App() {
     setShowEditChallengeModal(false);
   };
 
+  const handleToggleChallengeStatus = async (challenge) => {
+    const currentStatus = challenge.status || 'active';
+    const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+    const statusText = newStatus === 'active' ? 'activado (En Actividad)' : 'desactivado (Fuera de Actividad)';
+    
+    const confirmChange = window.confirm(`¿Estás seguro de que deseas cambiar el estado de "${challenge.title}" a ${statusText}?`);
+    if (!confirmChange) return;
+
+    try {
+      const res = await dbService.updateChallengeStatus(challenge.id, newStatus);
+      if (res && res.error) {
+        showToastMessage(res.error, "error");
+        return;
+      }
+      
+      const updated = {
+        ...challenge,
+        status: newStatus
+      };
+      
+      setAdminSelectedChallenge(updated);
+      await loadViewData(currentUser);
+      showToastMessage(`El reto ahora está ${statusText}.`);
+    } catch (err) {
+      console.error(err);
+      showToastMessage("Error al cambiar el estado del reto.", "error");
+    }
+  };
+
 
   const handleSaveParticipantProgress = async (e) => {
     e.preventDefault();
@@ -2853,9 +2882,15 @@ function App() {
                               <div className="challenge-image-container">
                                 <span style={{ fontSize: '3rem' }}>{challenge.image}</span>
                                 <div style={{ display: 'flex', gap: '0.35rem', position: 'absolute', top: '0.75rem', left: '0.75rem', zIndex: 2 }}>
-                                  <span className="challenge-badge" style={{ backgroundColor: theme.bg, color: theme.text }}>
-                                    En Curso
-                                  </span>
+                                  {challenge.status === 'inactive' ? (
+                                    <span className="challenge-badge" style={{ backgroundColor: 'var(--coral-bg)', color: 'var(--coral-dark)', border: '1px solid rgba(252, 139, 114, 0.25)' }}>
+                                      Pausado
+                                    </span>
+                                  ) : (
+                                    <span className="challenge-badge" style={{ backgroundColor: theme.bg, color: theme.text }}>
+                                      En Curso
+                                    </span>
+                                  )}
                                   {myRank && (
                                     <span className="challenge-badge" style={{ backgroundColor: '#FFF9E6', color: '#B38F00', border: '1px solid rgba(255,215,0,0.25)', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
                                       🏆 #{myRank}
@@ -2938,7 +2973,11 @@ function App() {
                                   </button>
                                 </div>
 
-                                {isNotStarted ? (
+                                {challenge.status === 'inactive' ? (
+                                  <button className="btn btn-disabled" style={{ cursor: 'not-allowed' }} disabled>
+                                    ⏸️ Reto Pausado / Inactivo
+                                  </button>
+                                ) : isNotStarted ? (
                                   <button className="btn btn-secondary" style={{ cursor: 'not-allowed', opacity: 0.6 }} disabled>
                                     ⏳ Inicia el {formatDate(challenge.start_date)}
                                   </button>
@@ -3013,7 +3052,7 @@ function App() {
                     .filter(c => {
                       const enrollment = userChallenges.find(uc => uc.challenge_id === c.id);
                       if (challengesFilter === 'available') {
-                        if (enrollment) return false;
+                        if (enrollment || c.status === 'inactive') return false;
                         const todayStr = getLocalDateString();
                         const isEnrollmentClosed = c.modality === 'immediate'
                           ? (c.enrollment_deadline && todayStr > c.enrollment_deadline)
@@ -3040,7 +3079,11 @@ function App() {
                         <div className="challenge-card" key={c.id}>
                           <div className="challenge-image-container">
                             <span style={{ fontSize: '3.2rem' }}>{c.image}</span>
-                            {enrollment ? (
+                            {c.status === 'inactive' ? (
+                              <span className="challenge-badge" style={{ backgroundColor: 'var(--coral-bg)', color: 'var(--coral-dark)', border: '1px solid rgba(252, 139, 114, 0.25)' }}>
+                                ⏸️ Pausado
+                              </span>
+                            ) : enrollment ? (
                               enrollment.status === 'completed' ? (
                                 <span className="challenge-badge" style={{ backgroundColor: 'var(--mint-bg)', color: 'var(--mint-dark)' }}>
                                   ✓ Completado
@@ -3162,7 +3205,11 @@ function App() {
                               </div>
                             )}
 
-                            {!enrollment ? (
+                            {c.status === 'inactive' ? (
+                              <button className="btn btn-disabled" style={{ cursor: 'not-allowed' }} disabled>
+                                ⏸️ Reto Pausado / Inactivo
+                              </button>
+                            ) : !enrollment ? (
                               isEnrollmentClosed ? (
                                 <button className="btn btn-disabled" style={{ cursor: 'not-allowed' }} disabled>
                                   Inscripción Cerrada (Pasó la fecha límite)
@@ -3762,6 +3809,7 @@ function App() {
                         <option value="active">🟢 En Curso / Activos</option>
                         <option value="scheduled">⏳ Programados</option>
                         <option value="ended">🏁 Finalizados</option>
+                        <option value="inactive">⏸️ Inactivos / Pausados</option>
                       </select>
                     </div>
 
@@ -3777,23 +3825,30 @@ function App() {
                             const todayStr = getLocalDateString();
                             const isNotStarted = c.modality !== 'immediate' && c.start_date && todayStr < c.start_date;
                             const isEnded = c.end_date && todayStr > c.end_date;
-                            const isActive = !isNotStarted && !isEnded;
+                            const isInactive = c.status === 'inactive';
+                            const isActive = !isInactive && !isNotStarted && !isEnded;
                             
                             if (adminChallengesFilter === 'active') return isActive;
-                            if (adminChallengesFilter === 'scheduled') return isNotStarted;
-                            if (adminChallengesFilter === 'ended') return isEnded;
+                            if (adminChallengesFilter === 'scheduled') return !isInactive && isNotStarted;
+                            if (adminChallengesFilter === 'ended') return !isInactive && isEnded;
+                            if (adminChallengesFilter === 'inactive') return isInactive;
                             return true;
                           })
                           .map(c => {
                             const todayStr = getLocalDateString();
                             const isNotStarted = c.modality !== 'immediate' && c.start_date && todayStr < c.start_date;
                             const isEnded = c.end_date && todayStr > c.end_date;
+                            const isInactive = c.status === 'inactive';
                             
                             let statusLabel = "🟢 Activo";
                             let statusBg = "var(--mint-bg)";
                             let statusColor = "var(--mint-dark)";
                             
-                            if (isNotStarted) {
+                            if (isInactive) {
+                              statusLabel = "⏸️ Inactivo";
+                              statusBg = "var(--coral-bg)";
+                              statusColor = "var(--coral-dark)";
+                            } else if (isNotStarted) {
                               statusLabel = "⏳ Programado";
                               statusBg = "#FFF9E6";
                               statusColor = "#B38F00";
@@ -3895,22 +3950,56 @@ function App() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '1rem' }}>
                       <span style={{ fontSize: '3rem' }}>{adminSelectedChallenge.image || '🏆'}</span>
                       <div>
-                        <h1>{adminSelectedChallenge.title}</h1>
+                        <h1 style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                          {adminSelectedChallenge.title}
+                          <span style={{
+                            fontSize: '0.75rem',
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: 'var(--radius-sm, 4px)',
+                            backgroundColor: adminSelectedChallenge.status === 'inactive' ? 'var(--coral-bg)' : 'var(--mint-bg)',
+                            color: adminSelectedChallenge.status === 'inactive' ? 'var(--coral-dark)' : 'var(--mint-dark)',
+                            border: `1px solid ${adminSelectedChallenge.status === 'inactive' ? 'rgba(252, 139, 114, 0.25)' : 'rgba(28, 188, 140, 0.25)'}`,
+                            fontWeight: 600,
+                            lineHeight: '1.2'
+                          }}>
+                            {adminSelectedChallenge.status === 'inactive' ? '⏸️ Fuera de Actividad' : '🟢 En Actividad'}
+                          </span>
+                        </h1>
                         <p style={{ margin: '0.25rem 0 0 0', color: 'var(--text-muted)' }}>
                           {adminSelectedChallenge.description}
                         </p>
-                        <button
-                          onClick={() => {
-                            setEditChallengeTitle(adminSelectedChallenge.title);
-                            setEditChallengeDesc(adminSelectedChallenge.description);
-                            setEditChallengeTarget(adminSelectedChallenge.target);
-                            setShowEditChallengeModal(true);
-                          }}
-                          className="btn btn-secondary"
-                          style={{ marginTop: '0.75rem', padding: '0.25rem 0.5rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem', width: 'fit-content' }}
-                        >
-                          <Edit2 size={12} /> Modificar Detalles
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
+                          <button
+                            onClick={() => {
+                              setEditChallengeTitle(adminSelectedChallenge.title);
+                              setEditChallengeDesc(adminSelectedChallenge.description);
+                              setEditChallengeTarget(adminSelectedChallenge.target);
+                              setShowEditChallengeModal(true);
+                            }}
+                            className="btn btn-secondary"
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem', width: 'fit-content' }}
+                          >
+                            <Edit2 size={12} /> Modificar Detalles
+                          </button>
+                          <button
+                            onClick={() => handleToggleChallengeStatus(adminSelectedChallenge)}
+                            className="btn"
+                            style={{
+                              padding: '0.25rem 0.5rem',
+                              fontSize: '0.8rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              width: 'fit-content',
+                              backgroundColor: adminSelectedChallenge.status === 'inactive' ? 'var(--mint-bg)' : 'var(--coral-bg)',
+                              color: adminSelectedChallenge.status === 'inactive' ? 'var(--mint-dark)' : 'var(--coral-dark)',
+                              border: `1px solid ${adminSelectedChallenge.status === 'inactive' ? 'rgba(28, 188, 140, 0.3)' : 'rgba(252, 139, 114, 0.3)'}`,
+                              fontWeight: 600
+                            }}
+                          >
+                            {adminSelectedChallenge.status === 'inactive' ? '🟢 Activar Reto' : '⏸️ Desactivar Reto'}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
