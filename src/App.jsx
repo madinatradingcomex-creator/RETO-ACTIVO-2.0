@@ -182,6 +182,20 @@ function App() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
 
+  // Profile Edit States
+  const [profileName, setProfileName] = useState('');
+  const [profileLastname, setProfileLastname] = useState('');
+  const [profileDept, setProfileDept] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  useEffect(() => {
+    if (currentUser) {
+      setProfileName(currentUser.name || '');
+      setProfileLastname(currentUser.lastname || '');
+      setProfileDept(currentUser.department || '');
+    }
+  }, [currentUser]);
+
 
   // Forms - Admin Create Challenge
   const [cTitle, setCTitle] = useState('');
@@ -989,6 +1003,39 @@ function App() {
     showToastMessage("🖼️ Avatar actualizado correctamente.");
     setCurrentUser(prev => ({ ...prev, avatar: avatarUrl }));
     setShowAvatarModal(false);
+  };
+
+  const handleUpdateProfileData = async (e) => {
+    e.preventDefault();
+    if (!profileName.trim() || !profileLastname.trim()) {
+      showToastMessage("Nombre y Apellido son obligatorios.", "error");
+      return;
+    }
+    
+    setIsSavingProfile(true);
+    const res = await dbService.updateUserProfile(currentUser.id, profileName, profileLastname, profileDept);
+    setIsSavingProfile(false);
+    
+    if (res.error) {
+      showToastMessage(res.error, "error");
+      return;
+    }
+    
+    showToastMessage("👤 Datos de perfil actualizados correctamente.");
+    setCurrentUser(prev => ({ 
+      ...prev, 
+      name: profileName.trim(), 
+      lastname: profileLastname.trim(), 
+      department: profileDept 
+    }));
+    
+    // Refresh all view data to update rankings and other displays
+    loadViewData({
+      ...currentUser,
+      name: profileName.trim(),
+      lastname: profileLastname.trim(),
+      department: profileDept
+    });
   };
 
   const handleAvatarUpload = (e) => {
@@ -3407,123 +3454,180 @@ function App() {
                       ← Volver al Dashboard
                     </button>
                     <h1>Mi Perfil de Bienestar</h1>
-                    <p>Revisa tus estadísticas globales, logros desbloqueados y cupones de premios canjeados.</p>
+                    <p>Completa tus datos personales, personaliza tu avatar y revisa tus cupones de premios canjeados.</p>
                   </div>
                 </header>
 
-                <div className="profile-hero">
-                  <img src={currentUser.avatar} alt={currentUser.name} className="profile-hero-avatar" />
-                  <div className="profile-hero-details">
-                    <h2>{currentUser.name} {currentUser.lastname || ''}</h2>
-                    <p className="profile-meta-p">
-                      <span>🏢 {currentUser.department}</span>
-                      <span className="profile-meta-dot">•</span>
-                      <span>🏆 {currentUser.level}</span>
-                    </p>
-                    <div className="badge-row">
-                      <span className="badge-pill" style={{ backgroundColor: 'var(--mint-bg)', color: 'var(--mint-dark)' }}>
-                        🔥 {currentUser.streak} días seguidos
-                      </span>
-                      <span className="badge-pill" style={{ backgroundColor: 'var(--sky-bg)', color: 'var(--sky-dark)' }}>
-                        🪙 {currentUser.points} puntos totales
-                      </span>
-                    </div>
-                    <button 
-                      onClick={() => setShowAvatarModal(true)} 
-                      className="btn btn-secondary" 
-                      style={{ marginTop: '1rem', padding: '0.4rem 0.8rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem', width: 'fit-content' }}
-                    >
-                      <Edit2 size={14} />
-                      Cambiar Avatar
-                    </button>
-                  </div>
-                </div>
-
-                <section className="achievements-section">
-                  <h3 style={{ fontSize: '1.3rem', marginBottom: '1.25rem' }}>Mis Logros y Medallas</h3>
-                  <div className="achievements-grid">
-                    <div className="achievement-card">
-                      <div className="achievement-icon">🌱</div>
-                      <h4 className="achievement-title">Primer Paso</h4>
-                      <p className="achievement-desc">Te anotaste a tu primer reto de bienestar corporativo.</p>
-                    </div>
-
-                    <div className="achievement-card">
-                      <div className="achievement-icon">🚴‍♂️</div>
-                      <h4 className="achievement-title">Eco-Movilidad</h4>
-                      <p className="achievement-desc">Completaste un reto de la categoría movilidad activa.</p>
-                    </div>
-
-                    <div className="achievement-card">
-                      <div className="achievement-icon">💧</div>
-                      <h4 className="achievement-title">Súper Hidratado</h4>
-                      <p className="achievement-desc">Registraste al menos 10 litros de agua acumulados.</p>
-                    </div>
-
-                    <div className={`achievement-card ${currentUser.points < 1000 ? 'achievement-locked' : ''}`}>
-                      <div className="achievement-icon">
-                        {currentUser.points < 1000 ? <Lock size={20} style={{ margin: '0 auto 10px', color: 'var(--text-muted)' }} /> : '🌟'}
-                      </div>
-                      <h4 className="achievement-title">Líder Activo</h4>
-                      <p className="achievement-desc">Alcanzaste un total de 1,000 puntos acumulados.</p>
-                    </div>
-                  </div>
-                </section>
-
-                <section>
-                  <h3 style={{ fontSize: '1.3rem', marginBottom: '1.25rem' }}>Mis Cupones y Premios Canjeados</h3>
-                  {redeemedRewards.length === 0 ? (
-                    <div style={{ padding: '2.5rem', textAlign: 'center', backgroundColor: 'white', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
-                      Aún no has canjeado ningún premio. ¡Sigue moviéndote para ganar puntos!
-                    </div>
-                  ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
-                      {redeemedRewards.map(ticket => (
-                        <div 
-                          key={ticket.id} 
-                          style={{ 
-                            backgroundColor: 'white', 
-                            border: '1px solid var(--border-color)', 
-                            borderRadius: 'var(--radius-xl)', 
-                            padding: '1.25rem', 
-                            boxShadow: 'var(--shadow-sm)',
-                            position: 'relative',
-                            overflow: 'hidden'
-                          }}
+                <div className="create-challenge-split" style={{ gap: '2rem' }}>
+                  
+                  {/* Column 1: Profile Card and Form */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', width: '100%' }}>
+                    
+                    <div className="profile-hero" style={{ margin: 0, width: '100%' }}>
+                      <img src={currentUser.avatar} alt={currentUser.name} className="profile-hero-avatar" />
+                      <div className="profile-hero-details">
+                        <h2>{currentUser.name} {currentUser.lastname || ''}</h2>
+                        <p className="profile-meta-p">
+                          <span>🏢 {currentUser.department}</span>
+                          <span className="profile-meta-dot">•</span>
+                          <span>🏆 {currentUser.level}</span>
+                        </p>
+                        <div className="badge-row">
+                          <span className="badge-pill" style={{ backgroundColor: 'var(--mint-bg)', color: 'var(--mint-dark)' }}>
+                            🔥 {currentUser.streak} días seguidos
+                          </span>
+                          <span className="badge-pill" style={{ backgroundColor: 'var(--sky-bg)', color: 'var(--sky-dark)' }}>
+                            🪙 {currentUser.points} puntos totales
+                          </span>
+                        </div>
+                        <button 
+                          onClick={() => setShowAvatarModal(true)} 
+                          className="btn btn-secondary" 
+                          style={{ marginTop: '1rem', padding: '0.4rem 0.8rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem', width: 'fit-content' }}
                         >
-                          <div style={{ position: 'absolute', left: '-10px', top: '50%', transform: 'translateY(-50%)', width: '20px', height: '20px', backgroundColor: 'var(--bg-app)', borderRadius: '50%' }}></div>
-                          <div style={{ position: 'absolute', right: '-10px', top: '50%', transform: 'translateY(-50%)', width: '20px', height: '20px', backgroundColor: 'var(--bg-app)', borderRadius: '50%' }}></div>
-                          
-                          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '1rem' }}>
-                            <span style={{ fontSize: '2.2rem' }}>{ticket.reward_icon}</span>
-                            <div>
-                              <h4 style={{ fontSize: '0.98rem', fontWeight: 700 }}>{ticket.reward_title}</h4>
-                              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                                Canjeado el {new Date(ticket.redeemed_at).toLocaleDateString()}
+                          <Edit2 size={14} />
+                          Cambiar Avatar
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
+                      <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '1.25rem', fontFamily: 'Outfit' }}>
+                        ✏️ Completar / Modificar Mis Datos
+                      </h3>
+                      <form onSubmit={handleUpdateProfileData} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ fontSize: '0.82rem', fontWeight: 600 }}>Nombre</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              value={profileName}
+                              onChange={(e) => setProfileName(e.target.value)}
+                              required
+                            />
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ fontSize: '0.82rem', fontWeight: 600 }}>Apellido</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              value={profileLastname}
+                              onChange={(e) => setProfileLastname(e.target.value)}
+                              required
+                            />
+                          </div>
+                        </div>
+
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '0.82rem', fontWeight: 600 }}>Área / Departamento</label>
+                          <select 
+                            className="form-input" 
+                            value={profileDept}
+                            onChange={(e) => setProfileDept(e.target.value)}
+                          >
+                            <option value="Ventas">Ventas</option>
+                            <option value="Recursos Humanos">Recursos Humanos</option>
+                            <option value="Tecnología">Tecnología</option>
+                            <option value="Marketing">Marketing</option>
+                            <option value="Operaciones">Operaciones</option>
+                            <option value="Administración">Administración</option>
+                            <option value="Diseño">Diseño</option>
+                          </select>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '1rem' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)' }}>Correo Electrónico</label>
+                            <input 
+                              type="email" 
+                              className="form-input" 
+                              value={currentUser.email}
+                              disabled
+                              style={{ backgroundColor: 'var(--bg-app)', cursor: 'not-allowed', color: 'var(--text-muted)' }}
+                            />
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)' }}>Código Empresa</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              value={currentUser.company_code}
+                              disabled
+                              style={{ backgroundColor: 'var(--bg-app)', cursor: 'not-allowed', color: 'var(--text-muted)' }}
+                            />
+                          </div>
+                        </div>
+
+                        <button type="submit" className="btn btn-primary" disabled={isSavingProfile} style={{ marginTop: '0.5rem', width: '100%', justifyContent: 'center' }}>
+                          {isSavingProfile ? 'Guardando Cambios...' : 'Guardar Cambios de Perfil'}
+                        </button>
+                      </form>
+                    </div>
+
+                  </div>
+
+                  {/* Column 2: Redeemed rewards / coupons */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', width: '100%' }}>
+                    <h3 style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--text-main)', margin: 0, fontFamily: 'Outfit' }}>
+                      🎟️ Mis Cupones y Premios Canjeados
+                    </h3>
+                    
+                    {redeemedRewards.length === 0 ? (
+                      <div style={{ padding: '2.5rem', textAlign: 'center', backgroundColor: 'white', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                        Aún no has canjeado ningún premio. ¡Sigue moviéndote para ganar puntos!
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        {redeemedRewards.map(ticket => (
+                          <div 
+                            key={ticket.id} 
+                            style={{ 
+                              backgroundColor: 'white', 
+                              border: '1px solid var(--border-color)', 
+                              borderRadius: 'var(--radius-xl)', 
+                              padding: '1.25rem', 
+                              boxShadow: 'var(--shadow-sm)',
+                              position: 'relative',
+                              overflow: 'hidden'
+                            }}
+                          >
+                            <div style={{ position: 'absolute', left: '-10px', top: '50%', transform: 'translateY(-50%)', width: '20px', height: '20px', backgroundColor: 'var(--bg-app)', borderRadius: '50%' }}></div>
+                            <div style={{ position: 'absolute', right: '-10px', top: '50%', transform: 'translateY(-50%)', width: '20px', height: '20px', backgroundColor: 'var(--bg-app)', borderRadius: '50%' }}></div>
+                            
+                            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '1rem' }}>
+                              <span style={{ fontSize: '2.2rem' }}>{ticket.reward_icon}</span>
+                              <div>
+                                <h4 style={{ fontSize: '0.98rem', fontWeight: 700 }}>{ticket.reward_title}</h4>
+                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                  Canjeado el {new Date(ticket.redeemed_at).toLocaleDateString()}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed var(--border-color)', paddingTop: '0.75rem', fontSize: '0.8rem' }}>
+                              <span style={{ color: 'var(--text-muted)' }}>Código: <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--text-main)' }}>{ticket.id.toUpperCase()}</span></span>
+                              <span 
+                                style={{ 
+                                  marginLeft: 'auto', 
+                                  padding: '0.2rem 0.5rem', 
+                                  borderRadius: '10px', 
+                                  fontWeight: 700,
+                                  backgroundColor: 'var(--mint-bg)',
+                                  color: 'var(--mint-dark)'
+                                }}
+                              >
+                                Listo para retirar
                               </span>
                             </div>
                           </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
-                          <div style={{ display: 'flex', justifyContent: 'between', alignItems: 'center', borderTop: '1px dashed var(--border-color)', paddingTop: '0.75rem', fontSize: '0.8rem' }}>
-                            <span style={{ color: 'var(--text-muted)' }}>Código: <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--text-main)' }}>{ticket.id.toUpperCase()}</span></span>
-                            <span 
-                              style={{ 
-                                marginLeft: 'auto', 
-                                padding: '0.2rem 0.5rem', 
-                                borderRadius: '10px', 
-                                fontWeight: 700,
-                                backgroundColor: 'var(--mint-bg)',
-                                color: 'var(--mint-dark)'
-                              }}
-                            >
-                              Listo para retirar
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </section>
+                </div>
               </div>
             )}
           </>

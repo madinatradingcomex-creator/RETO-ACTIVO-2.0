@@ -1106,6 +1106,29 @@ export const dbService = {
       return { error: err.message };
     }
   },
+  async updateUserProfile(userId, name, lastname, department) {
+    try {
+      const ref = doc(db, 'usuarios', userId);
+      await updateDoc(ref, {
+        name: name.trim(),
+        lastname: lastname.trim(),
+        department
+      });
+      
+      const local = getLocalUser();
+      if (local && local.id === userId) {
+        local.name = name.trim();
+        local.lastname = lastname.trim();
+        local.department = department;
+        setLocalUser(local);
+      }
+      clearCache();
+      return { success: true };
+    } catch(err) {
+      console.error("Error updating user profile:", err);
+      return { error: err.message };
+    }
+  },
   async updateUserAvatar(userId, avatarUrl) {
     try {
       const ref = doc(db, 'usuarios', userId);
