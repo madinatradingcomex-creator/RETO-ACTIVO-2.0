@@ -1878,4 +1878,28 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+.btn-leave-challenge {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--coral-bg);
+  color: var(--coral-dark);
+  border: 1px solid rgba(252, 139, 114, 0.25);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-leave-challenge:hover {
+  background-color: var(--coral-accent);
+  color: white;
+  border-color: var(--coral-accent);
+  transform: scale(1.05);
+}
+
+
 

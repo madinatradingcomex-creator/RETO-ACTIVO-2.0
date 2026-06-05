@@ -756,6 +756,25 @@ function App() {
     showToastMessage(`¡Te has anotado con éxito al reto "${challenge.title}"! 🌱`);
   };
 
+  const handleLeaveChallenge = async (challengeId, challengeTitle) => {
+    const confirmLeave = window.confirm(`¿Estás seguro de que deseas darte de baja de "${challengeTitle}"?\n\n⚠️ ¡Perderás todo tu progreso acumulado en este reto!`);
+    if (!confirmLeave) return;
+
+    try {
+      const res = await dbService.leaveChallenge(currentUser.id, challengeId);
+      if (res && res.error) {
+        showToastMessage(res.error, "error");
+        return;
+      }
+      
+      await loadViewData(currentUser);
+      showToastMessage(`Te has dado de baja del reto "${challengeTitle}".`);
+    } catch (err) {
+      console.error(err);
+      showToastMessage("Error al darse de baja del reto.", "error");
+    }
+  };
+
   const openLogActivityModal = (challenge) => {
     setSelectedChallenge(challenge);
     setLogAmount('');
@@ -2910,6 +2929,13 @@ function App() {
                                   >
                                     🏆 Ver Ranking
                                   </button>
+                                  <button 
+                                    className="btn-leave-challenge" 
+                                    onClick={() => handleLeaveChallenge(challenge.id, challenge.title)}
+                                    title="Darse de baja del reto"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
                                 </div>
 
                                 {isNotStarted ? (
@@ -3116,6 +3142,15 @@ function App() {
                                   >
                                     🏆 Ver Ranking
                                   </button>
+                                  {enrollment.status === 'active' && (
+                                    <button 
+                                      className="btn-leave-challenge" 
+                                      onClick={() => handleLeaveChallenge(c.id, c.title)}
+                                      title="Darse de baja del reto"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  )}
                                 </div>
                               </div>
                             )}

@@ -464,6 +464,34 @@ export const dbService = {
     } catch(err) { console.error(err); return { error: "Error de servidor al inscribirse." }; }
   },
 
+  async leaveChallenge(userId, challengeId) {
+    try {
+      const q = query(collection(db, 'user_challenges'), where('user_id', '==', userId), where('challenge_id', '==', challengeId));
+      const snap = await getDocs(q);
+      
+      if (!snap.empty) {
+        for (const docSnap of snap.docs) {
+          await deleteDoc(doc(db, 'user_challenges', docSnap.id));
+        }
+        
+        const cRef = doc(db, 'retos', challengeId);
+        const cSnap = await getDoc(cRef);
+        if (cSnap.exists()) {
+          const challenge = cSnap.data();
+          const currentCount = challenge.participantsCount || 0;
+          const newCount = Math.max(0, currentCount - 1);
+          await updateDoc(cRef, { participantsCount: newCount });
+        }
+      }
+      
+      clearCache();
+      return await this.getUserChallenges(userId);
+    } catch(err) {
+      console.error("Error al darse de baja del reto:", err);
+      return { error: "Error de servidor al darse de baja del reto." };
+    }
+  },
+
   async logChallengeProgress(userId, challengeId, amount, screenshotFile = null, screenshotUrlMock = '') {
     try {
       const q = query(collection(db, 'user_challenges'), where('user_id', '==', userId), where('challenge_id', '==', challengeId));
