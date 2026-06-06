@@ -310,6 +310,9 @@ function App() {
   const loadViewData = async (userSession) => {
     if (!userSession) return;
     
+    // Always clear cache before loading to ensure fresh data from Firestore
+    dbService.clearCache();
+
     try {
       if (userSession.role === 'company') {
         const [pending, pendingUsrs, stats, activeUsrs, challengesData, rewardsData] = await Promise.all([
@@ -457,7 +460,7 @@ function App() {
         setLandingView(false);
         setActiveTab('dashboard');
         showToastMessage(`¡Acceso correcto! Bienvenido, ${res.user.name} ${res.user.lastname || ''} 🌟`);
-        loadViewData(res.user);
+        await loadViewData(res.user);
         
         // Auto-sync Google Fit in background after login
         triggerAutoGFitSync(res.user);
@@ -503,7 +506,7 @@ function App() {
         setShowMigratePasswordModal(false);
         setMigrateUserRef(null);
         showToastMessage("🔑 ¡Contraseña establecida con éxito! Tu cuenta ahora está protegida.");
-        loadViewData(logged.user);
+        await loadViewData(logged.user);
         
         setLoginEmail('');
         setLoginCompanyCode('');
@@ -734,8 +737,17 @@ function App() {
     setGFitLastSync(syncInfo);
     setGFitSyncing(false);
 
-    // Refrescar datos de la vista
-    await loadViewData(user);
+    // Refrescar el usuario desde Firestore para actualizar pasos, puntos, etc.
+    // clearCache asegura que getCurrentUser no devuelva datos del caché viejo
+    dbService.clearCache();
+    const refreshedUser = await dbService.getCurrentUser();
+    if (refreshedUser) {
+      setCurrentUser(refreshedUser);
+    }
+
+    // Refrescar todos los datos de la vista (retos, rankings, etc.)
+    // loadViewData limpia caché internamente antes de consultar
+    await loadViewData(refreshedUser || user);
 
     const kmText = result.kmEquivalent ? ` (≈ ${result.kmEquivalent} km)` : '';
     
@@ -763,7 +775,8 @@ function App() {
     setChallenges(challengesData);
     
     const challenge = challengesData.find(c => c.id === challengeId);
-    showToastMessage(`¡Te has anotado con éxito al reto "${challenge.title}"! 🌱`);
+    const challengeTitle = challenge ? challenge.title : 'el reto';
+    showToastMessage(`¡Te has anotado con éxito al reto "${challengeTitle}"! 🌱`);
   };
 
   const handleLeaveChallenge = async (challengeId, challengeTitle) => {
@@ -864,7 +877,7 @@ function App() {
     }
     
     showToastMessage("Evidencia aprobada con éxito. ¡Puntos y kilómetros acreditados al empleado! ✅");
-    loadViewData(currentUser);
+    await loadViewData(currentUser);
   };
 
   const handleRejectEvidence = async (evidenceId) => {
@@ -875,7 +888,7 @@ function App() {
     }
     
     showToastMessage("Evidencia rechazada. Se ha quitado de la lista de revisión.", "error");
-    loadViewData(currentUser);
+    await loadViewData(currentUser);
   };
 
   const handleCreateChallenge = async (e) => {
@@ -955,6 +968,11 @@ function App() {
       cIsDaily ? parseFloat(cTarget) : null
     );
 
+    if (!newChallenge) {
+      showToastMessage("Error al publicar el reto. Inténtalo nuevamente.", "error");
+      return;
+    }
+
     showToastMessage(`🚀 ¡Reto "${newChallenge.title}" publicado con éxito! Ya se encuentra en la biblioteca.`);
     
     setCTitle('');
@@ -983,7 +1001,7 @@ function App() {
     }
 
     showToastMessage("🗑️ ¡Reto eliminado con éxito de la plataforma!");
-    loadViewData(currentUser);
+    await loadViewData(currentUser);
   };
 
   const handleSaveChallengeDates = async (e) => {

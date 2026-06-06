@@ -434,6 +434,11 @@ export const dbService = {
       if (!cSnap.exists()) return { error: "El reto no existe." };
       const challenge = cSnap.data();
 
+      // Block enrollment if challenge is inactive/paused
+      if (challenge.status === 'inactive') {
+        return { error: "Este reto está pausado y no acepta nuevas inscripciones en este momento." };
+      }
+
       // Restrict enrollment after the challenge has started or deadline has passed
       const todayStr = getLocalDateString();
       if (challenge.modality === 'immediate') {
@@ -522,74 +527,58 @@ export const dbService = {
       const currentUser = getLocalUser();
       const userFullName = currentUser ? `${currentUser.name} ${currentUser.lastname || ''}` : 'Anónimo';
 
+      // Mandatory: screenshot or mock URL required
       if (!screenshotFile && !screenshotUrlMock) {
         return { error: "La evidencia en captura de pantalla es obligatoria para evitar registros falsos o incorrectos." };
       }
 
-      if (screenshotFile || screenshotUrlMock) {
-        // Duplicate check: check if user has already submitted evidence for this challenge today
-        const evQuery = query(
-          collection(db, 'evidencias'),
-          where('user_id', '==', userId),
-          where('challenge_id', '==', challengeId)
-        );
-        const evSnap = await getDocs(evQuery);
-        const alreadySubmitted = evSnap.docs.some(doc => {
-          const ev = doc.data();
-          if (ev.status === 'rejected') return false; // Rejected evidence can be resubmitted
-          const evDate = ev.submission_date || (ev.date ? ev.date.split('T')[0] : '');
-          return evDate === todayStr;
-        });
+      // Duplicate check: prevent submitting multiple evidences for the same challenge on same day
+      const evQuery = query(
+        collection(db, 'evidencias'),
+        where('user_id', '==', userId),
+        where('challenge_id', '==', challengeId)
+      );
+      const evSnap = await getDocs(evQuery);
+      const alreadySubmitted = evSnap.docs.some(d => {
+        const ev = d.data();
+        if (ev.status === 'rejected') return false; // Rejected evidence can be resubmitted
+        const evDate = ev.submission_date || (ev.date ? ev.date.split('T')[0] : '');
+        return evDate === todayStr;
+      });
 
-        if (alreadySubmitted) {
-          return { error: "Ya has registrado una evidencia para este reto hoy. Espera a que RRHH la revise." };
-        }
-
-        let finalUrl = screenshotUrlMock || 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&q=80&w=300';
-        if (screenshotFile) {
-          try {
-            finalUrl = await compressImage(screenshotFile);
-          } catch(err) {
-            console.error("Error compressing image:", err);
-          }
-        }
-        const newEvidence = {
-          id: `ev_${Math.random().toString(36).substr(2, 9)}`,
-          challenge_id: challengeId,
-          user_id: userId,
-          user_name: userFullName,
-          type: challengeObj.category,
-          activity_type: (!screenshotFile && screenshotUrlMock && screenshotUrlMock.startsWith('data:image/svg+xml')) ? 'sync' : 'manual',
-          status: 'pending',
-          points_awarded: challengeObj.points,
-          value: parseFloat(amount),
-          screenshot_url: finalUrl,
-          date: new Date().toISOString(),
-          submission_date: todayStr
-        };
-        await setDoc(doc(db, 'evidencias', newEvidence.id), newEvidence);
-        clearCache();
-        return { pendingApproval: true, message: "Enviado a RRHH." };
+      if (alreadySubmitted) {
+        return { error: "Ya has registrado una evidencia para este reto hoy. Espera a que RRHH la revise." };
       }
 
-      const newProgress = parseFloat(enrollment.progress) + parseFloat(amount);
-      let completedNow = false;
-      let pointsAdded = 0;
-
-      if (newProgress >= challengeObj.target && enrollment.status !== 'completed') {
-        await updateDoc(enrollDoc.ref, { progress: challengeObj.target, status: 'completed' });
-        completedNow = true;
-        pointsAdded = challengeObj.points;
-        await this.updateUserStats(userId, pointsAdded, challengeObj.unit === 'pasos' ? amount : 0);
-      } else {
-        await updateDoc(enrollDoc.ref, { progress: newProgress });
-        if (challengeObj.unit === 'pasos') {
-          await this.updateUserStats(userId, 0, amount);
+      let finalUrl = screenshotUrlMock || 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&q=80&w=300';
+      if (screenshotFile) {
+        try {
+          finalUrl = await compressImage(screenshotFile);
+        } catch(err) {
+          console.error("Error compressing image:", err);
         }
       }
 
+      // Generate a unique evidence ID used as both the Firestore doc ID and the data field
+      const evidenceId = `ev_${Math.random().toString(36).substr(2, 9)}`;
+      const newEvidence = {
+        id: evidenceId,
+        challenge_id: challengeId,
+        user_id: userId,
+        user_name: userFullName,
+        type: challengeObj.category,
+        activity_type: (!screenshotFile && screenshotUrlMock && screenshotUrlMock.startsWith('data:image/svg+xml')) ? 'sync' : 'manual',
+        status: 'pending',
+        points_awarded: challengeObj.points,
+        value: parseFloat(amount),
+        screenshot_url: finalUrl,
+        date: new Date().toISOString(),
+        submission_date: todayStr
+      };
+      // Use the same ID as both Firestore document ID and data.id for consistent lookups
+      await setDoc(doc(db, 'evidencias', evidenceId), newEvidence);
       clearCache();
-      return { enrollment: { ...enrollment, progress: newProgress, status: completedNow ? 'completed' : 'active' }, completed: completedNow, pointsAwarded: pointsAdded };
+      return { pendingApproval: true, message: "Enviado a RRHH." };
     } catch(err) { console.error(err); return { error: "Error interno" }; }
   },
 
@@ -751,6 +740,11 @@ export const dbService = {
       const eSnap = await getDoc(eRef);
       if (!eSnap.exists()) return { error: "Evidencia no encontrada." };
       const evidence = eSnap.data();
+
+      // Idempotency guard: don't double-credit if already approved
+      if (evidence.status === 'approved') {
+        return { success: true, completed: false, pointsAwarded: 0 };
+      }
 
       await updateDoc(eRef, { status: 'approved' });
 
@@ -1246,7 +1240,23 @@ export const dbService = {
   },
   async deleteChallenge(challengeId) {
     try {
+      // Delete the challenge document itself
       await deleteDoc(doc(db, 'retos', challengeId));
+
+      // Clean up related user_challenges enrollments (orphan prevention)
+      const ucQuery = query(collection(db, 'user_challenges'), where('challenge_id', '==', challengeId));
+      const ucSnap = await getDocs(ucQuery);
+      for (const ucDoc of ucSnap.docs) {
+        await deleteDoc(doc(db, 'user_challenges', ucDoc.id));
+      }
+
+      // Clean up related evidencias (orphan prevention)
+      const evQuery = query(collection(db, 'evidencias'), where('challenge_id', '==', challengeId));
+      const evSnap = await getDocs(evQuery);
+      for (const evDoc of evSnap.docs) {
+        await deleteDoc(doc(db, 'evidencias', evDoc.id));
+      }
+
       clearCache();
       return { success: true };
     } catch(err) {
