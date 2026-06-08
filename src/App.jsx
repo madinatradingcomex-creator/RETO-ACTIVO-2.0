@@ -276,6 +276,7 @@ function App() {
   const [showAdjustStepsModal, setShowAdjustStepsModal] = useState(false);
   const [adjustStepsValues, setAdjustStepsValues] = useState([0, 0, 0, 0, 0, 0, 0]);
   const [isSavingAdjustSteps, setIsSavingAdjustSteps] = useState(false);
+  const [isEnrollingAdmin, setIsEnrollingAdmin] = useState(false);
 
   // Employee challenge detailed progress states
   const [showChallengeProgressModal, setShowChallengeProgressModal] = useState(false);
@@ -1524,6 +1525,29 @@ function App() {
     setIsSavingAdjustSteps(false);
     setShowAdjustStepsModal(false);
     showToastMessage("📊 Pasos diarios y métricas actualizadas con éxito.");
+  };
+
+  const handleAdminEnrollInChallenge = async (challengeId) => {
+    if (!selectedDetailUser || !challengeId) return;
+    
+    setIsEnrollingAdmin(true);
+    const res = await dbService.adminEnrollInChallenge(selectedDetailUser.id, challengeId);
+    
+    if (res.error) {
+      setIsEnrollingAdmin(false);
+      showToastMessage(res.error, "error");
+      return;
+    }
+    
+    // Refresh user detail view with updated Firestore values
+    const updatedUser = await dbService.getUserDoc(selectedDetailUser.id);
+    if (updatedUser) {
+      setSelectedDetailUser(updatedUser);
+      await handleViewUserDetail(updatedUser);
+    }
+    
+    setIsEnrollingAdmin(false);
+    showToastMessage("✅ Colaborador inscrito exitosamente con sincronización retroactiva.");
   };
 
   const handleOpenChallengeProgressDetail = async (enrollment, challenge) => {
@@ -5576,6 +5600,57 @@ function App() {
                               );
                             })
                           )}
+
+                          {/* Admin manual enrollment section */}
+                          {(() => {
+                            const enrolledChallengeIds = userDetailChallenges.map(uc => uc.challenge_id);
+                            const nonEnrolledChallenges = challenges.filter(c => !enrolledChallengeIds.includes(c.id));
+                            
+                            if (nonEnrolledChallenges.length === 0) return null;
+                            
+                            return (
+                              <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-color)' }}>
+                                <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                  <span>➕</span> Inscribir en Reto Activo (Admin)
+                                </h4>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem', lineHeight: '1.4' }}>
+                                  Permite forzar la inscripción del colaborador en un reto ya iniciado o con plazos cerrados. Se importará automáticamente su actividad compatible de los últimos 7 días.
+                                </p>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                  <select
+                                    className="form-input"
+                                    id="admin-enroll-select"
+                                    style={{ flex: 1, padding: '0.4rem 0.6rem', fontSize: '0.82rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', backgroundColor: 'white' }}
+                                    defaultValue=""
+                                  >
+                                    <option value="" disabled>Selecciona un reto...</option>
+                                    {nonEnrolledChallenges.map(ch => (
+                                      <option key={ch.id} value={ch.id}>
+                                        {ch.image || '🎯'} {ch.title}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    type="button"
+                                    className="btn btn-primary"
+                                    disabled={isEnrollingAdmin}
+                                    onClick={async () => {
+                                      const selectEl = document.getElementById('admin-enroll-select');
+                                      if (selectEl && selectEl.value) {
+                                        await handleAdminEnrollInChallenge(selectEl.value);
+                                        selectEl.value = ""; // reset
+                                      } else {
+                                        showToastMessage("Por favor selecciona un reto.", "error");
+                                      }
+                                    }}
+                                    style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', cursor: 'pointer' }}
+                                  >
+                                    {isEnrollingAdmin ? 'Inscribiendo...' : 'Inscribir'}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>

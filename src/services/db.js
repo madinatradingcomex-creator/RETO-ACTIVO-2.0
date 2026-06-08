@@ -469,6 +469,96 @@ export const dbService = {
     } catch(err) { console.error(err); return { error: "Error de servidor al inscribirse." }; }
   },
 
+  async adminEnrollInChallenge(userId, challengeId) {
+    try {
+      const cRef = doc(db, 'retos', challengeId);
+      const cSnap = await getDoc(cRef);
+      if (!cSnap.exists()) return { error: "El reto no existe." };
+      const challenge = cSnap.data();
+
+      const uRef = doc(db, 'usuarios', userId);
+      const uSnap = await getDoc(uRef);
+      if (!uSnap.exists()) return { error: "Usuario no encontrado." };
+      const user = uSnap.data();
+      const dailySteps = user.daily_steps_history || [0, 0, 0, 0, 0, 0, 0];
+
+      const q = query(
+        collection(db, 'user_challenges'),
+        where('user_id', '==', userId),
+        where('challenge_id', '==', challengeId)
+      );
+      const snap = await getDocs(q);
+      if (!snap.empty) return { error: "El colaborador ya está inscrito en este reto." };
+
+      // Calculate dates array corresponding to the 7 days (index 6 = today, index 0 = 6 days ago)
+      const dates = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        dates.push(getLocalDateString(d));
+      }
+
+      // Retroactive steps sync for this challenge
+      let progress = 0;
+      const dailySyncs = {};
+      
+      for (let i = 0; i < 7; i++) {
+        const dateStr = dates[i];
+        
+        if (challenge.start_date && dateStr < challenge.start_date) continue;
+        if (challenge.end_date && dateStr > challenge.end_date) continue;
+        
+        const daySteps = dailySteps[i] || 0;
+        if (daySteps > 0) {
+          dailySyncs[dateStr] = daySteps;
+          const amount = challenge.unit === 'km' 
+            ? parseFloat((daySteps / 1312).toFixed(2))
+            : daySteps;
+          progress += amount;
+        }
+      }
+      
+      progress = parseFloat(progress.toFixed(2));
+      let status = 'active';
+      let pointsAwarded = 0;
+      if (progress >= challenge.target) {
+        progress = challenge.target;
+        status = 'completed';
+        pointsAwarded = challenge.points;
+      }
+
+      const newEnrollment = {
+        user_id: userId,
+        challenge_id: challengeId,
+        progress,
+        status,
+        enrolled_at: new Date().toISOString(),
+        daily_syncs: dailySyncs
+      };
+
+      await addDoc(collection(db, 'user_challenges'), newEnrollment);
+      await updateDoc(cRef, { participantsCount: (challenge.participantsCount || 0) + 1 });
+      
+      if (pointsAwarded > 0) {
+        await updateDoc(uRef, {
+          points: (user.points || 0) + pointsAwarded
+        });
+        
+        const local = getLocalUser();
+        if (local && local.id === userId) {
+          local.points = (local.points || 0) + pointsAwarded;
+          setLocalUser(local);
+        }
+      }
+
+      clearCache();
+      return { success: true };
+    } catch(err) {
+      console.error("Error in adminEnrollInChallenge:", err);
+      return { error: "Error de servidor al inscribir administrativamente." };
+    }
+  },
+
   async leaveChallenge(userId, challengeId) {
     try {
       const q = query(collection(db, 'user_challenges'), where('user_id', '==', userId), where('challenge_id', '==', challengeId));
