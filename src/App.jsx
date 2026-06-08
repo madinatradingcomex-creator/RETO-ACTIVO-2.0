@@ -291,6 +291,9 @@ function App() {
   const [leaderboardSearch, setLeaderboardSearch] = useState('');
   const [challengesFilter, setChallengesFilter] = useState('available');
   const [rewardsFilter, setRewardsFilter] = useState('Todos');
+  const [leaderboardFilter, setLeaderboardFilter] = useState('global');
+  const [challengeRankingList, setChallengeRankingList] = useState([]);
+  const [loadingChallengeRanking, setLoadingChallengeRanking] = useState(false);
   
   // Full screen preview of evidences
   const [previewEvidenceImage, setPreviewEvidenceImage] = useState(null);
@@ -312,6 +315,8 @@ function App() {
     
     // Always clear cache before loading to ensure fresh data from Firestore
     dbService.clearCache();
+    setLeaderboardFilter('global');
+    setChallengeRankingList([]);
 
     try {
       if (userSession.role === 'company') {
@@ -1570,6 +1575,23 @@ function App() {
       setSelectedRankingList([]);
     } finally {
       setLoadingRankingList(false);
+    }
+  };
+
+  const handleLeaderboardFilterChange = async (val) => {
+    setLeaderboardFilter(val);
+    if (val !== 'global') {
+      setLoadingChallengeRanking(true);
+      try {
+        const list = await dbService.getChallengeRanking(val);
+        setChallengeRankingList(list);
+      } catch(err) {
+        console.error("Error loading challenge ranking:", err);
+        showToastMessage("Error al cargar el ranking del reto.", "error");
+        setChallengeRankingList([]);
+      } finally {
+        setLoadingChallengeRanking(false);
+      }
     }
   };
 
@@ -3474,195 +3496,277 @@ function App() {
             {/* VIEW: LEADERBOARD */}
             {activeTab === 'leaderboard' && (() => {
               const myChallengeIds = userChallenges.map(uc => uc.challenge_id);
-              const filteredLeaderboard = leaderboard.filter(p => {
-                if (p.id === currentUser.id) return true;
-                const otherUserEnrollments = allUserChallenges.filter(uc => uc.user_id === p.id);
-                return otherUserEnrollments.some(uc => myChallengeIds.includes(uc.challenge_id));
-              });
-
-              // Re-assign rank to the filtered list so podium and table look correct
-              filteredLeaderboard.forEach((p, idx) => { p.filteredRank = idx + 1; });
+              
+              let isGlobal = leaderboardFilter === 'global';
+              let displayList = [];
+              let selectedChallenge = null;
+              
+              if (isGlobal) {
+                displayList = leaderboard.filter(p => {
+                  if (p.id === currentUser.id) return true;
+                  const otherUserEnrollments = allUserChallenges.filter(uc => uc.user_id === p.id);
+                  return otherUserEnrollments.some(uc => myChallengeIds.includes(uc.challenge_id));
+                });
+                displayList.forEach((p, idx) => { p.filteredRank = idx + 1; });
+              } else {
+                selectedChallenge = challenges.find(c => c.id === leaderboardFilter);
+                displayList = challengeRankingList.map((p, idx) => ({
+                  id: p.user_id,
+                  name: p.user_name,
+                  avatar: p.avatar,
+                  progress: p.progress,
+                  points: p.progress,
+                  department: p.department,
+                  filteredRank: idx + 1
+                }));
+              }
+              
+              const filteredLeaderboard = displayList;
 
               return (
               <div className="view-container">
-                <header className="view-header">
-                  <div className="view-title-group">
+                <header className="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1.5rem' }}>
+                  <div className="view-title-group" style={{ flex: 1, minWidth: '300px' }}>
                     <button className="btn btn-secondary view-back-btn" onClick={() => setActiveTab('dashboard')}>
                       ← Volver al Dashboard
                     </button>
-                    <h1>Tabla de Posiciones Wellness</h1>
-                    <p>Conoce a los colaboradores más activos del mes. ¡Suma puntos participando en retos para escalar puestos!</p>
+                    <h1>{isGlobal ? 'Tabla de Posiciones Wellness' : `Ranking: ${selectedChallenge?.title}`}</h1>
+                    <p>
+                      {isGlobal 
+                        ? 'Conoce a los colaboradores más activos del mes. ¡Suma puntos participando en retos para escalar puestos!'
+                        : `Viendo el ranking del reto de la categoría ${selectedChallenge?.category}. ¡Cumple la meta para subir puestos!`
+                      }
+                    </p>
+                  </div>
+
+                  {/* Selector de Ranking / Reto */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', minWidth: '280px' }}>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>📍 Filtrar Ranking por:</label>
+                    <select
+                      className="form-input"
+                      style={{ padding: '0.6rem 0.82rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', backgroundColor: 'white', fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer' }}
+                      value={leaderboardFilter}
+                      onChange={(e) => handleLeaderboardFilterChange(e.target.value)}
+                    >
+                      <option value="global">🏆 Acumulado General (Puntos)</option>
+                      <optgroup label="Retos Disponibles">
+                        {challenges.map(ch => (
+                          <option key={ch.id} value={ch.id}>
+                            {ch.image || '🎯'} {ch.title} ({ch.unit})
+                          </option>
+                        ))}
+                      </optgroup>
+                    </select>
                   </div>
                 </header>
 
-                <div className="podium-container">
-                  {filteredLeaderboard[1] && (
-                    <div className="podium-item podium-2nd">
-                      <div className="podium-avatar-wrapper">
-                        <img src={filteredLeaderboard[1].avatar} alt={filteredLeaderboard[1].name} className="podium-avatar" />
-                        <span className="podium-badge">2</span>
-                      </div>
-                      <span className="podium-name">{filteredLeaderboard[1].name.split(' ')[0]}</span>
-                      <span className="podium-pts">{filteredLeaderboard[1].points} pts</span>
-                      <div className="podium-column"></div>
-                    </div>
-                  )}
-
-                  {filteredLeaderboard[0] && (
-                    <div className="podium-item podium-1st">
-                      <div className="podium-avatar-wrapper">
-                        <img src={filteredLeaderboard[0].avatar} alt={filteredLeaderboard[0].name} className="podium-avatar" />
-                        <span className="podium-badge">1</span>
-                      </div>
-                      <span className="podium-name" style={{ fontSize: '1rem', fontWeight: 800 }}>{filteredLeaderboard[0].name.split(' ')[0]} 👑</span>
-                      <span className="podium-pts" style={{ color: 'var(--coral-dark)', fontWeight: 700 }}>{filteredLeaderboard[0].points} pts</span>
-                      <div className="podium-column"></div>
-                    </div>
-                  )}
-
-                  {filteredLeaderboard[2] && (
-                    <div className="podium-item podium-3rd">
-                      <div className="podium-avatar-wrapper">
-                        <img src={filteredLeaderboard[2].avatar} alt={filteredLeaderboard[2].name} className="podium-avatar" />
-                        <span className="podium-badge">3</span>
-                      </div>
-                      <span className="podium-name">{filteredLeaderboard[2].name.split(' ')[0]}</span>
-                      <span className="podium-pts">{filteredLeaderboard[2].points} pts</span>
-                      <div className="podium-column"></div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="leaderboard-table-container">
-                  <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.75rem', backgroundColor: 'white' }}>
-                    <Search size={18} style={{ color: 'var(--text-muted)' }} />
-                    <input 
-                      type="text" 
-                      placeholder="Buscar colaborador..." 
-                      className="form-input" 
-                      style={{ padding: '0.5rem 0.75rem', width: '320px', border: '1px solid var(--border-color)' }}
-                      value={leaderboardSearch}
-                      onChange={(e) => setLeaderboardSearch(e.target.value)}
-                    />
+                {loadingChallengeRanking ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '5rem 0', gap: '1rem', backgroundColor: 'white', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
+                    <svg style={{ animation: 'spin 1s linear infinite', width: '40px', height: '40px' }} viewBox="0 0 24 24">
+                      <circle cx="12" cy="12" r="10" fill="none" stroke="var(--coral-main)" strokeWidth="3" strokeDasharray="30 10" />
+                    </svg>
+                    <style>{`
+                      @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                      }
+                    `}</style>
+                    <p style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Cargando posiciones del reto...</p>
                   </div>
+                ) : (
+                  <>
+                    <div className="podium-container">
+                      {filteredLeaderboard[1] && (
+                        <div className="podium-item podium-2nd">
+                          <div className="podium-avatar-wrapper">
+                            <img src={filteredLeaderboard[1].avatar} alt={filteredLeaderboard[1].name} className="podium-avatar" />
+                            <span className="podium-badge">2</span>
+                          </div>
+                          <span className="podium-name">{filteredLeaderboard[1].name.split(' ')[0]}</span>
+                          <span className="podium-pts">
+                            {isGlobal 
+                              ? `${filteredLeaderboard[1].points} pts` 
+                              : `${filteredLeaderboard[1].progress.toLocaleString()} ${selectedChallenge?.unit || 'pasos'}`
+                            }
+                          </span>
+                          <div className="podium-column"></div>
+                        </div>
+                      )}
 
-                  <div className="table-responsive">
-                    <table className="leaderboard-table" style={{ minWidth: '650px' }}>
-                    <thead>
-                      <tr>
-                        <th className="leaderboard-th">Posición</th>
-                        <th className="leaderboard-th">Colaborador</th>
-                        <th className="leaderboard-th">Departamento</th>
-                        <th className="leaderboard-th">Puntos Acumulados</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredLeaderboard
-                        .filter(p => p.name.toLowerCase().includes(leaderboardSearch.toLowerCase()))
-                        .map(p => {
-                          const isCurrentUser = p.id === currentUser.id;
-                          
-                          return (
-                            <tr className="leaderboard-tr" key={p.id} style={isCurrentUser ? { backgroundColor: 'var(--mint-bg)' } : {}}>
-                              <td className="leaderboard-td leaderboard-td-rank">
-                                {p.filteredRank === 1 ? '🥇' : p.filteredRank === 2 ? '🥈' : p.filteredRank === 3 ? '🥉' : `#${p.filteredRank}`}
-                              </td>
-                              <td className="leaderboard-td">
-                                <div className="leaderboard-user-cell">
-                                  <img src={p.avatar} alt={p.name} className="leaderboard-avatar" />
-                                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                    <span style={isCurrentUser ? { fontWeight: 700, color: 'var(--mint-dark)' } : { fontWeight: 600 }}>
-                                      {p.name} {isCurrentUser && '(Tú)'}
+                      {filteredLeaderboard[0] && (
+                        <div className="podium-item podium-1st">
+                          <div className="podium-avatar-wrapper">
+                            <img src={filteredLeaderboard[0].avatar} alt={filteredLeaderboard[0].name} className="podium-avatar" />
+                            <span className="podium-badge">1</span>
+                          </div>
+                          <span className="podium-name" style={{ fontSize: '1rem', fontWeight: 800 }}>{filteredLeaderboard[0].name.split(' ')[0]} 👑</span>
+                          <span className="podium-pts" style={{ color: 'var(--coral-dark)', fontWeight: 700 }}>
+                            {isGlobal 
+                              ? `${filteredLeaderboard[0].points} pts` 
+                              : `${filteredLeaderboard[0].progress.toLocaleString()} ${selectedChallenge?.unit || 'pasos'}`
+                            }
+                          </span>
+                          <div className="podium-column"></div>
+                        </div>
+                      )}
+
+                      {filteredLeaderboard[2] && (
+                        <div className="podium-item podium-3rd">
+                          <div className="podium-avatar-wrapper">
+                            <img src={filteredLeaderboard[2].avatar} alt={filteredLeaderboard[2].name} className="podium-avatar" />
+                            <span className="podium-badge">3</span>
+                          </div>
+                          <span className="podium-name">{filteredLeaderboard[2].name.split(' ')[0]}</span>
+                          <span className="podium-pts">
+                            {isGlobal 
+                              ? `${filteredLeaderboard[2].points} pts` 
+                              : `${filteredLeaderboard[2].progress.toLocaleString()} ${selectedChallenge?.unit || 'pasos'}`
+                            }
+                          </span>
+                          <div className="podium-column"></div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="leaderboard-table-container">
+                      <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.75rem', backgroundColor: 'white' }}>
+                        <Search size={18} style={{ color: 'var(--text-muted)' }} />
+                        <input 
+                          type="text" 
+                          placeholder="Buscar colaborador..." 
+                          className="form-input" 
+                          style={{ padding: '0.5rem 0.75rem', width: '320px', border: '1px solid var(--border-color)' }}
+                          value={leaderboardSearch}
+                          onChange={(e) => setLeaderboardSearch(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="table-responsive">
+                        <table className="leaderboard-table" style={{ minWidth: '650px' }}>
+                        <thead>
+                          <tr>
+                            <th className="leaderboard-th">Posición</th>
+                            <th className="leaderboard-th">Colaborador</th>
+                            <th className="leaderboard-th">Departamento</th>
+                            <th className="leaderboard-th">
+                              {isGlobal ? 'Puntos Acumulados' : `Progreso (${selectedChallenge?.unit || 'pasos'})`}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredLeaderboard
+                            .filter(p => p.name.toLowerCase().includes(leaderboardSearch.toLowerCase()))
+                            .map(p => {
+                              const isCurrentUser = p.id === currentUser.id;
+                              
+                              return (
+                                <tr className="leaderboard-tr" key={p.id} style={isCurrentUser ? { backgroundColor: 'var(--mint-bg)' } : {}}>
+                                  <td className="leaderboard-td leaderboard-td-rank">
+                                    {p.filteredRank === 1 ? '🥇' : p.filteredRank === 2 ? '🥈' : p.filteredRank === 3 ? '🥉' : `#${p.filteredRank}`}
+                                  </td>
+                                  <td className="leaderboard-td">
+                                    <div className="leaderboard-user-cell">
+                                      <img src={p.avatar} alt={p.name} className="leaderboard-avatar" />
+                                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span style={isCurrentUser ? { fontWeight: 700, color: 'var(--mint-dark)' } : { fontWeight: 600 }}>
+                                          {p.name} {isCurrentUser && '(Tú)'}
+                                        </span>
+                                        {(() => {
+                                          const userEnrollments = allUserChallenges.filter(uc => uc.user_id === p.id);
+                                          if (userEnrollments.length === 0) return null;
+                                          
+                                          const todayStr = getLocalDateString();
+                                          
+                                          return (
+                                            <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                                              {userEnrollments.map(uc => {
+                                                const ch = challenges.find(c => c.id === uc.challenge_id);
+                                                if (!ch) return null;
+                                                
+                                                const isNotStarted = ch.modality !== 'immediate' && ch.start_date && todayStr < ch.start_date;
+                                                
+                                                if (isNotStarted) {
+                                                  const timeRemaining = calculateTimeRemaining(ch.start_date);
+                                                  return (
+                                                    <span 
+                                                      key={ch.id} 
+                                                      onClick={() => handleOpenChallengeRanking(ch.id)}
+                                                      style={{ 
+                                                        fontSize: '0.68rem', 
+                                                        backgroundColor: '#FFF9E6', 
+                                                        color: '#B38F00', 
+                                                        padding: '0.1rem 0.4rem', 
+                                                        borderRadius: '6px', 
+                                                        border: '1px solid rgba(255,215,0,0.15)',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: '0.15rem',
+                                                        cursor: 'pointer'
+                                                      }}
+                                                      title={`Ver ranking de: ${ch.title} (Comienza en ${timeRemaining || 'pronto'})`}
+                                                    >
+                                                      ⏳ {ch.image} {timeRemaining || 'Inicia pronto'}
+                                                    </span>
+                                                  );
+                                                }
+                                                
+                                                const challengeRank = getRankInChallenge(p.id, ch.id);
+                                                const isCompleted = uc.status === 'completed' || uc.progress >= ch.target;
+                                                
+                                                return (
+                                                  <span 
+                                                    key={ch.id} 
+                                                    onClick={() => handleOpenChallengeRanking(ch.id)}
+                                                    style={{ 
+                                                      fontSize: '0.68rem', 
+                                                      backgroundColor: isCompleted ? 'var(--mint-bg)' : 'var(--sky-bg)', 
+                                                      color: isCompleted ? 'var(--mint-dark)' : 'var(--sky-dark)', 
+                                                      padding: '0.1rem 0.4rem', 
+                                                      borderRadius: '6px', 
+                                                      border: isCompleted ? '1px solid rgba(28,188,140,0.15)' : '1px solid rgba(56,189,248,0.15)',
+                                                      display: 'inline-flex',
+                                                      alignItems: 'center',
+                                                      gap: '0.15rem',
+                                                      cursor: 'pointer'
+                                                    }}
+                                                    title={`Ver ranking de: ${ch.title} (Puesto: #${challengeRank || '-'})`}
+                                                  >
+                                                    {isCompleted ? '🏆' : '🏃'} {ch.image} #{challengeRank || '-'}
+                                                  </span>
+                                                );
+                                              })}
+                                            </div>
+                                          );
+                                        })()}
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="leaderboard-td">
+                                    <span 
+                                      className="leaderboard-dept"
+                                      style={{
+                                        backgroundColor: isCurrentUser ? 'rgba(255,255,255,0.7)' : 'var(--bg-app)',
+                                        color: varColorForDept(p.department)
+                                      }}
+                                    >
+                                      {p.department}
                                     </span>
-                                    {(() => {
-                                      const userEnrollments = allUserChallenges.filter(uc => uc.user_id === p.id);
-                                      if (userEnrollments.length === 0) return null;
-                                      
-                                      const todayStr = getLocalDateString();
-                                      
-                                      return (
-                                        <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
-                                          {userEnrollments.map(uc => {
-                                            const ch = challenges.find(c => c.id === uc.challenge_id);
-                                            if (!ch) return null;
-                                            
-                                            const isNotStarted = ch.modality !== 'immediate' && ch.start_date && todayStr < ch.start_date;
-                                            
-                                            if (isNotStarted) {
-                                              const timeRemaining = calculateTimeRemaining(ch.start_date);
-                                              return (
-                                                <span 
-                                                  key={ch.id} 
-                                                  onClick={() => handleOpenChallengeRanking(ch.id)}
-                                                  style={{ 
-                                                    fontSize: '0.68rem', 
-                                                    backgroundColor: '#FFF9E6', 
-                                                    color: '#B38F00', 
-                                                    padding: '0.1rem 0.4rem', 
-                                                    borderRadius: '6px', 
-                                                    border: '1px solid rgba(255,215,0,0.15)',
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    gap: '0.15rem',
-                                                    cursor: 'pointer'
-                                                  }}
-                                                  title={`Ver ranking de: ${ch.title} (Comienza en ${timeRemaining || 'pronto'})`}
-                                                >
-                                                  ⏳ {ch.image} {timeRemaining || 'Inicia pronto'}
-                                                </span>
-                                              );
-                                            }
-                                            
-                                            const challengeRank = getRankInChallenge(p.id, ch.id);
-                                            const isCompleted = uc.status === 'completed' || uc.progress >= ch.target;
-                                            
-                                            return (
-                                              <span 
-                                                key={ch.id} 
-                                                onClick={() => handleOpenChallengeRanking(ch.id)}
-                                                style={{ 
-                                                  fontSize: '0.68rem', 
-                                                  backgroundColor: isCompleted ? 'var(--mint-bg)' : 'var(--sky-bg)', 
-                                                  color: isCompleted ? 'var(--mint-dark)' : 'var(--sky-dark)', 
-                                                  padding: '0.1rem 0.4rem', 
-                                                  borderRadius: '6px', 
-                                                  border: isCompleted ? '1px solid rgba(28,188,140,0.15)' : '1px solid rgba(56,189,248,0.15)',
-                                                  display: 'inline-flex',
-                                                  alignItems: 'center',
-                                                  gap: '0.15rem',
-                                                  cursor: 'pointer'
-                                                }}
-                                                title={`Ver ranking de: ${ch.title} (Puesto: #${challengeRank || '-'})`}
-                                              >
-                                                {isCompleted ? '🏆' : '🏃'} {ch.image} #{challengeRank || '-'}
-                                              </span>
-                                            );
-                                          })}
-                                        </div>
-                                      );
-                                    })()}
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="leaderboard-td">
-                                <span 
-                                  className="leaderboard-dept"
-                                  style={{
-                                    backgroundColor: isCurrentUser ? 'rgba(255,255,255,0.7)' : 'var(--bg-app)',
-                                    color: varColorForDept(p.department)
-                                  }}
-                                >
-                                  {p.department}
-                                </span>
-                              </td>
-                              <td className="leaderboard-td" style={{ fontWeight: 700 }}>{p.points} pts</td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-                  </div>
-                </div>
+                                  </td>
+                                  <td className="leaderboard-td" style={{ fontWeight: 700 }}>
+                                    {isGlobal 
+                                      ? `${p.points} pts` 
+                                      : `${p.progress.toLocaleString()} ${selectedChallenge?.unit || 'pasos'}`
+                                    }
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                        </tbody>
+                      </table>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
               );
             })()}
