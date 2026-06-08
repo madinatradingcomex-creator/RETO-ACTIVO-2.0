@@ -150,6 +150,7 @@ function App() {
   const [editingUser, setEditingUser] = useState(null);
   const [editPoints, setEditPoints] = useState('');
   const [editDept, setEditDept] = useState('');
+  const [adminEnrollChallengeId, setAdminEnrollChallengeId] = useState('');
   
   // Forms - Employee Log
   const [showLogModal, setShowLogModal] = useState(false);
@@ -1547,6 +1548,7 @@ function App() {
     }
     
     setIsEnrollingAdmin(false);
+    setAdminEnrollChallengeId('');
     showToastMessage("✅ Colaborador inscrito exitosamente con sincronización retroactiva.");
   };
 
@@ -4593,15 +4595,41 @@ function App() {
                         </div>
 
                         <div style={{ flexGrow: 1, minWidth: '200px' }}>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>
-                            Reto Corporativo
-                          </span>
-                          <h4 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-                            {ev.challenge_title}
-                          </h4>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--mint-dark)' }}>
-                            Actividad declarada: {ev.amount} {ev.unit}
-                          </span>
+                          {ev.type === 'challenge_completion' ? (
+                            <>
+                              <span style={{ 
+                                fontSize: '0.7rem', 
+                                fontWeight: 800, 
+                                textTransform: 'uppercase', 
+                                color: '#D97706', 
+                                backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                                padding: '0.15rem 0.5rem',
+                                borderRadius: '4px',
+                                display: 'inline-block', 
+                                marginBottom: '0.35rem' 
+                              }}>
+                                🏆 COMPLETADO DEL RETO
+                              </span>
+                              <h4 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                                {ev.challenge_title}
+                              </h4>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--coral-dark)' }}>
+                                Puntos a acreditar: <strong>{ev.points} pts</strong>
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>
+                                Reto Corporativo
+                              </span>
+                              <h4 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                                {ev.challenge_title}
+                              </h4>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--mint-dark)' }}>
+                                Actividad declarada: {ev.amount} {ev.unit}
+                              </span>
+                            </>
+                          )}
                         </div>
 
                         <div style={{ width: '120px' }}>
@@ -4619,7 +4647,7 @@ function App() {
                           >
                             <img src={ev.screenshot_preview} alt="Evidencia" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', color: 'white', fontSize: '0.62rem', textAlign: 'center', padding: '2px 0' }}>
-                              Ver Evidencia
+                              {ev.type === 'challenge_completion' ? 'Ver Trofeo' : 'Ver Evidencia'}
                             </div>
                           </div>
                         </div>
@@ -5621,7 +5649,8 @@ function App() {
                                     className="form-input"
                                     id="admin-enroll-select"
                                     style={{ flex: 1, padding: '0.4rem 0.6rem', fontSize: '0.82rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', backgroundColor: 'white' }}
-                                    defaultValue=""
+                                    value={adminEnrollChallengeId}
+                                    onChange={(e) => setAdminEnrollChallengeId(e.target.value)}
                                   >
                                     <option value="" disabled>Selecciona un reto...</option>
                                     {nonEnrolledChallenges.map(ch => (
@@ -5635,10 +5664,8 @@ function App() {
                                     className="btn btn-primary"
                                     disabled={isEnrollingAdmin}
                                     onClick={async () => {
-                                      const selectEl = document.getElementById('admin-enroll-select');
-                                      if (selectEl && selectEl.value) {
-                                        await handleAdminEnrollInChallenge(selectEl.value);
-                                        selectEl.value = ""; // reset
+                                      if (adminEnrollChallengeId) {
+                                        await handleAdminEnrollInChallenge(adminEnrollChallengeId);
                                       } else {
                                         showToastMessage("Por favor selecciona un reto.", "error");
                                       }

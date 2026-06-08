@@ -520,11 +520,30 @@ export const dbService = {
       
       progress = parseFloat(progress.toFixed(2));
       let status = 'active';
-      let pointsAwarded = 0;
       if (progress >= challenge.target) {
         progress = challenge.target;
         status = 'completed';
-        pointsAwarded = challenge.points;
+        
+        // Create pending completion evidence record
+        const qComp = query(collection(db, 'evidencias'), where('user_id', '==', userId), where('challenge_id', '==', challengeId), where('type', '==', 'challenge_completion'));
+        const snapComp = await getDocs(qComp);
+        if (snapComp.empty) {
+          const compEv = {
+            id: `ev_comp_${Math.random().toString(36).substr(2, 9)}`,
+            challenge_id: challengeId,
+            user_id: userId,
+            user_name: `${user.name || ''} ${user.lastname || ''}`.trim() || 'Colaborador',
+            type: 'challenge_completion',
+            activity_type: 'manual',
+            status: 'pending',
+            points_awarded: challenge.points,
+            value: challenge.target,
+            screenshot_url: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="%23FFA000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.45 1-1 1H4v2h16v-2h-5c-.55 0-1-.45-1-1v-2.34"></path><path d="M12 2a6 6 0 0 1 6 6v5a6 6 0 0 1-6 6 6 6 0 0 1-6-6V8a6 6 0 0 1 6-6z"></path></svg>`,
+            date: new Date().toISOString(),
+            submission_date: getLocalDateString()
+          };
+          await setDoc(doc(db, 'evidencias', compEv.id), compEv);
+        }
       }
 
       const newEnrollment = {
@@ -538,18 +557,6 @@ export const dbService = {
 
       await addDoc(collection(db, 'user_challenges'), newEnrollment);
       await updateDoc(cRef, { participantsCount: (challenge.participantsCount || 0) + 1 });
-      
-      if (pointsAwarded > 0) {
-        await updateDoc(uRef, {
-          points: (user.points || 0) + pointsAwarded
-        });
-        
-        const local = getLocalUser();
-        if (local && local.id === userId) {
-          local.points = (local.points || 0) + pointsAwarded;
-          setLocalUser(local);
-        }
-      }
 
       clearCache();
       return { success: true };
@@ -794,7 +801,9 @@ export const dbService = {
           amount: e.value,
           unit: c.unit || '',
           screenshot_preview: e.screenshot_url,
-          submitted_at: e.date
+          submitted_at: e.date,
+          type: e.type || '',
+          points: e.points_awarded || c.points || 0
         };
       }));
       
@@ -836,11 +845,24 @@ export const dbService = {
         return { success: true, completed: false, pointsAwarded: 0 };
       }
 
+      let res = { success: true, completed: false, pointsAwarded: 0 };
+
+      if (evidence.type === 'challenge_completion') {
+        const cSnap = await getDoc(doc(db, 'retos', evidence.challenge_id));
+        if (cSnap.exists()) {
+          const c = cSnap.data();
+          await this.updateUserStats(evidence.user_id, c.points, 0);
+          res = { success: true, completed: true, pointsAwarded: c.points };
+        }
+        await updateDoc(eRef, { status: 'approved' });
+        clearCache();
+        return res;
+      }
+
       await updateDoc(eRef, { status: 'approved' });
 
       const q = query(collection(db, 'user_challenges'), where('user_id', '==', evidence.user_id), where('challenge_id', '==', evidence.challenge_id));
       const uChalls = await getDocs(q);
-      let res = { success: true, completed: false, pointsAwarded: 0 };
       if (!uChalls.empty) {
         const enrollDoc = uChalls.docs[0];
         const enrollment = enrollDoc.data();
@@ -851,8 +873,29 @@ export const dbService = {
           const newProgress = parseFloat(enrollment.progress) + parseFloat(evidence.value);
           if (newProgress >= c.target && enrollment.status !== 'completed') {
             await updateDoc(enrollDoc.ref, { progress: c.target, status: 'completed' });
-            await this.updateUserStats(evidence.user_id, c.points, c.unit === 'pasos' ? evidence.value : 0);
-            res = { success: true, completed: true, pointsAwarded: c.points };
+            await this.updateUserStats(evidence.user_id, 0, c.unit === 'pasos' ? evidence.value : 0);
+            
+            // Create pending completion evidence record
+            const qComp = query(collection(db, 'evidencias'), where('user_id', '==', evidence.user_id), where('challenge_id', '==', evidence.challenge_id), where('type', '==', 'challenge_completion'));
+            const snapComp = await getDocs(qComp);
+            if (snapComp.empty) {
+              const compEv = {
+                id: `ev_comp_${Math.random().toString(36).substr(2, 9)}`,
+                challenge_id: evidence.challenge_id,
+                user_id: evidence.user_id,
+                user_name: evidence.user_name,
+                type: 'challenge_completion',
+                activity_type: 'manual',
+                status: 'pending',
+                points_awarded: c.points,
+                value: c.target,
+                screenshot_url: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="%23FFA000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.45 1-1 1H4v2h16v-2h-5c-.55 0-1-.45-1-1v-2.34"></path><path d="M12 2a6 6 0 0 1 6 6v5a6 6 0 0 1-6 6 6 6 0 0 1-6-6V8a6 6 0 0 1 6-6z"></path></svg>`,
+                date: new Date().toISOString(),
+                submission_date: getLocalDateString()
+              };
+              await setDoc(doc(db, 'evidencias', compEv.id), compEv);
+            }
+            res = { success: true, completed: true, pointsAwarded: 0 };
           } else {
             await updateDoc(enrollDoc.ref, { progress: newProgress });
             await this.updateUserStats(evidence.user_id, 0, c.unit === 'pasos' ? evidence.value : 0);
@@ -1065,6 +1108,9 @@ export const dbService = {
       const { dailySteps, totalSteps } = fitData;
       
       const userRef = doc(db, 'usuarios', userId);
+      const userSnap = await getDoc(userRef);
+      const user = userSnap.exists() ? userSnap.data() : {};
+
       await updateDoc(userRef, { 
         daily_steps_history: dailySteps,
         last_sync: new Date().toISOString()
@@ -1133,9 +1179,29 @@ export const dbService = {
           if (newProgress >= challenge.target) {
             status = 'completed';
             completed = true;
-            totalPointsAwarded += challenge.points;
             challengesCompletedCount++;
-            await this.updateUserStats(userId, challenge.points, challenge.unit === 'pasos' ? netAmountToAdd : 0);
+            await this.updateUserStats(userId, 0, challenge.unit === 'pasos' ? netAmountToAdd : 0);
+
+            // Create pending completion evidence record
+            const qComp = query(collection(db, 'evidencias'), where('user_id', '==', userId), where('challenge_id', '==', challengeId), where('type', '==', 'challenge_completion'));
+            const snapComp = await getDocs(qComp);
+            if (snapComp.empty) {
+              const compEv = {
+                id: `ev_comp_${Math.random().toString(36).substr(2, 9)}`,
+                challenge_id: challengeId,
+                user_id: userId,
+                user_name: `${user.name || ''} ${user.lastname || ''}`.trim() || 'Colaborador',
+                type: 'challenge_completion',
+                activity_type: 'sync',
+                status: 'pending',
+                points_awarded: challenge.points,
+                value: challenge.target,
+                screenshot_url: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="%23FFA000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.45 1-1 1H4v2h16v-2h-5c-.55 0-1-.45-1-1v-2.34"></path><path d="M12 2a6 6 0 0 1 6 6v5a6 6 0 0 1-6 6 6 6 0 0 1-6-6V8a6 6 0 0 1 6-6z"></path></svg>`,
+                date: new Date().toISOString(),
+                submission_date: getLocalDateString()
+              };
+              await setDoc(doc(db, 'evidencias', compEv.id), compEv);
+            }
           } else {
             if (challenge.unit === 'pasos') {
               await this.updateUserStats(userId, 0, netAmountToAdd);
@@ -1244,10 +1310,40 @@ export const dbService = {
           if (newProgress >= challenge.target && enrollment.status !== 'completed') {
             newStatus = 'completed';
             newProgress = challenge.target;
-            totalPointsChange += challenge.points;
+            
+            // Create pending completion evidence record
+            const qComp = query(collection(db, 'evidencias'), where('user_id', '==', userId), where('challenge_id', '==', challengeId), where('type', '==', 'challenge_completion'));
+            const snapComp = await getDocs(qComp);
+            if (snapComp.empty) {
+              const compEv = {
+                id: `ev_comp_${Math.random().toString(36).substr(2, 9)}`,
+                challenge_id: challengeId,
+                user_id: userId,
+                user_name: `${user.name || ''} ${user.lastname || ''}`.trim() || 'Colaborador',
+                type: 'challenge_completion',
+                activity_type: 'manual',
+                status: 'pending',
+                points_awarded: challenge.points,
+                value: challenge.target,
+                screenshot_url: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="%23FFA000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.45 1-1 1H4v2h16v-2h-5c-.55 0-1-.45-1-1v-2.34"></path><path d="M12 2a6 6 0 0 1 6 6v5a6 6 0 0 1-6 6 6 6 0 0 1-6-6V8a6 6 0 0 1 6-6z"></path></svg>`,
+                date: new Date().toISOString(),
+                submission_date: getLocalDateString()
+              };
+              await setDoc(doc(db, 'evidencias', compEv.id), compEv);
+            }
           } else if (newProgress < challenge.target && enrollment.status === 'completed') {
             newStatus = 'active';
-            totalPointsChange -= challenge.points;
+            
+            // Find all completion evidences for this user and challenge
+            const qComp = query(collection(db, 'evidencias'), where('user_id', '==', userId), where('challenge_id', '==', challengeId), where('type', '==', 'challenge_completion'));
+            const snapComp = await getDocs(qComp);
+            for (const docComp of snapComp.docs) {
+              const compData = docComp.data();
+              if (compData.status === 'approved') {
+                totalPointsChange -= challenge.points;
+              }
+              await updateDoc(docComp.ref, { status: 'rejected' });
+            }
           }
           
           await updateDoc(enrollDoc.ref, {
