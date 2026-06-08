@@ -1506,15 +1506,19 @@ function App() {
         endStr = todayStr; // Only show up to today
       }
       
-      const startDate = new Date(startStr);
-      const endDate = new Date(endStr);
+      // Parse dates as local midnight to prevent UTC timezone mismatch
+      const startParts = startStr.split('-');
+      const startDate = new Date(parseInt(startParts[0], 10), parseInt(startParts[1], 10) - 1, parseInt(startParts[2], 10));
+      
+      const endParts = endStr.split('-');
+      const endDate = new Date(parseInt(endParts[0], 10), parseInt(endParts[1], 10) - 1, parseInt(endParts[2], 10));
       
       // Let's iterate day by day
       const curr = new Date(startDate);
       let safetyCounter = 0;
       while (curr <= endDate && safetyCounter < 35) {
         safetyCounter++;
-        const dateKey = curr.toISOString().split('T')[0];
+        const dateKey = getLocalDateString(curr);
         
         // Synced steps from Google Fit daily_syncs map
         const fitSyncSteps = (enrollment.daily_syncs && enrollment.daily_syncs[dateKey]) || 0;
