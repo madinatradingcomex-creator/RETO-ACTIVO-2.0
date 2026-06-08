@@ -1180,7 +1180,6 @@ export const dbService = {
             status = 'completed';
             completed = true;
             challengesCompletedCount++;
-            await this.updateUserStats(userId, 0, challenge.unit === 'pasos' ? netAmountToAdd : 0);
 
             // Create pending completion evidence record
             const qComp = query(collection(db, 'evidencias'), where('user_id', '==', userId), where('challenge_id', '==', challengeId), where('type', '==', 'challenge_completion'));
@@ -1201,10 +1200,6 @@ export const dbService = {
                 submission_date: getLocalDateString()
               };
               await setDoc(doc(db, 'evidencias', compEv.id), compEv);
-            }
-          } else {
-            if (challenge.unit === 'pasos') {
-              await this.updateUserStats(userId, 0, netAmountToAdd);
             }
           }
 
