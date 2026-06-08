@@ -273,6 +273,9 @@ function App() {
   const [userDetailChallenges, setUserDetailChallenges] = useState([]);
   const [loadingUserDetail, setLoadingUserDetail] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [showAdjustStepsModal, setShowAdjustStepsModal] = useState(false);
+  const [adjustStepsValues, setAdjustStepsValues] = useState([0, 0, 0, 0, 0, 0, 0]);
+  const [isSavingAdjustSteps, setIsSavingAdjustSteps] = useState(false);
 
   // Employee challenge detailed progress states
   const [showChallengeProgressModal, setShowChallengeProgressModal] = useState(false);
@@ -1487,6 +1490,40 @@ function App() {
     if (selectedDetailUser && selectedDetailUser.id === userId) {
       setSelectedDetailUser(prev => ({ ...prev, password_hash: null }));
     }
+  };
+
+  const handleOpenAdjustSteps = () => {
+    if (selectedDetailUser && selectedDetailUser.daily_steps_history) {
+      setAdjustStepsValues([...selectedDetailUser.daily_steps_history]);
+    } else {
+      setAdjustStepsValues([0, 0, 0, 0, 0, 0, 0]);
+    }
+    setShowAdjustStepsModal(true);
+  };
+
+  const handleSaveAdjustSteps = async (e) => {
+    e.preventDefault();
+    if (!selectedDetailUser) return;
+    
+    setIsSavingAdjustSteps(true);
+    const res = await dbService.adjustUserStepsBatch(selectedDetailUser.id, adjustStepsValues);
+    
+    if (res.error) {
+      setIsSavingAdjustSteps(false);
+      showToastMessage(res.error, "error");
+      return;
+    }
+    
+    // Refresh user detail view with updated Firestore values
+    const updatedUser = await dbService.getUserDoc(selectedDetailUser.id);
+    if (updatedUser) {
+      setSelectedDetailUser(updatedUser);
+      await handleViewUserDetail(updatedUser);
+    }
+    
+    setIsSavingAdjustSteps(false);
+    setShowAdjustStepsModal(false);
+    showToastMessage("📊 Pasos diarios y métricas actualizadas con éxito.");
   };
 
   const handleOpenChallengeProgressDetail = async (enrollment, challenge) => {
@@ -5343,9 +5380,17 @@ function App() {
                           className="btn btn-primary" 
                           onClick={() => handleResetPassword(selectedDetailUser.id)}
                           disabled={isResettingPassword}
-                          style={{ width: '100%', padding: '0.75rem', fontSize: '0.88rem', backgroundColor: '#F0F9FF', color: 'var(--sky-dark)', border: '1px solid rgba(91,166,224,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', cursor: 'pointer', transition: 'var(--transition-fast)' }}
+                          style={{ width: '100%', padding: '0.75rem', fontSize: '0.88rem', backgroundColor: '#F0F9FF', color: 'var(--sky-dark)', border: '1px solid rgba(91,166,224,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', cursor: 'pointer', transition: 'var(--transition-fast)', marginBottom: '0.75rem' }}
                         >
                           🔓 {isResettingPassword ? 'Blanqueando...' : 'Blanquear Contraseña'}
+                        </button>
+
+                        <button 
+                          className="btn btn-secondary" 
+                          onClick={handleOpenAdjustSteps}
+                          style={{ width: '100%', padding: '0.75rem', fontSize: '0.88rem', backgroundColor: 'var(--bg-app)', color: 'var(--text-main)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', cursor: 'pointer', transition: 'var(--transition-fast)' }}
+                        >
+                          📝 Ajustar Pasos Diarios
                         </button>
                       </div>
                     </div>
@@ -6072,6 +6117,79 @@ function App() {
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={isSavingProgress} style={{ flex: 1 }}>
                   {isSavingProgress ? 'Guardando...' : 'Actualizar Progreso'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: AJUSTAR PASOS DIARIOS DEL COLABORADOR */}
+      {showAdjustStepsModal && selectedDetailUser && (
+        <div className="modal-overlay" onClick={() => setShowAdjustStepsModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px', width: '95%' }}>
+            <div className="modal-header">
+              <h3>📝 Ajustar Pasos Diarios</h3>
+              <button className="close-btn" onClick={() => setShowAdjustStepsModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveAdjustSteps} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0, lineHeight: '1.4' }}>
+                Modifica los pasos del colaborador para cualquiera de los últimos 7 días. Al guardar, <strong>el cambio se propagará a todos sus retos activos</strong> y recalculará el progreso, los puntos y el estado de compleción correspondientes.
+              </p>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', maxHeight: '350px', overflowY: 'auto', paddingRight: '0.5rem', margin: '0.5rem 0' }}>
+                {(() => {
+                  const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+                  const list = [];
+                  for (let i = 6; i >= 0; i--) {
+                    const d = new Date();
+                    d.setDate(d.getDate() - i);
+                    const dayLabel = dayNames[d.getDay()];
+                    const dateKey = getLocalDateString(d);
+                    const displayDate = dateKey.split('-').reverse().slice(0, 2).join('/');
+                    
+                    const arrayIdx = 6 - i;
+                    
+                    list.push({
+                      arrayIdx,
+                      label: `${dayLabel} (${displayDate})`,
+                      dateKey
+                    });
+                  }
+                  
+                  return list.map(({ arrayIdx, label }) => {
+                    const currentVal = adjustStepsValues[arrayIdx] || 0;
+                    return (
+                      <div key={arrayIdx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', backgroundColor: 'var(--bg-app)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>{label}</span>
+                        <input
+                          type="number"
+                          min="0"
+                          className="form-input"
+                          style={{ width: '130px', textAlign: 'right', padding: '0.4rem 0.6rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}
+                          value={currentVal}
+                          onChange={(e) => {
+                            const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+                            const updated = [...adjustStepsValues];
+                            updated[arrayIdx] = val;
+                            setAdjustStepsValues(updated);
+                          }}
+                        />
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowAdjustStepsModal(false)} style={{ flex: 1 }}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={isSavingAdjustSteps} style={{ flex: 1 }}>
+                  {isSavingAdjustSteps ? 'Guardando...' : 'Guardar Cambios'}
                 </button>
               </div>
             </form>

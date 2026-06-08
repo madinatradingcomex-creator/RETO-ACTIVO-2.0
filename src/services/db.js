@@ -1081,6 +1081,115 @@ export const dbService = {
       return { totalSteps: 0, kmEquivalent: 0, syncedChallenges: [], pointsAwarded: 0, completed: false }; 
     }
   },
+  async adjustUserStepsBatch(userId, newStepsArray) {
+    try {
+      const userRef = doc(db, 'usuarios', userId);
+      const userSnap = await getDoc(userRef);
+      if (!userSnap.exists()) return { error: "Usuario no encontrado." };
+      const user = userSnap.data();
+      
+      const oldStepsArray = user.daily_steps_history || [0, 0, 0, 0, 0, 0, 0];
+      if (newStepsArray.length !== 7) return { error: "La lista de pasos debe contener exactamente 7 días." };
+      
+      // Calculate dates array corresponding to the 7 days (index 6 = today, index 0 = 6 days ago)
+      const dates = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        dates.push(getLocalDateString(d));
+      }
+      
+      // Fetch all user enrollments
+      const q = query(
+        collection(db, 'user_challenges'),
+        where('user_id', '==', userId)
+      );
+      const snap = await getDocs(q);
+      
+      let totalPointsChange = 0;
+      
+      for (const enrollDoc of snap.docs) {
+        const enrollment = enrollDoc.data();
+        const challengeId = enrollment.challenge_id;
+        
+        const cSnap = await getDoc(doc(db, 'retos', challengeId));
+        if (!cSnap.exists()) continue;
+        const challenge = cSnap.data();
+        
+        if (challenge.unit !== 'pasos' && challenge.unit !== 'km') continue;
+        
+        const dailySyncs = { ...(enrollment.daily_syncs || {}) };
+        let netAmountToAdd = 0;
+        let hasChanges = false;
+        
+        for (let i = 0; i < 7; i++) {
+          const dateStr = dates[i];
+          
+          if (challenge.start_date && dateStr < challenge.start_date) continue;
+          if (challenge.end_date && dateStr > challenge.end_date) continue;
+          
+          const oldSyncSteps = dailySyncs[dateStr] || 0;
+          const newSteps = newStepsArray[i];
+          
+          if (newSteps !== oldSyncSteps) {
+            const stepDiff = newSteps - oldSyncSteps;
+            const amountToAdd = challenge.unit === 'km' 
+              ? parseFloat((stepDiff / 1312).toFixed(2))
+              : stepDiff;
+              
+            netAmountToAdd += amountToAdd;
+            dailySyncs[dateStr] = newSteps;
+            hasChanges = true;
+          }
+        }
+        
+        if (hasChanges) {
+          const oldProgress = enrollment.progress || 0;
+          let newProgress = parseFloat((oldProgress + netAmountToAdd).toFixed(2));
+          if (newProgress < 0) newProgress = 0;
+          if (newProgress > challenge.target) newProgress = challenge.target;
+          
+          let newStatus = enrollment.status || 'active';
+          
+          if (newProgress >= challenge.target && enrollment.status !== 'completed') {
+            newStatus = 'completed';
+            newProgress = challenge.target;
+            totalPointsChange += challenge.points;
+          } else if (newProgress < challenge.target && enrollment.status === 'completed') {
+            newStatus = 'active';
+            totalPointsChange -= challenge.points;
+          }
+          
+          await updateDoc(enrollDoc.ref, {
+            progress: newProgress,
+            status: newStatus,
+            daily_syncs: dailySyncs
+          });
+        }
+      }
+      
+      const updatedPoints = (user.points || 0) + totalPointsChange;
+      const parsedSteps = newStepsArray.map(s => Math.max(0, parseInt(s, 10) || 0));
+      
+      await updateDoc(userRef, {
+        daily_steps_history: parsedSteps,
+        points: updatedPoints >= 0 ? updatedPoints : 0
+      });
+      
+      const local = getLocalUser();
+      if (local && local.id === userId) {
+        local.daily_steps_history = parsedSteps;
+        local.points = Math.max(0, updatedPoints);
+        setLocalUser(local);
+      }
+      
+      clearCache();
+      return { success: true };
+    } catch(err) {
+      console.error("Error in adjustUserStepsBatch:", err);
+      return { error: "Error interno al ajustar pasos en lote." };
+    }
+  },
   saveLastSync(userId, steps) {
     localStorage.setItem(`ra_gfit_last_sync_${userId}`, JSON.stringify({ steps, syncedAt: new Date().toISOString() }));
   },
@@ -1226,6 +1335,15 @@ export const dbService = {
     } catch(err) {
       console.error("Error updating user avatar:", err);
       return { error: err.message };
+    }
+  },
+  async getUserDoc(userId) {
+    try {
+      const snap = await getDoc(doc(db, 'usuarios', userId));
+      return snap.exists() ? snap.data() : null;
+    } catch(err) {
+      console.error("Error in getUserDoc:", err);
+      return null;
     }
   },
   async deleteUser(userId) {
