@@ -419,6 +419,11 @@ function App() {
           .catch(err => {
             console.error('Error en sincronización silenciosa:', err);
             setGFitSyncing(false);
+            if (err.status === 401) {
+              dbService.clearGoogleFitToken();
+              setGFitConnected(false);
+              showToastMessage('🔑 La sesión de Google Fit ha expirado. Por favor reconecta.', 'warning');
+            }
           });
       }
     }, 1000);
@@ -723,7 +728,13 @@ function App() {
       await performGFitSync(currentUser, fitData);
     } catch(err) {
       console.error(err);
-      showToastMessage('⚠️ No se pudieron sincronizar los pasos.', 'error');
+      if (err.status === 401) {
+        dbService.clearGoogleFitToken();
+        setGFitConnected(false);
+        showToastMessage('🔑 La sesión de Google Fit ha expirado. Por favor reconecta.', 'warning');
+      } else {
+        showToastMessage('⚠️ No se pudieron sincronizar los pasos.', 'error');
+      }
       setGFitSyncing(false);
     }
   };

@@ -1079,7 +1079,11 @@ export const dbService = {
         })
       });
 
-      if (!response.ok) throw new Error('Network response was not ok');
+      if (!response.ok) {
+        const error = new Error(`Google Fit API error: ${response.statusText}`);
+        error.status = response.status;
+        throw error;
+      }
       const data = await response.json();
       
       const dailySteps = [];
@@ -1099,8 +1103,8 @@ export const dbService = {
 
       return { dailySteps, totalSteps };
     } catch (err) {
-      console.error(err);
-      return { dailySteps: [0,0,0,0,0,0,0], totalSteps: 0 };
+      console.error("Error in fetchWeeklyStepsFromGoogleFit:", err);
+      throw err;
     }
   },
   async syncGoogleFitSteps(userId, fitData, syncDays = 7) {
