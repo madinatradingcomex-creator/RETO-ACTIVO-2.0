@@ -197,6 +197,22 @@ function App() {
     }
   }, [currentUser]);
 
+  // Forms - Admin Create Challenge
+  const [cTitle, setCTitle] = useState('');
+  const [cDesc, setCDesc] = useState('');
+  const [cPoints, setCPoints] = useState('');
+  const [cCategory, setCCategory] = useState('mobility');
+  const [cTarget, setCTarget] = useState('');
+  const [cUnit, setCUnit] = useState('km');
+  const [cDuration, setCDuration] = useState('7 días');
+  const [cIcon, setCIcon] = useState('🚴‍♀️');
+  const [cStartDate, setCStartDate] = useState('');
+  const [cEndDate, setCEndDate] = useState('');
+  const [cModality, setCModality] = useState('scheduled');
+  const [cEnrollmentDeadline, setCEnrollmentDeadline] = useState('');
+  const [cIsDaily, setCIsDaily] = useState(false);
+  const [cDailyTarget, setCDailyTarget] = useState('');
+
   useEffect(() => {
     let start = '';
     if (cModality === 'scheduled') {
@@ -220,23 +236,6 @@ function App() {
       setCDuration('');
     }
   }, [cStartDate, cEndDate, cModality]);
-
-
-  // Forms - Admin Create Challenge
-  const [cTitle, setCTitle] = useState('');
-  const [cDesc, setCDesc] = useState('');
-  const [cPoints, setCPoints] = useState('');
-  const [cCategory, setCCategory] = useState('mobility');
-  const [cTarget, setCTarget] = useState('');
-  const [cUnit, setCUnit] = useState('km');
-  const [cDuration, setCDuration] = useState('7 días');
-  const [cIcon, setCIcon] = useState('🚴‍♀️');
-  const [cStartDate, setCStartDate] = useState('');
-  const [cEndDate, setCEndDate] = useState('');
-  const [cModality, setCModality] = useState('scheduled');
-  const [cEnrollmentDeadline, setCEnrollmentDeadline] = useState('');
-  const [cIsDaily, setCIsDaily] = useState(false);
-  const [cDailyTarget, setCDailyTarget] = useState('');
 
   // Admin Challenges Manager & Detail view states (Participants declared here)
   const [adminChallengeParticipants, setAdminChallengeParticipants] = useState([]);
