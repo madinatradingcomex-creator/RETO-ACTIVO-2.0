@@ -3369,7 +3369,7 @@ function App() {
                             <p className="challenge-desc">{c.description}</p>
 
                             <div className="challenge-stats">
-                              <div className="challenge-stat-item" style={{ minWidth: c.is_daily ? '140px' : 'auto' }}>
+                              <div className="challenge-stat-item">
                                 <span className="challenge-stat-label">Objetivo</span>
                                 <span className="challenge-stat-value">
                                   {c.is_daily && c.daily_target
@@ -3378,7 +3378,11 @@ function App() {
                                   }
                                 </span>
                               </div>
-                              <div className="challenge-stat-item" style={{ minWidth: '120px' }}>
+                              <div className="challenge-stat-item">
+                                <span className="challenge-stat-label">Participantes</span>
+                                <span className="challenge-stat-value">{c.participantsCount} personas</span>
+                              </div>
+                              <div className="challenge-stat-item" style={{ gridColumn: 'span 2' }}>
                                 <span className="challenge-stat-label">Vigencia</span>
                                 <span className="challenge-stat-value" style={{ fontSize: '0.78rem' }}>
                                   {c.modality === 'immediate' ? (
@@ -3389,10 +3393,6 @@ function App() {
                                     'Permanente'
                                   )}
                                 </span>
-                              </div>
-                              <div className="challenge-stat-item">
-                                <span className="challenge-stat-label">Participantes</span>
-                                <span className="challenge-stat-value">{c.participantsCount} personas</span>
                               </div>
                             </div>
 
