@@ -434,22 +434,22 @@ function App() {
   const triggerAutoGFitSync = (user) => {
     if (!dbService.isGoogleFitConnected() || user.role !== 'employee') return;
     setTimeout(() => {
+      // Re-check connection inside the callback to avoid stale sync after logout/disconnect
       const token = dbService.getGoogleFitToken();
-      if (token) {
-        setGFitSyncing(true);
-        showToastMessage('🔄 Sincronizando tus pasos de Google Fit automáticamente...');
-        dbService.fetchWeeklyStepsFromGoogleFit(token)
-          .then(fitData => performGFitSync(user, fitData))
-          .catch(err => {
-            console.error('Error en sincronización silenciosa:', err);
-            setGFitSyncing(false);
-            if (err.status === 401) {
-              dbService.clearGoogleFitToken();
-              setGFitConnected(false);
-              showToastMessage('🔑 La sesión de Google Fit ha expirado. Por favor reconecta.', 'warning');
-            }
-          });
-      }
+      if (!token || !dbService.isGoogleFitConnected()) return;
+      setGFitSyncing(true);
+      showToastMessage('🔄 Sincronizando tus pasos de Google Fit automáticamente...');
+      dbService.fetchWeeklyStepsFromGoogleFit(token)
+        .then(fitData => performGFitSync(user, fitData))
+        .catch(err => {
+          console.error('Error en sincronización silenciosa:', err);
+          setGFitSyncing(false);
+          if (err.status === 401) {
+            dbService.clearGoogleFitToken();
+            setGFitConnected(false);
+            showToastMessage('🔑 La sesión de Google Fit ha expirado. Por favor reconecta.', 'warning');
+          }
+        });
     }, 1000);
   };
 
@@ -814,12 +814,9 @@ function App() {
       showToastMessage(res.error, "error");
       return;
     }
-    setUserChallenges(res);
-    
-    const challengesData = await dbService.getChallenges();
-    setChallenges(challengesData);
-    
-    const challenge = challengesData.find(c => c.id === challengeId);
+    // Full refresh keeps rankings, participant counts, and all derived state in sync
+    await loadViewData(currentUser);
+    const challenge = challenges.find(c => c.id === challengeId);
     const challengeTitle = challenge ? challenge.title : 'el reto';
     showToastMessage(`¡Te has anotado con éxito al reto "${challengeTitle}"! 🌱`);
   };
@@ -1403,6 +1400,11 @@ function App() {
       rIcon,
       rStock
     );
+
+    if (!newReward) {
+      showToastMessage("Error al añadir el premio. Inténtalo nuevamente.", "error");
+      return;
+    }
 
     showToastMessage(`🎁 ¡Premio "${newReward.title}" añadido con éxito a la tienda!`);
     

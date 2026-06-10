@@ -204,16 +204,9 @@ export const dbService = {
       const docSnap = await getDoc(doc(db, 'usuarios', local.id));
       if (docSnap.exists()) {
         const u = docSnap.data();
-        
-        // Update last_login to current time when user accesses the app
-        const lastLogin = new Date().toISOString();
-        try {
-          await updateDoc(doc(db, 'usuarios', u.id), { last_login: lastLogin });
-          u.last_login = lastLogin;
-        } catch(e) {
-          console.error("Error updating last_login in getCurrentUser:", e);
-        }
-        
+        // NOTE: last_login is intentionally NOT updated here.
+        // It is only recorded during loginWithCompanyCode and registerUser
+        // to avoid a Firestore write on every session/data refresh.
         setLocalUser(u);
         setCachedData(cacheKey, u);
         return u;
@@ -1079,7 +1072,20 @@ export const dbService = {
     const todayStr = getLocalDateString();
     const challengeEndStr = challenge.end_date || '';
     
-    const endStr = (challengeEndStr && challengeEndStr < todayStr) ? challengeEndStr : todayStr;
+    // Determine the last day to check:
+    // - If the challenge has ended, check up to the end date.
+    // - If the challenge is still ongoing, only check COMPLETED days (yesterday and before),
+    //   since today's steps may still be accumulating during the day.
+    let endStr;
+    if (challengeEndStr && challengeEndStr < todayStr) {
+      // Challenge has already ended — check all days up to the end date
+      endStr = challengeEndStr;
+    } else {
+      // Challenge is ongoing — only check up to yesterday to avoid false failures mid-day
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      endStr = getLocalDateString(yesterday);
+    }
     
     if (startStr > endStr) return true;
     
