@@ -520,7 +520,14 @@ export const dbService = {
       
       progress = parseFloat(progress.toFixed(2));
       let status = 'active';
-      if (progress >= challenge.target) {
+      const tempEnrollmentForCheck = {
+        progress,
+        daily_syncs: dailySyncs,
+        enrolled_at: new Date().toISOString()
+      };
+      const dailyConditionMet = this.verifyDailyCondition(tempEnrollmentForCheck, challenge);
+
+      if (progress >= challenge.target && dailyConditionMet) {
         progress = challenge.target;
         status = 'completed';
         
@@ -871,8 +878,28 @@ export const dbService = {
         if (cSnap.exists()) {
           const c = cSnap.data();
           const newProgress = parseFloat(enrollment.progress) + parseFloat(evidence.value);
-          if (newProgress >= c.target && enrollment.status !== 'completed') {
-            await updateDoc(enrollDoc.ref, { progress: c.target, status: 'completed' });
+          const dailySyncs = { ...(enrollment.daily_syncs || {}) };
+          if (c.unit === 'pasos' || c.unit === 'km') {
+            const dateStr = evidence.submission_date || evidence.date.split('T')[0];
+            const stepsValue = c.unit === 'km' 
+              ? Math.round(parseFloat(evidence.value) * 1312)
+              : parseFloat(evidence.value);
+            dailySyncs[dateStr] = (dailySyncs[dateStr] || 0) + stepsValue;
+          }
+
+          const updatedEnrollmentForCheck = {
+            ...enrollment,
+            progress: newProgress,
+            daily_syncs: dailySyncs
+          };
+          const dailyConditionMet = this.verifyDailyCondition(updatedEnrollmentForCheck, c);
+
+          if (newProgress >= c.target && dailyConditionMet && enrollment.status !== 'completed') {
+            await updateDoc(enrollDoc.ref, { 
+              progress: c.target, 
+              status: 'completed',
+              daily_syncs: dailySyncs
+            });
             await this.updateUserStats(evidence.user_id, 0, c.unit === 'pasos' ? evidence.value : 0);
             
             // Create pending completion evidence record
@@ -897,7 +924,10 @@ export const dbService = {
             }
             res = { success: true, completed: true, pointsAwarded: 0 };
           } else {
-            await updateDoc(enrollDoc.ref, { progress: newProgress });
+            await updateDoc(enrollDoc.ref, { 
+              progress: newProgress,
+              daily_syncs: dailySyncs
+            });
             await this.updateUserStats(evidence.user_id, 0, c.unit === 'pasos' ? evidence.value : 0);
             res = { success: true, completed: false, pointsAwarded: 0 };
           }
@@ -1039,6 +1069,39 @@ export const dbService = {
   },
 
   // --- GOOGLE FIT INTEGRATION ---
+  verifyDailyCondition(enrollment, challenge) {
+    if (!challenge.daily_target || challenge.daily_target <= 0) return true;
+    
+    const enrolledDateStr = enrollment.enrolled_at ? enrollment.enrolled_at.split('T')[0] : getLocalDateString();
+    const challengeStartStr = challenge.start_date || '';
+    
+    const startStr = (challengeStartStr && challengeStartStr > enrolledDateStr) ? challengeStartStr : enrolledDateStr;
+    const todayStr = getLocalDateString();
+    const challengeEndStr = challenge.end_date || '';
+    
+    const endStr = (challengeEndStr && challengeEndStr < todayStr) ? challengeEndStr : todayStr;
+    
+    if (startStr > endStr) return true;
+    
+    let current = new Date(startStr + 'T12:00:00');
+    const stopDate = new Date(endStr + 'T12:00:00');
+    
+    const dailySyncs = enrollment.daily_syncs || {};
+    
+    while (current <= stopDate) {
+      const dateStr = getLocalDateString(current);
+      const daySteps = dailySyncs[dateStr] || 0;
+      const dayValue = challenge.unit === 'km'
+        ? parseFloat((daySteps / 1312).toFixed(2))
+        : daySteps;
+      
+      if (dayValue < challenge.daily_target) {
+        return false;
+      }
+      current.setDate(current.getDate() + 1);
+    }
+    return true;
+  },
   saveGoogleFitToken(token) {
     localStorage.setItem('ra_gfit_token', token);
   },
@@ -1180,7 +1243,14 @@ export const dbService = {
           let status = 'active';
           let completed = false;
 
-          if (newProgress >= challenge.target) {
+          const updatedEnrollmentForCheck = {
+            ...enrollment,
+            progress: newProgress,
+            daily_syncs: dailySyncs
+          };
+          const dailyConditionMet = this.verifyDailyCondition(updatedEnrollmentForCheck, challenge);
+
+          if (newProgress >= challenge.target && dailyConditionMet) {
             status = 'completed';
             completed = true;
             challengesCompletedCount++;
@@ -1306,7 +1376,14 @@ export const dbService = {
           
           let newStatus = enrollment.status || 'active';
           
-          if (newProgress >= challenge.target && enrollment.status !== 'completed') {
+          const updatedEnrollmentForCheck = {
+            ...enrollment,
+            progress: newProgress,
+            daily_syncs: dailySyncs
+          };
+          const dailyConditionMet = this.verifyDailyCondition(updatedEnrollmentForCheck, challenge);
+
+          if (newProgress >= challenge.target && dailyConditionMet && enrollment.status !== 'completed') {
             newStatus = 'completed';
             newProgress = challenge.target;
             
@@ -1330,7 +1407,7 @@ export const dbService = {
               };
               await setDoc(doc(db, 'evidencias', compEv.id), compEv);
             }
-          } else if (newProgress < challenge.target && enrollment.status === 'completed') {
+          } else if ((newProgress < challenge.target || !dailyConditionMet) && enrollment.status === 'completed') {
             newStatus = 'active';
             
             // Find all completion evidences for this user and challenge

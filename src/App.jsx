@@ -197,6 +197,30 @@ function App() {
     }
   }, [currentUser]);
 
+  useEffect(() => {
+    let start = '';
+    if (cModality === 'scheduled') {
+      start = cStartDate;
+    } else {
+      start = getLocalDateString();
+    }
+    
+    if (start && cEndDate) {
+      const startTime = new Date(start + 'T12:00:00').getTime();
+      const endTime = new Date(cEndDate + 'T12:00:00').getTime();
+      const diffTime = endTime - startTime;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // inclusive
+      
+      if (!isNaN(diffDays) && diffDays > 0) {
+        setCDuration(`${diffDays} día${diffDays > 1 ? 's' : ''}`);
+      } else {
+        setCDuration('');
+      }
+    } else {
+      setCDuration('');
+    }
+  }, [cStartDate, cEndDate, cModality]);
+
 
   // Forms - Admin Create Challenge
   const [cTitle, setCTitle] = useState('');
@@ -212,6 +236,7 @@ function App() {
   const [cModality, setCModality] = useState('scheduled');
   const [cEnrollmentDeadline, setCEnrollmentDeadline] = useState('');
   const [cIsDaily, setCIsDaily] = useState(false);
+  const [cDailyTarget, setCDailyTarget] = useState('');
 
   // Admin Challenges Manager & Detail view states (Participants declared here)
   const [adminChallengeParticipants, setAdminChallengeParticipants] = useState([]);
@@ -970,7 +995,9 @@ function App() {
     }
     if (durationDays < 1) durationDays = 1;
 
-    const finalTarget = cIsDaily ? parseFloat(cTarget) * durationDays : parseFloat(cTarget);
+    const finalTarget = parseFloat(cTarget);
+    const finalIsDaily = cDailyTarget && parseFloat(cDailyTarget) > 0;
+    const finalDailyTarget = finalIsDaily ? parseFloat(cDailyTarget) : null;
 
     const newChallenge = await dbService.createChallenge(
       cTitle,
@@ -985,8 +1012,8 @@ function App() {
       finalEndDate,
       cModality,
       finalEnrollmentDeadline,
-      cIsDaily,
-      cIsDaily ? parseFloat(cTarget) : null
+      finalIsDaily,
+      finalDailyTarget
     );
 
     if (!newChallenge) {
@@ -1000,6 +1027,7 @@ function App() {
     setCDesc('');
     setCPoints('');
     setCTarget('');
+    setCDailyTarget('');
     setCStartDate('');
     setCEndDate('');
     setCEnrollmentDeadline('');
@@ -4719,16 +4747,26 @@ function App() {
                         />
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
                         <div className="form-group" style={{ marginBottom: 0 }}>
-                          <label className="form-label">{cIsDaily ? 'Objetivo por día' : 'Objetivo Numérico'}</label>
+                          <label className="form-label">Objetivo Total Acumulado</label>
                           <input 
                             type="number" 
-                            placeholder={cIsDaily ? 'Ej: 10000' : 'Ej: 30'} 
+                            placeholder="Ej: 50000" 
                             className="form-input" 
                             value={cTarget}
                             onChange={(e) => setCTarget(e.target.value)}
                             required
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label">Meta Diaria Mínima (Opcional)</label>
+                          <input 
+                            type="number" 
+                            placeholder="Ej: 8000" 
+                            className="form-input" 
+                            value={cDailyTarget}
+                            onChange={(e) => setCDailyTarget(e.target.value)}
                           />
                         </div>
                         <div className="form-group" style={{ marginBottom: 0 }}>
@@ -4743,19 +4781,6 @@ function App() {
                             <option value="sesiones">Sesiones</option>
                             <option value="litros">Litros</option>
                           </select>
-                        </div>
-                        
-                        <div style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
-                          <input 
-                            type="checkbox" 
-                            id="cIsDaily" 
-                            checked={cIsDaily} 
-                            onChange={(e) => setCIsDaily(e.target.checked)} 
-                            style={{ width: 'auto', height: 'auto', cursor: 'pointer' }}
-                          />
-                          <label htmlFor="cIsDaily" style={{ fontSize: '0.82rem', color: 'var(--text-muted)', cursor: 'pointer', userSelect: 'none', fontWeight: 500 }}>
-                            Definir como objetivo diario (el sistema calculará los pasos/km totales automáticamente)
-                          </label>
                         </div>
                       </div>
 
@@ -4863,10 +4888,12 @@ function App() {
                         <label className="form-label">Duración Estimada</label>
                         <input 
                           type="text" 
-                          placeholder="Ej: 15 días" 
+                          placeholder="Calculada automáticamente" 
                           className="form-input" 
                           value={cDuration}
-                          onChange={(e) => setCDuration(e.target.value)}
+                          readOnly
+                          disabled
+                          style={{ backgroundColor: 'var(--bg-app)', cursor: 'not-allowed' }}
                         />
                       </div>
 
@@ -4917,14 +4944,21 @@ function App() {
                           <div className="challenge-progress-fill" style={{ width: '0%', backgroundColor: 'var(--sky-accent)' }} />
                         </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-                          <span style={{ color: 'var(--text-muted)' }}>Meta:</span>
-                          <span style={{ fontWeight: 700 }}>
-                            {cIsDaily 
-                              ? `${cTarget || '0'} ${cUnit}/día` 
-                              : `${cTarget || '0'} ${cUnit}`
-                            }
-                          </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.85rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: 'var(--text-muted)' }}>Meta Acumulada:</span>
+                            <span style={{ fontWeight: 700 }}>
+                              {cTarget || '0'} {cUnit}
+                            </span>
+                          </div>
+                          {cDailyTarget && parseFloat(cDailyTarget) > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ color: 'var(--text-muted)' }}>Mínimo Diario:</span>
+                              <span style={{ fontWeight: 700 }}>
+                                {cDailyTarget} {cUnit}/día
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
