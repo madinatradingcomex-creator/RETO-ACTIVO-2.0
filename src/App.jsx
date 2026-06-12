@@ -4490,20 +4490,39 @@ function App() {
                             else if (idx === 2) rankBadge = '🥉 #3';
 
                             return (
-                              <tr key={p.user_id} style={{ borderBottom: '1px solid var(--border-color)', fontSize: '0.9rem' }} className="table-row-hover">
+                              <tr 
+                                key={p.user_id} 
+                                onClick={() => handleOpenChallengeProgressDetail(p, adminSelectedChallenge)}
+                                style={{ borderBottom: '1px solid var(--border-color)', fontSize: '0.9rem', cursor: 'pointer', transition: 'background-color 0.15s ease' }} 
+                                className="table-row-hover"
+                                title={`Ver progreso diario de ${p.user_name}`}
+                              >
                                 <td style={{ padding: '1rem', fontWeight: 700, color: idx < 3 ? 'var(--text-main)' : 'var(--text-muted)' }}>
                                   {rankBadge}
                                 </td>
                                 <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-main)' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'var(--bg-main)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justify: 'center', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'var(--bg-main)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', flexShrink: 0 }}>
                                       {p.avatar ? (
                                         <img src={p.avatar} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                                       ) : (
                                         p.user_name.charAt(0).toUpperCase()
                                       )}
                                     </div>
-                                    {p.user_name}
+                                    <span>{p.user_name}</span>
+                                    <span style={{
+                                      fontSize: '0.62rem',
+                                      color: 'var(--sky-dark)',
+                                      background: 'var(--sky-bg)',
+                                      border: '1px solid rgba(56,189,248,0.25)',
+                                      borderRadius: '5px',
+                                      padding: '0.1rem 0.4rem',
+                                      fontWeight: 600,
+                                      whiteSpace: 'nowrap',
+                                      flexShrink: 0
+                                    }}>
+                                      📊 Ver días
+                                    </span>
                                   </div>
                                 </td>
                                 <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
@@ -4515,28 +4534,8 @@ function App() {
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                                         <span>{p.progress.toLocaleString()} / {adminSelectedChallenge.target.toLocaleString()} {adminSelectedChallenge.unit}</span>
                                         <button 
-                                          onClick={() => handleOpenChallengeProgressDetail(p, adminSelectedChallenge)}
-                                          style={{
-                                            background: 'var(--sky-bg)',
-                                            border: '1px solid rgba(56,189,248,0.2)',
-                                            color: 'var(--sky-dark)',
-                                            cursor: 'pointer',
-                                            padding: '0.15rem 0.45rem',
-                                            borderRadius: '6px',
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: '0.2rem',
-                                            transition: 'all 0.2s ease',
-                                            fontSize: '0.68rem',
-                                            fontWeight: 650,
-                                            marginLeft: '0.25rem'
-                                          }}
-                                          title="Ver desglose diario y evidencias"
-                                        >
-                                          🔍 Ver Días
-                                        </button>
-                                        <button 
-                                          onClick={() => {
+                                          onClick={(e) => {
+                                            e.stopPropagation();
                                             setEditingParticipant(p);
                                             setEditProgressValue(p.progress);
                                             setShowEditProgressModal(true);
@@ -4553,7 +4552,7 @@ function App() {
                                             transition: 'background-color 0.2s',
                                             fontSize: '0.72rem'
                                           }}
-                                          title="Ajustar progreso"
+                                          title="Ajustar progreso manualmente"
                                         >
                                           <Edit2 size={11} />
                                         </button>
