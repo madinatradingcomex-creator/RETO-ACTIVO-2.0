@@ -225,6 +225,8 @@ function App() {
   const [cEnrollmentDeadline, setCEnrollmentDeadline] = useState('');
   const [cIsDaily, setCIsDaily] = useState(false);
   const [cDailyTarget, setCDailyTarget] = useState('');
+  const [cTargetCompany, setCTargetCompany] = useState('');
+  const [cTargetEmployees, setCTargetEmployees] = useState([]);
 
   useEffect(() => {
     let start = '';
@@ -386,7 +388,13 @@ function App() {
           dbService.getAllUserChallenges(),
         ]);
 
-        setChallenges(challengesData);
+        const filteredChallenges = challengesData.filter(c => {
+          if (c.allowed_users && Array.isArray(c.allowed_users) && c.allowed_users.length > 0) {
+            return c.allowed_users.includes(userSession.id);
+          }
+          return true;
+        });
+        setChallenges(filteredChallenges);
         setUserChallenges(userChallengesData);
         setRewards(rewardsData);
         setRedeemedRewards(redeemedData);
@@ -946,10 +954,58 @@ function App() {
     await loadViewData(currentUser);
   };
 
+  const availableCompanies = activeUsers
+    ? Array.from(new Set(
+        activeUsers
+          .map(u => u.company_code)
+          .filter(Boolean)
+          .map(c => c.toUpperCase().trim())
+      )).sort()
+    : [];
+
+  const targetEmployeesList = activeUsers
+    ? activeUsers.filter(u => u.role === 'employee' && u.company_code && u.company_code.toUpperCase().trim() === cTargetCompany.toUpperCase().trim())
+    : [];
+
+  const handleToggleTargetEmployee = (userId) => {
+    setCTargetEmployees(prev => 
+      prev.includes(userId)
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  const handleSelectAllTargetEmployees = () => {
+    const ids = targetEmployeesList.map(u => u.id);
+    setCTargetEmployees(ids);
+  };
+
+  const handleDeselectAllTargetEmployees = () => {
+    setCTargetEmployees([]);
+  };
+
+  const handleTargetCompanyChange = (e) => {
+    const val = e.target.value;
+    setCTargetCompany(val);
+    if (val) {
+      const emps = activeUsers
+        .filter(u => u.role === 'employee' && u.company_code && u.company_code.toUpperCase().trim() === val.toUpperCase().trim())
+        .map(u => u.id);
+      setCTargetEmployees(emps);
+    } else {
+      setCTargetEmployees([]);
+    }
+  };
+
   const handleCreateChallenge = async (e) => {
     e.preventDefault();
     if (!cTitle || !cDesc || !cPoints || !cTarget) {
       showToastMessage("Por favor rellena todos los campos requeridos.", "error");
+      return;
+    }
+
+    if (cTargetCompany && cTargetEmployees.length === 0) {
+      showToastMessage("Si seleccionas una empresa, debes elegir al menos un colaborador para el reto.", "error");
       return;
     }
 
@@ -1022,7 +1078,8 @@ function App() {
       cModality,
       finalEnrollmentDeadline,
       finalIsDaily,
-      finalDailyTarget
+      finalDailyTarget,
+      cTargetCompany ? cTargetEmployees : null
     );
 
     if (!newChallenge) {
@@ -1042,6 +1099,8 @@ function App() {
     setCEnrollmentDeadline('');
     setCModality('scheduled');
     setCIsDaily(false);
+    setCTargetCompany('');
+    setCTargetEmployees([]);
     
     loadViewData(currentUser);
     setActiveTab('dashboard');
@@ -4970,6 +5029,97 @@ function App() {
                           disabled
                           style={{ backgroundColor: 'var(--bg-app)', cursor: 'not-allowed' }}
                         />
+                      </div>
+
+                      <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem', marginTop: '1.5rem' }}>
+                        <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span>👥</span> Destinatarios del Reto (Opcional)
+                        </h4>
+                        
+                        <div className="form-group">
+                          <label className="form-label">Seleccionar Empresa</label>
+                          <select 
+                            className="form-input" 
+                            value={cTargetCompany}
+                            onChange={handleTargetCompanyChange}
+                          >
+                            <option value="">Disponible para todos los colaboradores (Público)</option>
+                            {availableCompanies.map(comp => (
+                              <option key={comp} value={comp}>{comp}</option>
+                            ))}
+                          </select>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.25rem' }}>
+                            Si seleccionas una empresa, podrás restringir este reto para colaboradores específicos de esa empresa.
+                          </span>
+                        </div>
+
+                        {cTargetCompany && (
+                          <div style={{ backgroundColor: 'var(--bg-app)', padding: '1.25rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', marginTop: '1rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                                Colaboradores de {cTargetCompany} ({cTargetEmployees.length} seleccionados)
+                              </span>
+                              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <button 
+                                  type="button"
+                                  className="btn btn-secondary" 
+                                  onClick={handleSelectAllTargetEmployees}
+                                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.72rem', width: 'auto' }}
+                                >
+                                  Todos
+                                </button>
+                                <button 
+                                  type="button"
+                                  className="btn btn-secondary" 
+                                  onClick={handleDeselectAllTargetEmployees}
+                                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.72rem', width: 'auto' }}
+                                >
+                                  Ninguno
+                                </button>
+                              </div>
+                            </div>
+
+                            <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingRight: '0.25rem' }}>
+                              {targetEmployeesList.length === 0 ? (
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No hay colaboradores activos registrados en esta empresa.</span>
+                              ) : (
+                                targetEmployeesList.map(emp => (
+                                  <label 
+                                    key={emp.id} 
+                                    style={{ 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      gap: '0.6rem', 
+                                      padding: '0.4rem 0.6rem', 
+                                      borderRadius: '6px', 
+                                      backgroundColor: 'white', 
+                                      border: '1px solid var(--border-color)', 
+                                      cursor: 'pointer',
+                                      fontSize: '0.82rem',
+                                      fontWeight: 500,
+                                      color: 'var(--text-main)',
+                                      userSelect: 'none'
+                                    }}
+                                  >
+                                    <input 
+                                      type="checkbox"
+                                      checked={cTargetEmployees.includes(emp.id)}
+                                      onChange={() => handleToggleTargetEmployee(emp.id)}
+                                      style={{ accentColor: 'var(--accent-color)', width: '15px', height: '15px' }}
+                                    />
+                                    <img 
+                                      src={emp.avatar || 'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=120'} 
+                                      alt="" 
+                                      style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }}
+                                    />
+                                    <span>{emp.name} {emp.lastname || ''}</span>
+                                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>{emp.department || 'Sin Área'}</span>
+                                  </label>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <button type="submit" className="btn btn-primary" style={{ marginTop: '1.5rem' }}>

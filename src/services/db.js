@@ -939,7 +939,7 @@ export const dbService = {
     } catch(err) { console.error(err); return { error: "Error interno" }; }
   },
 
-  async createChallenge(title, description, points, category, target, unit, duration, image, startDate, endDate, modality = 'scheduled', enrollmentDeadline = '', isDaily = false, dailyTarget = null) {
+  async createChallenge(title, description, points, category, target, unit, duration, image, startDate, endDate, modality = 'scheduled', enrollmentDeadline = '', isDaily = false, dailyTarget = null, allowedUsers = null) {
     try {
       const newChallenge = {
         id: `ch_${Math.random().toString(36).substr(2, 9)}`,
@@ -949,7 +949,8 @@ export const dbService = {
         modality,
         enrollment_deadline: enrollmentDeadline || '',
         is_daily: isDaily,
-        daily_target: dailyTarget ? parseFloat(dailyTarget) : null
+        daily_target: dailyTarget ? parseFloat(dailyTarget) : null,
+        allowed_users: allowedUsers || null
       };
       await setDoc(doc(db, 'retos', newChallenge.id), newChallenge);
       clearCache();
