@@ -280,7 +280,7 @@ export const dbService = {
       name,
       lastname,
       email: email.toLowerCase(),
-      company_code: companyCode.toUpperCase(),
+      company_code: (companyCode || '').toUpperCase(),
       password_hash: passwordHash,
       avatar: 'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=120',
       points: 100,

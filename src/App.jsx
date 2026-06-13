@@ -567,7 +567,7 @@ function App() {
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    if (!regName.trim() || !regLastname.trim() || !regEmail.trim() || !regCompanyCode.trim() || !regPassword.trim()) {
+    if (!regName.trim() || !regLastname.trim() || !regEmail.trim() || !regPassword.trim()) {
       showToastMessage("Por favor rellena todos los campos requeridos.", "error");
       return;
     }
@@ -2053,7 +2053,7 @@ function App() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '1rem' }}>
                   <div className="form-group">
-                    <label className="form-label">Código de Empresa</label>
+                    <label className="form-label">Código de Empresa (Opcional)</label>
                     <input 
                       type="text" 
                       placeholder="Ej: ACME2026" 
@@ -2061,7 +2061,6 @@ function App() {
                       value={regCompanyCode}
                       onChange={(e) => setRegCompanyCode(e.target.value)}
                       style={{ textTransform: 'uppercase' }}
-                      required 
                     />
                   </div>
                   <div className="form-group">
