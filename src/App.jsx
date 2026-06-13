@@ -762,8 +762,9 @@ function App() {
   const handleGFitResync = async () => {
     const token = dbService.getGoogleFitToken();
     if (!token) {
-      setGFitConnected(false);
-      showToastMessage('La sesión de Google Fit expiró. Vuelve a conectar.', 'error');
+      // Si el token expiró pero sigue vinculado en local, abrimos el popup de login de manera síncrona para evitar el popup blocker
+      showToastMessage('🔑 Renovando sesión de Google Fit...', 'success');
+      handleConnectGoogleFit();
       return;
     }
 
@@ -773,7 +774,7 @@ function App() {
       await performGFitSync(currentUser, fitData);
     } catch(err) {
       console.error(err);
-      if (err.status === 401) {
+      if (err.status === 401 || (err.message && err.message.includes('401'))) {
         dbService.clearGoogleFitToken();
         setGFitConnected(false);
         showToastMessage('🔑 La sesión de Google Fit ha expirado. Por favor reconecta.', 'warning');

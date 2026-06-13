@@ -1109,17 +1109,33 @@ export const dbService = {
     }
     return true;
   },
-  saveGoogleFitToken(token) {
+  saveGoogleFitToken(token, expiresInSeconds = 3600) {
     localStorage.setItem('ra_gfit_token', token);
+    localStorage.setItem('ra_gfit_linked', 'true');
+    const expiresAt = Date.now() + (expiresInSeconds * 1000);
+    localStorage.setItem('ra_gfit_token_expires_at', expiresAt.toString());
   },
   getGoogleFitToken() {
-    return localStorage.getItem('ra_gfit_token');
+    const token = localStorage.getItem('ra_gfit_token');
+    const expiresAt = localStorage.getItem('ra_gfit_token_expires_at');
+    if (!token) return null;
+    if (expiresAt) {
+      const isExpired = Date.now() > parseInt(expiresAt, 10);
+      if (isExpired) {
+        localStorage.removeItem('ra_gfit_token');
+        localStorage.removeItem('ra_gfit_token_expires_at');
+        return null;
+      }
+    }
+    return token;
   },
   clearGoogleFitToken() {
     localStorage.removeItem('ra_gfit_token');
+    localStorage.removeItem('ra_gfit_token_expires_at');
+    localStorage.removeItem('ra_gfit_linked');
   },
   isGoogleFitConnected() {
-    return !!localStorage.getItem('ra_gfit_token');
+    return localStorage.getItem('ra_gfit_linked') === 'true';
   },
   async fetchWeeklyStepsFromGoogleFit(token) {
     const now = new Date();
