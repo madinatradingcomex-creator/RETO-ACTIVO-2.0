@@ -150,6 +150,19 @@ function App() {
   const [editingUser, setEditingUser] = useState(null);
   const [editPoints, setEditPoints] = useState('');
   const [editDept, setEditDept] = useState('');
+
+  // States for editing detail user inline inside user_detail view
+  const [isEditingDetailUser, setIsEditingDetailUser] = useState(false);
+  const [editDetailName, setEditDetailName] = useState('');
+  const [editDetailLastname, setEditDetailLastname] = useState('');
+  const [editDetailDept, setEditDetailDept] = useState('');
+  const [editDetailLevel, setEditDetailLevel] = useState('');
+  const [editDetailPoints, setEditDetailPoints] = useState('');
+  const [editDetailStreak, setEditDetailStreak] = useState('');
+  const [editDetailEmail, setEditDetailEmail] = useState('');
+  const [editDetailCompanyCode, setEditDetailCompanyCode] = useState('');
+  const [editDetailStatus, setEditDetailStatus] = useState('');
+  const [isSavingDetailUser, setIsSavingDetailUser] = useState(false);
   const [adminEnrollChallengeId, setAdminEnrollChallengeId] = useState('');
   
   // Forms - Employee Log
@@ -1475,6 +1488,7 @@ function App() {
 
   const handleViewUserDetail = async (user) => {
     setSelectedDetailUser(user);
+    setIsEditingDetailUser(false);
     setLoadingUserDetail(true);
     setActiveTab('user_detail');
     try {
@@ -1506,6 +1520,68 @@ function App() {
       showToastMessage("Error al cargar la actividad del colaborador.", "error");
     } finally {
       setLoadingUserDetail(false);
+    }
+  };
+
+  const handleStartEditDetailUser = () => {
+    if (!selectedDetailUser) return;
+    setEditDetailName(selectedDetailUser.name || '');
+    setEditDetailLastname(selectedDetailUser.lastname || '');
+    setEditDetailDept(selectedDetailUser.department || 'Tecnología');
+    setEditDetailLevel(selectedDetailUser.level || 'Wellness Principiante 🌱');
+    setEditDetailPoints(selectedDetailUser.points || 0);
+    setEditDetailStreak(selectedDetailUser.streak || 0);
+    setEditDetailEmail(selectedDetailUser.email || '');
+    setEditDetailCompanyCode(selectedDetailUser.company_code || '');
+    setEditDetailStatus(selectedDetailUser.status || 'approved');
+    setIsEditingDetailUser(true);
+  };
+
+  const handleSaveDetailUserChanges = async () => {
+    if (!selectedDetailUser) return;
+    setIsSavingDetailUser(true);
+    try {
+      const fields = {
+        name: editDetailName,
+        lastname: editDetailLastname,
+        department: editDetailDept,
+        level: editDetailLevel,
+        points: parseInt(editDetailPoints) || 0,
+        streak: parseInt(editDetailStreak) || 0,
+        email: editDetailEmail,
+        company_code: editDetailCompanyCode,
+        status: editDetailStatus
+      };
+      
+      const res = await dbService.updateUserDataDirectly(selectedDetailUser.id, fields);
+      if (res.error) {
+        showToastMessage(res.error, "error");
+        setIsSavingDetailUser(false);
+        return;
+      }
+      
+      showToastMessage("💾 Datos del colaborador guardados con éxito.");
+      setIsEditingDetailUser(false);
+      
+      // Reload everything
+      const updatedUser = await dbService.getUserDoc(selectedDetailUser.id);
+      if (updatedUser) {
+        setSelectedDetailUser(updatedUser);
+      }
+      
+      const activeUsrs = await dbService.getActiveUsers();
+      setActiveUsers(activeUsrs);
+      
+      const stats = await dbService.getCompanyStats();
+      setCompanyStats(stats);
+      
+      const leaderboardList = await dbService.getLeaderboard();
+      setLeaderboard(leaderboardList);
+    } catch(err) {
+      console.error(err);
+      showToastMessage("Error al guardar cambios.", "error");
+    } finally {
+      setIsSavingDetailUser(false);
     }
   };
 
@@ -5402,6 +5478,36 @@ function App() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                       {/* Card Perfil Principal */}
                       <div style={{ backgroundColor: 'white', padding: '2.5rem 2rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', textAlign: 'center', position: 'relative' }}>
+                        {/* Botón Editar Ficha */}
+                        {!isEditingDetailUser && (
+                          <button
+                            onClick={handleStartEditDetailUser}
+                            style={{
+                              position: 'absolute',
+                              top: '1rem',
+                              right: '1rem',
+                              backgroundColor: 'transparent',
+                              border: 'none',
+                              color: 'var(--text-muted)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              padding: '0.4rem 0.6rem',
+                              borderRadius: '8px',
+                              border: '1px solid var(--border-color)',
+                              transition: 'var(--transition-fast)',
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-app)'; e.currentTarget.style.color = 'var(--text-main)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                            title="Editar Datos del Colaborador"
+                          >
+                            ✏️ Editar
+                          </button>
+                        )}
+
                         <div style={{ position: 'relative', width: '120px', height: '120px', margin: '0 auto 1.5rem', borderRadius: '50%', border: '4px solid white', boxShadow: 'var(--shadow-md)', overflow: 'hidden' }}>
                           <img 
                             src={selectedDetailUser.avatar || 'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=120'} 
@@ -5410,57 +5516,193 @@ function App() {
                           />
                         </div>
 
-                        <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 0.25rem 0' }}>
-                          {selectedDetailUser.name} {selectedDetailUser.lastname || ''}
-                        </h2>
-                        
-                        <span 
-                          style={{
-                            fontSize: '0.8rem',
-                            fontWeight: 600,
-                            padding: '0.25rem 0.75rem',
-                            borderRadius: '12px',
-                            display: 'inline-block',
-                            backgroundColor: 'var(--bg-app)',
-                            color: varColorForDept(selectedDetailUser.department),
-                            marginBottom: '1rem'
-                          }}
-                        >
-                          {selectedDetailUser.department || 'Sin Área'}
-                        </span>
+                        {!isEditingDetailUser ? (
+                          <>
+                            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 0.25rem 0' }}>
+                              {selectedDetailUser.name} {selectedDetailUser.lastname || ''}
+                            </h2>
+                            
+                            <span 
+                              style={{
+                                fontSize: '0.8rem',
+                                fontWeight: 600,
+                                padding: '0.25rem 0.75rem',
+                                borderRadius: '12px',
+                                display: 'inline-block',
+                                backgroundColor: 'var(--bg-app)',
+                                color: varColorForDept(selectedDetailUser.department),
+                                marginBottom: '1rem'
+                              }}
+                            >
+                              {selectedDetailUser.department || 'Sin Área'}
+                            </span>
 
-                        <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '0 0 1.5rem 0', fontWeight: 500 }}>
-                          🏆 Nivel: <strong style={{ color: 'var(--mint-dark)' }}>{selectedDetailUser.level || 'Wellness Principiante 🌱'}</strong>
-                        </p>
+                            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '0 0 1.5rem 0', fontWeight: 500 }}>
+                              🏆 Nivel: <strong style={{ color: 'var(--mint-dark)' }}>{selectedDetailUser.level || 'Wellness Principiante 🌱'}</strong>
+                            </p>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)', padding: '1.25rem 0', marginBottom: '1.5rem' }}>
-                          <div>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>Saldo Acumulado</span>
-                            <strong style={{ fontSize: '1.2rem', color: 'var(--mint-dark)' }}>🪙 {selectedDetailUser.points || 0} pts</strong>
-                          </div>
-                          <div>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>Racha de Bienestar</span>
-                            <strong style={{ fontSize: '1.2rem', color: 'var(--coral-dark)' }}>🔥 {selectedDetailUser.streak || 0} días</strong>
-                          </div>
-                        </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)', padding: '1.25rem 0', marginBottom: '1.5rem' }}>
+                              <div>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>Saldo Acumulado</span>
+                                <strong style={{ fontSize: '1.2rem', color: 'var(--mint-dark)' }}>🪙 {selectedDetailUser.points || 0} pts</strong>
+                              </div>
+                              <div>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>Racha de Bienestar</span>
+                                <strong style={{ fontSize: '1.2rem', color: 'var(--coral-dark)' }}>🔥 {selectedDetailUser.streak || 0} días</strong>
+                              </div>
+                            </div>
 
-                        {/* Datos de contacto y registro */}
-                        <div style={{ textAlign: 'left', fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <span>Correo Electrónico:</span>
-                            <strong style={{ color: 'var(--text-main)', wordBreak: 'break-all' }}>{selectedDetailUser.email}</strong>
+                            {/* Datos de contacto y registro */}
+                            <div style={{ textAlign: 'left', fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span>Correo Electrónico:</span>
+                                <strong style={{ color: 'var(--text-main)', wordBreak: 'break-all' }}>{selectedDetailUser.email}</strong>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span>Código de Empresa:</span>
+                                <strong style={{ color: 'var(--text-main)' }}>{selectedDetailUser.company_code}</strong>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span>Estado de Cuenta:</span>
+                                <strong style={{ color: selectedDetailUser.status === 'approved' ? 'var(--mint-accent)' : 'orange' }}>
+                                  {selectedDetailUser.status === 'approved' ? '🟢 Activa' : '⏳ Pendiente'}
+                                </strong>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div style={{ textAlign: 'left' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+                              <div>
+                                <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.25rem', display: 'block', fontWeight: 600 }}>Nombre</label>
+                                <input
+                                  type="text"
+                                  className="form-input"
+                                  value={editDetailName}
+                                  onChange={(e) => setEditDetailName(e.target.value)}
+                                  style={{ padding: '0.5rem', fontSize: '0.88rem' }}
+                                />
+                              </div>
+                              <div>
+                                <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.25rem', display: 'block', fontWeight: 600 }}>Apellido</label>
+                                <input
+                                  type="text"
+                                  className="form-input"
+                                  value={editDetailLastname}
+                                  onChange={(e) => setEditDetailLastname(e.target.value)}
+                                  style={{ padding: '0.5rem', fontSize: '0.88rem' }}
+                                />
+                              </div>
+                            </div>
+
+                            <div style={{ marginBottom: '1rem' }}>
+                              <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.25rem', display: 'block', fontWeight: 600 }}>Área / Departamento</label>
+                              <select
+                                className="form-input"
+                                value={editDetailDept}
+                                onChange={(e) => setEditDetailDept(e.target.value)}
+                                style={{ padding: '0.5rem', fontSize: '0.88rem', width: '100%' }}
+                              >
+                                <option value="Tecnología">Tecnología</option>
+                                <option value="Ventas">Ventas</option>
+                                <option value="Recursos Humanos">Recursos Humanos</option>
+                                <option value="Finanzas">Finanzas</option>
+                                <option value="Diseño">Diseño</option>
+                                <option value="Marketing">Marketing</option>
+                                <option value="Operaciones">Operaciones</option>
+                                <option value="Administración">Administración</option>
+                              </select>
+                            </div>
+
+                            <div style={{ marginBottom: '1rem' }}>
+                              <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.25rem', display: 'block', fontWeight: 600 }}>Nivel de Bienestar</label>
+                              <input
+                                type="text"
+                                className="form-input"
+                                value={editDetailLevel}
+                                onChange={(e) => setEditDetailLevel(e.target.value)}
+                                style={{ padding: '0.5rem', fontSize: '0.88rem', width: '100%' }}
+                                placeholder="Ej: Wellness Principiante 🌱"
+                              />
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+                              <div>
+                                <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.25rem', display: 'block', fontWeight: 600 }}>Puntos Wellness</label>
+                                <input
+                                  type="number"
+                                  className="form-input"
+                                  value={editDetailPoints}
+                                  onChange={(e) => setEditDetailPoints(e.target.value)}
+                                  style={{ padding: '0.5rem', fontSize: '0.88rem' }}
+                                />
+                              </div>
+                              <div>
+                                <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.25rem', display: 'block', fontWeight: 600 }}>Racha (Días)</label>
+                                <input
+                                  type="number"
+                                  className="form-input"
+                                  value={editDetailStreak}
+                                  onChange={(e) => setEditDetailStreak(e.target.value)}
+                                  style={{ padding: '0.5rem', fontSize: '0.88rem' }}
+                                />
+                              </div>
+                            </div>
+
+                            <div style={{ marginBottom: '1rem' }}>
+                              <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.25rem', display: 'block', fontWeight: 600 }}>Correo Electrónico</label>
+                              <input
+                                type="email"
+                                className="form-input"
+                                value={editDetailEmail}
+                                onChange={(e) => setEditDetailEmail(e.target.value)}
+                                style={{ padding: '0.5rem', fontSize: '0.88rem', width: '100%' }}
+                              />
+                            </div>
+
+                            <div style={{ marginBottom: '1rem' }}>
+                              <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.25rem', display: 'block', fontWeight: 600 }}>Código de Empresa</label>
+                              <input
+                                type="text"
+                                className="form-input"
+                                value={editDetailCompanyCode}
+                                onChange={(e) => setEditDetailCompanyCode(e.target.value)}
+                                style={{ padding: '0.5rem', fontSize: '0.88rem', width: '100%', textTransform: 'uppercase' }}
+                              />
+                            </div>
+
+                            <div style={{ marginBottom: '1.5rem' }}>
+                              <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.25rem', display: 'block', fontWeight: 600 }}>Estado de Cuenta</label>
+                              <select
+                                className="form-input"
+                                value={editDetailStatus}
+                                onChange={(e) => setEditDetailStatus(e.target.value)}
+                                style={{ padding: '0.5rem', fontSize: '0.88rem', width: '100%' }}
+                              >
+                                <option value="approved">🟢 Activa</option>
+                                <option value="pending">⏳ Pendiente</option>
+                              </select>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                              <button
+                                className="btn btn-primary"
+                                onClick={handleSaveDetailUserChanges}
+                                disabled={isSavingDetailUser}
+                                style={{ flexGrow: 1, padding: '0.6rem 1rem', fontSize: '0.85rem' }}
+                              >
+                                {isSavingDetailUser ? 'Guardando...' : 'Guardar'}
+                              </button>
+                              <button
+                                className="btn btn-secondary"
+                                onClick={() => setIsEditingDetailUser(false)}
+                                style={{ flexGrow: 1, padding: '0.6rem 1rem', fontSize: '0.85rem' }}
+                              >
+                                Cancelar
+                              </button>
+                            </div>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <span>Código de Empresa:</span>
-                            <strong style={{ color: 'var(--text-main)' }}>{selectedDetailUser.company_code}</strong>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <span>Estado de Cuenta:</span>
-                            <strong style={{ color: selectedDetailUser.status === 'approved' ? 'var(--mint-accent)' : 'orange' }}>
-                              {selectedDetailUser.status === 'approved' ? '🟢 Activa' : '⏳ Pendiente'}
-                            </strong>
-                          </div>
-                        </div>
+                        )}
                       </div>
 
                       {/* Card de Gestión y Blanqueo */}

@@ -1605,6 +1605,34 @@ export const dbService = {
       return { error: err.message };
     }
   },
+  async updateUserDataDirectly(userId, fields) {
+    try {
+      const ref = doc(db, 'usuarios', userId);
+      const cleanFields = {};
+      if (fields.name !== undefined) cleanFields.name = fields.name.trim();
+      if (fields.lastname !== undefined) cleanFields.lastname = fields.lastname.trim();
+      if (fields.email !== undefined) cleanFields.email = fields.email.toLowerCase().trim();
+      if (fields.company_code !== undefined) cleanFields.company_code = (fields.company_code || '').toUpperCase().trim();
+      if (fields.department !== undefined) cleanFields.department = fields.department;
+      if (fields.level !== undefined) cleanFields.level = fields.level.trim();
+      if (fields.status !== undefined) cleanFields.status = fields.status;
+      if (fields.points !== undefined) cleanFields.points = parseInt(fields.points) || 0;
+      if (fields.streak !== undefined) cleanFields.streak = parseInt(fields.streak) || 0;
+      
+      await updateDoc(ref, cleanFields);
+      
+      const local = getLocalUser();
+      if (local && local.id === userId) {
+        Object.assign(local, cleanFields);
+        setLocalUser(local);
+      }
+      clearCache();
+      return { success: true };
+    } catch(err) {
+      console.error("Error updating user data directly:", err);
+      return { error: err.message };
+    }
+  },
   async getUserDoc(userId) {
     try {
       const snap = await getDoc(doc(db, 'usuarios', userId));
