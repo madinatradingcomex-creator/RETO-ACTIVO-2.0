@@ -736,12 +736,14 @@ function App() {
   // Iniciar el flujo OAuth de Google (redirige a Google para autorización)
   const handleConnectGoogleFit = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
-      showToastMessage('✅ Token obtenido de Google. Consultando pasos...');
+      showToastMessage('✅ Autorización concedida. Consultando pasos...');
       setGFitSyncing(true);
       try {
         const token = tokenResponse.access_token;
+        // Use the actual expires_in from Google's response (defaults to 3600s if missing)
+        const expiresIn = tokenResponse.expires_in || 3600;
         const fitData = await dbService.fetchWeeklyStepsFromGoogleFit(token);
-        dbService.saveGoogleFitToken(token, 3600);
+        dbService.saveGoogleFitToken(token, expiresIn);
         setGFitConnected(true);
         await performGFitSync(currentUser, fitData);
       } catch(err) {
@@ -756,6 +758,7 @@ function App() {
       showToastMessage('Error al autorizar con Google.', 'error');
     },
     scope: 'https://www.googleapis.com/auth/fitness.activity.read',
+    prompt: 'consent',
   });
 
   // Sincronizar manualmente (ya conectado)

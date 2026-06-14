@@ -1112,7 +1112,9 @@ export const dbService = {
   saveGoogleFitToken(token, expiresInSeconds = 3600) {
     localStorage.setItem('ra_gfit_token', token);
     localStorage.setItem('ra_gfit_linked', 'true');
-    const expiresAt = Date.now() + (expiresInSeconds * 1000);
+    // Subtract 60s buffer so we re-auth before the token actually expires
+    const effectiveExpiry = Math.max(expiresInSeconds - 60, 0);
+    const expiresAt = Date.now() + (effectiveExpiry * 1000);
     localStorage.setItem('ra_gfit_token_expires_at', expiresAt.toString());
   },
   getGoogleFitToken() {
@@ -1135,7 +1137,9 @@ export const dbService = {
     localStorage.removeItem('ra_gfit_linked');
   },
   isGoogleFitConnected() {
-    return localStorage.getItem('ra_gfit_linked') === 'true';
+    // Only consider connected if the token actually exists and is not expired
+    const token = this.getGoogleFitToken();
+    return token !== null;
   },
   async fetchWeeklyStepsFromGoogleFit(token) {
     const now = new Date();
