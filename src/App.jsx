@@ -358,18 +358,22 @@ function App() {
   const [pwaInstallPrompt, setPwaInstallPrompt] = useState(null);
   const [showPwaBanner, setShowPwaBanner] = useState(false);
   const [pwaInstalled, setPwaInstalled] = useState(false);
+  const [showIosPwaBanner, setShowIosPwaBanner] = useState(false);
 
-  // Listen for browser's install prompt (Chrome/Android)
+  // ── Android / Desktop: Listen for browser's native install prompt ──
   useEffect(() => {
-    // Don't show if already running as installed PWA
-    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+    // Already running as installed PWA → nothing to show
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true;
+    if (isStandalone) {
       setPwaInstalled(true);
       return;
     }
+
     const handler = (e) => {
       e.preventDefault();
       setPwaInstallPrompt(e);
-      // Small delay so it doesn't pop up immediately on first load
       setTimeout(() => setShowPwaBanner(true), 3000);
     };
     window.addEventListener('beforeinstallprompt', handler);
@@ -379,6 +383,22 @@ function App() {
       setPwaInstallPrompt(null);
     });
     return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  // ── iOS: beforeinstallprompt NEVER fires on iPhone/iPad (Apple blocks it) ──
+  // Detect iOS separately and show manual instructions banner.
+  useEffect(() => {
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true;
+    // Already installed as PWA → don't show
+    if (!isIOS || isStandalone) return;
+    // Only show once per session (user can dismiss and it won't re-appear until next visit)
+    const dismissed = sessionStorage.getItem('ra_pwa_ios_dismissed');
+    if (dismissed) return;
+    const timer = setTimeout(() => setShowIosPwaBanner(true), 4000);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleInstallPWA = async () => {
@@ -391,6 +411,11 @@ function App() {
       showToastMessage('🎉 ¡Reto Activo instalada! Ya la encontrás en tu pantalla de inicio.', 'success');
     }
     setPwaInstallPrompt(null);
+  };
+
+  const handleDismissIosBanner = () => {
+    setShowIosPwaBanner(false);
+    sessionStorage.setItem('ra_pwa_ios_dismissed', '1');
   };
 
   const loadViewData = async (userSession) => {
@@ -7610,8 +7635,8 @@ function App() {
         </div>
       )}
 
-      {/* iOS install hint — Safari doesn't support beforeinstallprompt */}
-      {showPwaBanner && !pwaInstalled && !pwaInstallPrompt && /iphone|ipad|ipod/i.test(navigator.userAgent) && (
+      {/* iOS install hint — Apple blocks beforeinstallprompt; shown via its own independent state */}
+      {showIosPwaBanner && (
         <div style={{
           position: 'fixed',
           bottom: '1rem',
@@ -7619,25 +7644,46 @@ function App() {
           transform: 'translateX(-50%)',
           zIndex: 9999,
           width: 'calc(100% - 2rem)',
-          maxWidth: '420px',
-          background: 'linear-gradient(135deg, #1a1a2e, #16213e)',
-          borderRadius: '18px',
-          padding: '1.25rem 1.5rem',
+          maxWidth: '440px',
+          background: 'linear-gradient(160deg, #0d1b2a 0%, #1a2f4a 100%)',
+          borderRadius: '20px',
+          padding: '1.4rem 1.5rem 1.25rem',
           color: 'white',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.07)',
           fontSize: '0.85rem',
-          lineHeight: '1.6',
-          animation: 'pwaSlideUp 0.4s ease both'
+          lineHeight: '1.5',
+          animation: 'pwaSlideUp 0.45s cubic-bezier(0.34,1.56,0.64,1) both'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '0.5rem', fontFamily: 'Outfit' }}>📲 Instalar en iPhone / iPad</div>
-              <div style={{ color: 'rgba(255,255,255,0.8)' }}>
-                Tocá el botón <strong style={{ color: '#1CBC8C' }}>Compartir</strong> (⬆️) en Safari y luego
-                &nbsp;<strong style={{ color: '#1CBC8C' }}>"Agregar a pantalla de inicio"</strong>.
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <img src="/icons/icon-192.png" alt="Reto Activo" style={{ width: '36px', height: '36px', borderRadius: '9px', border: '1.5px solid rgba(255,255,255,0.15)' }} />
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.95rem', fontFamily: 'Outfit' }}>Instalar Reto Activo</div>
+                <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem' }}>En tu iPhone o iPad</div>
               </div>
             </div>
-            <button onClick={() => setShowPwaBanner(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '1.2rem', paddingLeft: '0.75rem', flexShrink: 0 }}>✕</button>
+            <button onClick={handleDismissIosBanner} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '8px', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
+          </div>
+
+          {/* Steps */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'rgba(255,255,255,0.06)', borderRadius: '10px', padding: '0.6rem 0.75rem' }}>
+              <span style={{ fontSize: '1.3rem', flexShrink: 0 }}>1️⃣</span>
+              <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.82rem' }}>Abrí esta página en <strong style={{ color: '#1CBC8C' }}>Safari</strong> (no Chrome)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'rgba(255,255,255,0.06)', borderRadius: '10px', padding: '0.6rem 0.75rem' }}>
+              <span style={{ fontSize: '1.3rem', flexShrink: 0 }}>2️⃣</span>
+              <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.82rem' }}>Tocá el ícono <strong style={{ color: '#1CBC8C' }}>Compartir</strong> <span style={{ fontSize: '1rem' }}>⎋</span> en la barra inferior</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'rgba(255,255,255,0.06)', borderRadius: '10px', padding: '0.6rem 0.75rem' }}>
+              <span style={{ fontSize: '1.3rem', flexShrink: 0 }}>3️⃣</span>
+              <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.82rem' }}>Elegí <strong style={{ color: '#1CBC8C' }}>"Agregar a pantalla de inicio"</strong> ➕</span>
+            </div>
+          </div>
+
+          <div style={{ marginTop: '0.9rem', textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: '0.72rem' }}>
+            Solo se muestra una vez · No aparecerá de nuevo en esta sesión
           </div>
         </div>
       )}
