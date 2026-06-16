@@ -60,13 +60,13 @@ const AVATAR_OPTIONS = [
 function App() {
   // Authentication State
   const [currentUser, setCurrentUser] = useState(() => {
-    const local = sessionStorage.getItem('ra_current_user');
+    const local = localStorage.getItem('ra_current_user');
     return local ? JSON.parse(local) : null;
   });
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [loadingSession, setLoadingSession] = useState(true);
   const [landingView, setLandingView] = useState(() => {
-    const local = sessionStorage.getItem('ra_current_user');
+    const local = localStorage.getItem('ra_current_user');
     if (local) return false;
     const hash = window.location.hash.replace('#', '');
     return !hash || hash === 'landing';

@@ -136,12 +136,12 @@ const compressImage = (file) => {
 };
 
 const getLocalUser = () => {
-  const u = sessionStorage.getItem('ra_current_user');
+  const u = localStorage.getItem('ra_current_user');
   return u ? JSON.parse(u) : null;
 };
 const setLocalUser = (u) => {
-  if (u) sessionStorage.setItem('ra_current_user', JSON.stringify(u));
-  else sessionStorage.removeItem('ra_current_user');
+  if (u) localStorage.setItem('ra_current_user', JSON.stringify(u));
+  else localStorage.removeItem('ra_current_user');
 };
 
 // Local cache state for query result caching to avoid redundant queries during load
