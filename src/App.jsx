@@ -360,17 +360,16 @@ function App() {
   const [pwaInstalled, setPwaInstalled] = useState(false);
   const [showIosPwaBanner, setShowIosPwaBanner] = useState(false);
 
+  // Detect device type once (stable across renders)
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isChromeOnIOS = isIOS && /CriOS/i.test(navigator.userAgent);
+  const isRunningAsPWA =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true;
+
   // ── Android / Desktop: Listen for browser's native install prompt ──
   useEffect(() => {
-    // Already running as installed PWA → nothing to show
-    const isStandalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      window.navigator.standalone === true;
-    if (isStandalone) {
-      setPwaInstalled(true);
-      return;
-    }
-
+    if (isRunningAsPWA) { setPwaInstalled(true); return; }
     const handler = (e) => {
       e.preventDefault();
       setPwaInstallPrompt(e);
@@ -383,22 +382,20 @@ function App() {
       setPwaInstallPrompt(null);
     });
     return () => window.removeEventListener('beforeinstallprompt', handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── iOS: beforeinstallprompt NEVER fires on iPhone/iPad (Apple blocks it) ──
-  // Detect iOS separately and show manual instructions banner.
+  // ── iOS: Apple blocks beforeinstallprompt on ALL iOS browsers ──
+  // Show instruction banner immediately; use localStorage so it survives sessions.
+  // Only permanently hides when user clicks "Ya instalé" OR dismisses 3+ times.
   useEffect(() => {
-    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    const isStandalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      window.navigator.standalone === true;
-    // Already installed as PWA → don't show
-    if (!isIOS || isStandalone) return;
-    // Only show once per session (user can dismiss and it won't re-appear until next visit)
-    const dismissed = sessionStorage.getItem('ra_pwa_ios_dismissed');
-    if (dismissed) return;
-    const timer = setTimeout(() => setShowIosPwaBanner(true), 4000);
-    return () => clearTimeout(timer);
+    if (!isIOS || isRunningAsPWA) return;
+    const dismissCount = parseInt(localStorage.getItem('ra_pwa_ios_dismiss_count') || '0', 10);
+    const permanentDismiss = localStorage.getItem('ra_pwa_ios_permanent_dismiss') === '1';
+    if (permanentDismiss || dismissCount >= 3) return;
+    // Show immediately — no delay, this is the only install path on iOS
+    setShowIosPwaBanner(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleInstallPWA = async () => {
@@ -413,9 +410,19 @@ function App() {
     setPwaInstallPrompt(null);
   };
 
+  // Dismiss temporarily (increments counter — after 3 times it stops showing)
   const handleDismissIosBanner = () => {
     setShowIosPwaBanner(false);
-    sessionStorage.setItem('ra_pwa_ios_dismissed', '1');
+    const prev = parseInt(localStorage.getItem('ra_pwa_ios_dismiss_count') || '0', 10);
+    localStorage.setItem('ra_pwa_ios_dismiss_count', String(prev + 1));
+  };
+
+  // Permanent dismiss (user confirmed they installed it)
+  const handleConfirmIosInstalled = () => {
+    setShowIosPwaBanner(false);
+    setPwaInstalled(true);
+    localStorage.setItem('ra_pwa_ios_permanent_dismiss', '1');
+    showToastMessage('🎉 ¡Perfecto! Ya podés usar Reto Activo desde tu pantalla de inicio.', 'success');
   };
 
   const loadViewData = async (userSession) => {
@@ -2923,6 +2930,98 @@ function App() {
                     <Plus size={18} /> Explorar Retos
                   </button>
                 </header>
+
+                {/* ===== iOS PWA INSTALL CARD (shown inside dashboard until installed) ===== */}
+                {isIOS && !isRunningAsPWA && !pwaInstalled && (
+                  <div style={{
+                    background: 'linear-gradient(135deg, #0d1b2a 0%, #0f3460 50%, #16213e 100%)',
+                    borderRadius: '20px',
+                    padding: '1.5rem',
+                    marginBottom: '1.75rem',
+                    color: 'white',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    boxShadow: '0 8px 32px rgba(13,27,42,0.4)'
+                  }}>
+                    {/* Glowing circle decorations */}
+                    <div style={{ position: 'absolute', top: '-30px', right: '-30px', width: '130px', height: '130px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(28,188,140,0.18) 0%, transparent 70%)', pointerEvents: 'none' }} />
+                    <div style={{ position: 'absolute', bottom: '-20px', left: '10%', width: '90px', height: '90px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(66,133,244,0.12) 0%, transparent 70%)', pointerEvents: 'none' }} />
+
+                    {/* Header row */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.1rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <img src="/icons/icon-192.png" alt="Reto Activo" style={{ width: '44px', height: '44px', borderRadius: '12px', border: '2px solid rgba(28,188,140,0.4)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }} />
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: '1rem', fontFamily: 'Outfit', letterSpacing: '-0.01em' }}>📲 Instalá Reto Activo</div>
+                          <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.75rem', marginTop: '0.1rem' }}>Usala como app nativa en tu iPhone</div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleDismissIosBanner}
+                        style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.5)', borderRadius: '8px', width: '30px', height: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', flexShrink: 0 }}
+                        title="Cerrar por ahora"
+                      >✕</button>
+                    </div>
+
+                    {/* Steps */}
+                    {isChromeOnIOS ? (
+                      /* Special message for Chrome on iOS */
+                      <div style={{ background: 'rgba(252,139,114,0.12)', border: '1px solid rgba(252,139,114,0.2)', borderRadius: '12px', padding: '0.9rem 1rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                        <span style={{ fontSize: '1.4rem', flexShrink: 0 }}>⚠️</span>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: '0.85rem', marginBottom: '0.3rem', color: '#FC8B72' }}>Estás usando Chrome</div>
+                          <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.8rem', lineHeight: '1.5' }}>
+                            Para instalar Reto Activo en iPhone necesitás usar <strong style={{ color: 'white' }}>Safari</strong>. Chrome en iOS no permite instalar apps.
+                            <br /><br />
+                            Copiá esta dirección y pegala en Safari para continuar.
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Safari instructions */
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '11px', padding: '0.65rem 0.85rem' }}>
+                          <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(28,188,140,0.2)', border: '1px solid rgba(28,188,140,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', flexShrink: 0, fontWeight: 700, color: '#1CBC8C' }}>1</div>
+                          <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.82rem', lineHeight: 1.4 }}>Tocá el ícono <strong style={{ color: '#1CBC8C' }}>Compartir</strong> <span style={{ fontSize: '1rem' }}>□↑</span> en la barra inferior de Safari</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '11px', padding: '0.65rem 0.85rem' }}>
+                          <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(28,188,140,0.2)', border: '1px solid rgba(28,188,140,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', flexShrink: 0, fontWeight: 700, color: '#1CBC8C' }}>2</div>
+                          <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.82rem', lineHeight: 1.4 }}>Deslizá hacia abajo y tocá <strong style={{ color: '#1CBC8C' }}>"Agregar a pantalla de inicio"</strong> <span style={{ fontSize: '0.9rem' }}>＋</span></span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '11px', padding: '0.65rem 0.85rem' }}>
+                          <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(28,188,140,0.2)', border: '1px solid rgba(28,188,140,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', flexShrink: 0, fontWeight: 700, color: '#1CBC8C' }}>3</div>
+                          <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.82rem', lineHeight: 1.4 }}>Tocá <strong style={{ color: '#1CBC8C' }}>"Agregar"</strong> en la esquina superior derecha ✓</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Confirm installed button */}
+                    {!isChromeOnIOS && (
+                      <button
+                        onClick={handleConfirmIosInstalled}
+                        style={{
+                          marginTop: '1rem',
+                          width: '100%',
+                          background: 'rgba(28,188,140,0.15)',
+                          border: '1px solid rgba(28,188,140,0.3)',
+                          color: '#1CBC8C',
+                          borderRadius: '12px',
+                          padding: '0.7rem',
+                          fontWeight: 700,
+                          fontSize: '0.83rem',
+                          cursor: 'pointer',
+                          fontFamily: 'Outfit',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.4rem'
+                        }}
+                      >
+                        ✅ Ya instalé la app — no mostrar de nuevo
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 <section className="stats-grid">
                   <div className="stat-card">
