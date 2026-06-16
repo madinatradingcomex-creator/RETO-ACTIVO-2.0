@@ -34,7 +34,8 @@ import {
   Users,
   Trash2,
   Edit2,
-  HelpCircle
+  HelpCircle,
+  Menu
 } from 'lucide-react';
 import { dbService } from './services/db';
 
@@ -96,6 +97,7 @@ function App() {
     }
     return (hash && hash !== 'landing') ? hash : 'dashboard';
   });
+  const [menuOpen, setMenuOpen] = useState(false);
 
 
 
@@ -2717,41 +2719,77 @@ function App() {
   return (
     <div className="app-container">
       
-      {/* SIDEBAR */}
-      <aside className="sidebar">
-        <div className="logo-container">
-          <div className="logo-brand" onClick={() => setLandingView(true)} style={{ cursor: 'pointer' }}>
-            <div className="logo-icon">
-              <HeartHandshake size={22} />
+      {/* HEADER BAR */}
+      <header className="app-header">
+        <div className="header-left">
+          <button 
+            className="hamburger-btn" 
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="Abrir menú"
+          >
+            <Menu size={24} />
+          </button>
+          <div className="logo-brand" onClick={() => { setLandingView(true); setMenuOpen(false); }} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div className="logo-icon" style={{ width: '36px', height: '36px', boxShadow: 'none' }}>
+              <HeartHandshake size={18} />
             </div>
-            <span className="logo-text">Reto Activo 2.0</span>
+            <span className="logo-text" style={{ fontSize: '1.2rem' }}>Reto Activo 2.0</span>
           </div>
+        </div>
 
-          {/* Perfil visible únicamente en móviles */}
-          <div className="mobile-header-profile">
-            <div className="mobile-profile-avatar-wrapper">
-              <img src={currentUser.avatar} alt={currentUser.name} className="mobile-profile-avatar" />
-              {currentUser.role === 'employee' && (
-                <span className="mobile-profile-pts-badge">
-                  {currentUser.points} pts
-                </span>
-              )}
+        <div className="header-right">
+          {currentUser.role === 'employee' ? (
+            <div className="header-profile-summary">
+              <span className="mobile-profile-pts-badge" style={{ backgroundColor: 'var(--mint-bg)', color: 'var(--mint-dark)', fontSize: '0.8rem', fontWeight: 800, padding: '0.2rem 0.6rem', borderRadius: '12px', border: '1px solid rgba(28, 188, 140, 0.15)', display: 'inline-block' }}>
+                🏆 {currentUser.points} pts
+              </span>
+              <img src={currentUser.avatar} alt={currentUser.name} className="header-profile-avatar" />
             </div>
-            <button 
-              className="btn btn-secondary mobile-logout-btn" 
-              onClick={handleLogout}
-              title="Cerrar Sesión"
-            >
-              <LogOut size={16} />
-            </button>
+          ) : (
+            <div className="header-profile-summary">
+              <span className="mobile-profile-pts-badge" style={{ backgroundColor: 'var(--lavender-bg)', color: 'var(--lavender-dark)', fontSize: '0.8rem', fontWeight: 800, padding: '0.2rem 0.6rem', borderRadius: '12px', border: '1px solid rgba(155, 81, 224, 0.15)', display: 'inline-block' }}>
+                RRHH
+              </span>
+              <img src={currentUser.avatar} alt={currentUser.name} className="header-profile-avatar" />
+            </div>
+          )}
+          
+          <button 
+            className="btn btn-secondary mobile-logout-btn" 
+            onClick={handleLogout}
+            title="Cerrar Sesión"
+            style={{ width: '36px', height: '36px', borderRadius: '50%', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <LogOut size={16} />
+          </button>
+        </div>
+      </header>
+
+      {/* OVERLAY BACKDROP */}
+      <div className={`menu-overlay ${menuOpen ? 'active' : ''}`} onClick={() => setMenuOpen(false)} />
+
+      {/* SIDEBAR DRAWER */}
+      <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
+        <div className="sidebar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+          <div className="logo-brand" onClick={() => { setLandingView(true); setMenuOpen(false); }} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div className="logo-icon" style={{ width: '36px', height: '36px', boxShadow: 'none' }}>
+              <HeartHandshake size={18} />
+            </div>
+            <span className="logo-text" style={{ fontSize: '1.2rem' }}>Reto Activo</span>
           </div>
+          <button 
+            onClick={() => setMenuOpen(false)}
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.25rem' }}
+          >
+            <X size={24} />
+          </button>
         </div>
 
         {currentUser.role === 'employee' ? (
           <nav className="nav-menu">
             <div 
               className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
-              onClick={() => setActiveTab('dashboard')}
+              onClick={() => { setActiveTab('dashboard'); setMenuOpen(false); }}
             >
               <LayoutDashboard />
               <span>Dashboard</span>
@@ -2759,7 +2797,7 @@ function App() {
 
             <div 
               className={`nav-item ${activeTab === 'challenges' ? 'active' : ''}`}
-              onClick={() => setActiveTab('challenges')}
+              onClick={() => { setActiveTab('challenges'); setMenuOpen(false); }}
             >
               <Activity />
               <span>Retos y Desafíos</span>
@@ -2767,7 +2805,7 @@ function App() {
 
             <div 
               className={`nav-item ${activeTab === 'rewards' ? 'active' : ''}`}
-              onClick={() => setActiveTab('rewards')}
+              onClick={() => { setActiveTab('rewards'); setMenuOpen(false); }}
             >
               <Gift />
               <span>Premios Wellness</span>
@@ -2775,7 +2813,7 @@ function App() {
 
             <div 
               className={`nav-item ${activeTab === 'leaderboard' ? 'active' : ''}`}
-              onClick={() => setActiveTab('leaderboard')}
+              onClick={() => { setActiveTab('leaderboard'); setMenuOpen(false); }}
             >
               <Trophy />
               <span>Ranking</span>
@@ -2783,7 +2821,7 @@ function App() {
 
             <div 
               className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`}
-              onClick={() => setActiveTab('profile')}
+              onClick={() => { setActiveTab('profile'); setMenuOpen(false); }}
             >
               <User />
               <span>Mi Perfil</span>
@@ -2791,7 +2829,7 @@ function App() {
 
             <div 
               className="nav-item return-nav-item" 
-              onClick={() => setLandingView(true)}
+              onClick={() => { setLandingView(true); setMenuOpen(false); }}
               style={{ 
                 borderTop: '1px dashed var(--border-color)', 
                 marginTop: '0.75rem', 
@@ -2807,7 +2845,7 @@ function App() {
           <nav className="nav-menu">
             <div 
               className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
-              onClick={() => setActiveTab('dashboard')}
+              onClick={() => { setActiveTab('dashboard'); setMenuOpen(false); }}
             >
               <Building size={20} />
               <span>Dashboard RRHH</span>
@@ -2815,7 +2853,7 @@ function App() {
 
             <div 
               className={`nav-item ${activeTab === 'evidence' ? 'active' : ''}`}
-              onClick={() => setActiveTab('evidence')}
+              onClick={() => { setActiveTab('evidence'); setMenuOpen(false); }}
             >
               <ClipboardCheck size={20} />
               <span>Evidencias</span>
@@ -2838,7 +2876,7 @@ function App() {
 
             <div 
               className={`nav-item ${activeTab === 'approvals' ? 'active' : ''}`}
-              onClick={() => setActiveTab('approvals')}
+              onClick={() => { setActiveTab('approvals'); setMenuOpen(false); }}
             >
               <ShieldCheck size={20} />
               <span>Aprobaciones</span>
@@ -2861,7 +2899,7 @@ function App() {
 
             <div 
               className={`nav-item ${activeTab === 'manage_users' ? 'active' : ''}`}
-              onClick={() => setActiveTab('manage_users')}
+              onClick={() => { setActiveTab('manage_users'); setMenuOpen(false); }}
             >
               <Users size={20} />
               <span>Colaboradores</span>
@@ -2869,7 +2907,7 @@ function App() {
 
             <div 
               className={`nav-item ${activeTab === 'create_challenge' ? 'active' : ''}`}
-              onClick={() => setActiveTab('create_challenge')}
+              onClick={() => { setActiveTab('create_challenge'); setMenuOpen(false); }}
             >
               <PlusCircle size={20} />
               <span>Lanzar Reto</span>
@@ -2877,7 +2915,7 @@ function App() {
 
             <div 
               className={`nav-item ${activeTab === 'create_reward' ? 'active' : ''}`}
-              onClick={() => setActiveTab('create_reward')}
+              onClick={() => { setActiveTab('create_reward'); setMenuOpen(false); }}
             >
               <Gift size={20} />
               <span>Agregar Premio</span>
@@ -2885,7 +2923,7 @@ function App() {
 
             <div 
               className="nav-item return-nav-item" 
-              onClick={() => setLandingView(true)}
+              onClick={() => { setLandingView(true); setMenuOpen(false); }}
               style={{ 
                 borderTop: '1px dashed var(--border-color)', 
                 marginTop: '0.75rem', 
@@ -2899,7 +2937,7 @@ function App() {
           </nav>
         )}
 
-        <div className="sidebar-footer">
+        <div className="sidebar-footer" style={{ marginTop: 'auto' }}>
           <div className="sidebar-profile" style={{ marginBottom: '0.75rem' }}>
             <img src={currentUser.avatar} alt={currentUser.name} className="profile-avatar" />
             <div className="profile-info">
@@ -2918,8 +2956,8 @@ function App() {
           </div>
           <button 
             className="btn btn-secondary" 
-            style={{ padding: '0.5rem', fontSize: '0.82rem', display: 'flex', gap: '0.4rem', justifyContent: 'center' }}
-            onClick={handleLogout}
+            style={{ padding: '0.5rem', fontSize: '0.82rem', display: 'flex', gap: '0.4rem', justifyContent: 'center', width: '100%' }}
+            onClick={() => { handleLogout(); setMenuOpen(false); }}
           >
             <LogOut size={14} /> Salir del perfil
           </button>
