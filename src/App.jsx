@@ -354,6 +354,45 @@ function App() {
   const [gFitSyncDays, setGFitSyncDays] = useState(7); // 1, 2, 3, 4, 5, or 7
   const [challengeRankings, setChallengeRankings] = useState({});
 
+  // === PWA INSTALL PROMPT ===
+  const [pwaInstallPrompt, setPwaInstallPrompt] = useState(null);
+  const [showPwaBanner, setShowPwaBanner] = useState(false);
+  const [pwaInstalled, setPwaInstalled] = useState(false);
+
+  // Listen for browser's install prompt (Chrome/Android)
+  useEffect(() => {
+    // Don't show if already running as installed PWA
+    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+      setPwaInstalled(true);
+      return;
+    }
+    const handler = (e) => {
+      e.preventDefault();
+      setPwaInstallPrompt(e);
+      // Small delay so it doesn't pop up immediately on first load
+      setTimeout(() => setShowPwaBanner(true), 3000);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    window.addEventListener('appinstalled', () => {
+      setPwaInstalled(true);
+      setShowPwaBanner(false);
+      setPwaInstallPrompt(null);
+    });
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallPWA = async () => {
+    if (!pwaInstallPrompt) return;
+    pwaInstallPrompt.prompt();
+    const { outcome } = await pwaInstallPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setPwaInstalled(true);
+      setShowPwaBanner(false);
+      showToastMessage('🎉 ¡Reto Activo instalada! Ya la encontrás en tu pantalla de inicio.', 'success');
+    }
+    setPwaInstallPrompt(null);
+  };
+
   const loadViewData = async (userSession) => {
     if (!userSession) return;
     
@@ -7491,6 +7530,116 @@ function App() {
         >
           <span className="arrow">←</span> Volver a Portada
         </button>
+      )}
+
+      {/* ===== PWA INSTALL BANNER ===== */}
+      {showPwaBanner && !pwaInstalled && (
+        <div style={{
+          position: 'fixed',
+          bottom: '1rem',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 9999,
+          width: 'calc(100% - 2rem)',
+          maxWidth: '480px',
+          background: 'linear-gradient(135deg, #0F2027, #1CBC8C)',
+          borderRadius: '20px',
+          padding: '1.25rem 1.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.08)',
+          animation: 'pwaSlideUp 0.4s cubic-bezier(0.34,1.56,0.64,1) both'
+        }}>
+          {/* App icon */}
+          <div style={{
+            width: '52px', height: '52px', borderRadius: '14px', flexShrink: 0,
+            overflow: 'hidden', border: '2px solid rgba(255,255,255,0.2)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+          }}>
+            <img src="/icons/icon-192.png" alt="Reto Activo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+
+          {/* Text */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ color: 'white', fontWeight: 700, fontSize: '0.95rem', marginBottom: '0.2rem', fontFamily: 'Outfit' }}>
+              📲 Instalar Reto Activo
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.78rem', lineHeight: 1.4 }}>
+              Agregala a tu pantalla de inicio y usala como app
+            </div>
+          </div>
+
+          {/* Buttons */}
+          <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+            <button
+              onClick={handleInstallPWA}
+              style={{
+                background: 'white',
+                color: '#0F7B5A',
+                border: 'none',
+                borderRadius: '10px',
+                padding: '0.55rem 1rem',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                fontFamily: 'Outfit',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+              }}
+            >
+              Instalar
+            </button>
+            <button
+              onClick={() => setShowPwaBanner(false)}
+              style={{
+                background: 'rgba(255,255,255,0.15)',
+                color: 'white',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: '10px',
+                padding: '0.55rem 0.75rem',
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                fontWeight: 600
+              }}
+              title="Cerrar"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* iOS install hint — Safari doesn't support beforeinstallprompt */}
+      {showPwaBanner && !pwaInstalled && !pwaInstallPrompt && /iphone|ipad|ipod/i.test(navigator.userAgent) && (
+        <div style={{
+          position: 'fixed',
+          bottom: '1rem',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 9999,
+          width: 'calc(100% - 2rem)',
+          maxWidth: '420px',
+          background: 'linear-gradient(135deg, #1a1a2e, #16213e)',
+          borderRadius: '18px',
+          padding: '1.25rem 1.5rem',
+          color: 'white',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+          fontSize: '0.85rem',
+          lineHeight: '1.6',
+          animation: 'pwaSlideUp 0.4s ease both'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '0.5rem', fontFamily: 'Outfit' }}>📲 Instalar en iPhone / iPad</div>
+              <div style={{ color: 'rgba(255,255,255,0.8)' }}>
+                Tocá el botón <strong style={{ color: '#1CBC8C' }}>Compartir</strong> (⬆️) en Safari y luego
+                &nbsp;<strong style={{ color: '#1CBC8C' }}>"Agregar a pantalla de inicio"</strong>.
+              </div>
+            </div>
+            <button onClick={() => setShowPwaBanner(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '1.2rem', paddingLeft: '0.75rem', flexShrink: 0 }}>✕</button>
+          </div>
+        </div>
       )}
 
     </div>

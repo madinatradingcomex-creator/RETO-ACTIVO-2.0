@@ -2,9 +2,42 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌱</text></svg>" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Reto Activo 2.0 - Bienestar y Retos Corporativos</title>
+
+    <!-- ===== PWA: Core ===== -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#1CBC8C" />
+    <meta name="description" content="Plataforma de bienestar y retos corporativos. Conectá tu actividad física, completá desafíos y sumá puntos con tu empresa." />
+
+    <!-- ===== PWA: Android / Chrome ===== -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- ===== PWA: iOS / Safari ===== -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Reto Activo" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
+    <!-- ===== PWA: Splash Screens iOS (opcional, mejora experiencia) ===== -->
+    <!-- iPhone 14 Pro Max -->
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)" href="/icons/icon-512.png" />
+    <!-- iPhone 14 Pro -->
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)" href="/icons/icon-512.png" />
+    <!-- iPhone 14 / 13 -->
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" href="/icons/icon-512.png" />
+
+    <!-- ===== SEO ===== -->
+    <meta name="robots" content="index, follow" />
+    <meta property="og:title" content="Reto Activo - Bienestar Corporativo" />
+    <meta property="og:description" content="Plataforma de bienestar y retos corporativos para empresas." />
+    <meta property="og:type" content="website" />
+
+    <!-- ===== Favicon ===== -->
+    <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <title>Reto Activo - Bienestar y Retos Corporativos</title>
+
     <!-- Google Fonts: Outfit (Headings) & Inter (Body) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
