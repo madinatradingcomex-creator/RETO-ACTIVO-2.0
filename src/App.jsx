@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useGoogleLogin, googleLogout } from '@react-oauth/google';
 import { 
   LayoutDashboard, 
@@ -360,12 +360,13 @@ function App() {
   const [pwaInstalled, setPwaInstalled] = useState(false);
   const [showIosPwaBanner, setShowIosPwaBanner] = useState(false);
 
-  // Detect device type once (stable across renders)
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const isChromeOnIOS = isIOS && /CriOS/i.test(navigator.userAgent);
-  const isRunningAsPWA =
+  // Detect device type once — useMemo so they are stable and don't cause extra renders
+  const isIOS = useMemo(() => /iphone|ipad|ipod/i.test(navigator.userAgent), []);
+  const isChromeOnIOS = useMemo(() => isIOS && /CriOS/i.test(navigator.userAgent), [isIOS]);
+  const isRunningAsPWA = useMemo(() =>
     window.matchMedia('(display-mode: standalone)').matches ||
-    window.navigator.standalone === true;
+    window.navigator.standalone === true
+  , []);
 
   // ── Android / Desktop: Listen for browser's native install prompt ──
   useEffect(() => {
@@ -497,21 +498,32 @@ function App() {
       if (active) {
         setCurrentUser(active);
         setLandingView(false);
-        await loadViewData(active);
-        // Verificar si ya tiene token guardado válido
+        // ── CRÍTICO: liberar la pantalla de carga ANTES de cargar datos ──
+        // loadViewData hace múltiples queries a Firestore y puede tardar segundos.
+        // Mostramos la UI inmediatamente y cargamos en background.
+        setLoadingSession(false);
+
+        // Verificar Google Fit
         const connected = dbService.isGoogleFitConnected();
         setGFitConnected(connected);
         if (connected && active.role === 'employee') {
           const lastSync = dbService.getLastSync(active.id);
           setGFitLastSync(lastSync);
-          triggerAutoGFitSync(active);
         }
+
+        // Cargar datos en background (no bloquea la pantalla)
+        loadViewData(active).then(() => {
+          if (connected && active.role === 'employee') {
+            triggerAutoGFitSync(active);
+          }
+        }).catch(err => console.error('Error loading view data in background:', err));
+
       } else {
         setLandingView(true);
+        setLoadingSession(false);
       }
     } catch (err) {
       console.error("Error al cargar sesión activa:", err);
-    } finally {
       setLoadingSession(false);
     }
   };
@@ -591,14 +603,16 @@ function App() {
         setLandingView(false);
         setActiveTab('dashboard');
         showToastMessage(`¡Acceso correcto! Bienvenido, ${res.user.name} ${res.user.lastname || ''} 🌟`);
-        await loadViewData(res.user);
         
-        // Auto-sync Google Fit in background after login
-        triggerAutoGFitSync(res.user);
-
+        // Limpiar campos del formulario de login inmediatamente
         setLoginEmail('');
         setLoginCompanyCode('');
         setLoginPassword('');
+
+        // Cargar datos en background (no bloquea la pantalla de bienvenida)
+        loadViewData(res.user).then(() => {
+          triggerAutoGFitSync(res.user);
+        }).catch(err => console.error('Error loading data after login:', err));
       }
     } catch (err) {
       console.error("Error crítico en login:", err);
@@ -637,13 +651,15 @@ function App() {
         setShowMigratePasswordModal(false);
         setMigrateUserRef(null);
         showToastMessage("🔑 ¡Contraseña establecida con éxito! Tu cuenta ahora está protegida.");
-        await loadViewData(logged.user);
-        
+
         setLoginEmail('');
         setLoginCompanyCode('');
         setLoginPassword('');
         setMigratePassword('');
         setMigratePasswordConfirm('');
+
+        // Cargar datos en background
+        loadViewData(logged.user).catch(err => console.error('Error loading data after migrate:', err));
       } else {
         showToastMessage("Error al iniciar sesión tras establecer contraseña.", "error");
       }
