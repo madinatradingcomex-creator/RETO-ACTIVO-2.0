@@ -3137,15 +3137,39 @@ function App() {
             {/* VIEW: DASHBOARD */}
             {activeTab === 'dashboard' && (
               <div className="view-container">
-                <header className="view-header">
-                  <div className="view-title-group">
-                    <h1>Hola, {currentUser.name} 👋</h1>
-                    <p>¡Qué lindo día para moverse! Revisa tus estadísticas de bienestar hoy.</p>
+                {/* BANNER DE INFORMACIÓN DEL USUARIO */}
+                <div className="profile-hero" style={{ margin: '0 0 2rem 0', width: '100%', padding: '1.5rem 2rem' }}>
+                  <img src={currentUser.avatar} alt={currentUser.name} className="profile-hero-avatar" style={{ width: '70px', height: '70px' }} />
+                  <div className="profile-hero-details" style={{ flexGrow: 1 }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+                      <div>
+                        <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, fontFamily: 'Outfit' }}>
+                          ¡Hola, {currentUser.name} {currentUser.lastname || ''}! 👋
+                        </h2>
+                        <p className="profile-meta-p" style={{ margin: '0.25rem 0 0.5rem 0' }}>
+                          <span>🏢 {currentUser.department}</span>
+                          <span className="profile-meta-dot">•</span>
+                          <span>🏆 {currentUser.level}</span>
+                        </p>
+                      </div>
+                      <button className="btn btn-primary" style={{ width: 'auto', padding: '0.6rem 1.2rem', fontSize: '0.88rem' }} onClick={() => setActiveTab('challenges')}>
+                        <Plus size={16} /> Explorar Retos
+                      </button>
+                    </div>
+
+                    <div className="badge-row" style={{ marginTop: '0.5rem' }}>
+                      <span className="badge-pill" style={{ backgroundColor: 'var(--mint-bg)', color: 'var(--mint-dark)', fontSize: '0.82rem', fontWeight: 700 }}>
+                        🔥 {currentUser.streak} días de racha
+                      </span>
+                      <span className="badge-pill" style={{ backgroundColor: 'var(--sky-bg)', color: 'var(--sky-dark)', fontSize: '0.82rem', fontWeight: 700 }}>
+                        🪙 {currentUser.points} puntos acumulados
+                      </span>
+                      <span className="badge-pill" style={{ backgroundColor: 'var(--lavender-bg)', color: 'var(--lavender-dark)', fontSize: '0.82rem', fontWeight: 700 }}>
+                        🏆 {completedChallengesCount} retos logrados
+                      </span>
+                    </div>
                   </div>
-                  <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => setActiveTab('challenges')}>
-                    <Plus size={18} /> Explorar Retos
-                  </button>
-                </header>
+                </div>
 
                 {/* ===== iOS PWA INSTALL CARD (shown inside dashboard until installed) ===== */}
                 {isIOS && !isRunningAsPWA && !pwaInstalled && (
@@ -3239,51 +3263,6 @@ function App() {
                   </div>
                 )}
 
-                <section className="stats-grid">
-                  <div className="stat-card">
-                    <div className="stat-header">
-                      <span className="stat-title">Pasos Semanales</span>
-                      <div className="stat-icon-wrapper" style={{ backgroundColor: 'var(--sky-bg)', color: 'var(--sky-accent)' }}>
-                        <Footprints size={20} />
-                      </div>
-                    </div>
-                    <div className="stat-value">{totalUserSteps.toLocaleString()}</div>
-                    <div className="stat-footer">Meta semanal: <span>70k pasos</span></div>
-                  </div>
-
-                  <div className="stat-card">
-                    <div className="stat-header">
-                      <span className="stat-title">Puntos Wellness</span>
-                      <div className="stat-icon-wrapper" style={{ backgroundColor: 'var(--mint-bg)', color: 'var(--mint-accent)' }}>
-                        <Sparkles size={20} style={{ fill: 'var(--mint-accent)' }} />
-                      </div>
-                    </div>
-                    <div className="stat-value">{currentUser.points}</div>
-                    <div className="stat-footer">¡Canjeables por <span>premios</span>!</div>
-                  </div>
-
-                  <div className="stat-card">
-                    <div className="stat-header">
-                      <span className="stat-title">Racha Activa</span>
-                      <div className="stat-icon-wrapper" style={{ backgroundColor: 'var(--coral-bg)', color: 'var(--coral-accent)' }}>
-                        <Flame size={20} style={{ fill: 'var(--coral-accent)' }} />
-                      </div>
-                    </div>
-                    <div className="stat-value">{currentUser.streak} días</div>
-                    <div className="stat-footer">¡Sigue así de constante!</div>
-                  </div>
-
-                  <div className="stat-card">
-                    <div className="stat-header">
-                      <span className="stat-title">Retos Completados</span>
-                      <div className="stat-icon-wrapper" style={{ backgroundColor: 'var(--lavender-bg)', color: 'var(--lavender-accent)' }}>
-                        <Trophy size={20} />
-                      </div>
-                    </div>
-                    <div className="stat-value">{completedChallengesCount}</div>
-                    <div className="stat-footer">¡Desafíos conquistados!</div>
-                  </div>
-                </section>
 
                 {/* ===== PANEL GOOGLE FIT ===== */}
                 <section style={{ marginBottom: '2rem' }}>
@@ -3565,135 +3544,9 @@ function App() {
                   </div>
                 </section>
 
-                <section className="activity-section">
-                  <div className="activity-header">
-                    <div>
-                      <h3 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>Registro de Movilidad Semanal</h3>
-                      <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>Tus pasos registrados día a día durante la última semana.</p>
-                    </div>
-                  </div>
-
-                  <div className="activity-chart-container">
-                    {(currentUser.daily_steps_history || [0, 0, 0, 0, 0, 0, 0]).map((steps, index) => {
-                      const percent = Math.min((steps / maxWeeklySteps) * 100, 100);
-                      const isToday = index === 6;
-                      return (
-                        <div className="chart-bar-container" key={index}>
-                          <div className="chart-bar-bg">
-                            <div 
-                              className="chart-bar-fill" 
-                              style={{ 
-                                height: `${percent}%`, 
-                                backgroundColor: isToday ? 'var(--mint-accent)' : 'var(--sky-accent)'
-                              }}
-                            />
-                            <span className="chart-value-tooltip" style={{ left: '50%', transform: 'translateX(-50%)' }}>
-                              {steps.toLocaleString()}
-                            </span>
-                          </div>
-                          <span className="chart-day-label" style={isToday ? { color: 'var(--mint-dark)', fontWeight: 800 } : {}}>
-                            {weekDays[index]} {isToday && '(Hoy)'}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Total de Pasos Semanal - Pie de Gráfica Estético */}
-                  <div 
-                    style={{ 
-                      marginTop: '1.25rem', 
-                      backgroundColor: 'var(--sky-bg)', 
-                      border: '1px solid rgba(56,189,248,0.12)', 
-                      borderRadius: '12px', 
-                      padding: '0.85rem 1.25rem', 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'center',
-                      boxShadow: 'var(--shadow-sm)'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Footprints size={18} style={{ color: 'var(--sky-accent)' }} />
-                      <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--sky-dark)' }}>
-                        Total Acumulado Semanal:
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.25rem' }}>
-                      <span style={{ fontSize: '1.1rem', fontWeight: 850, color: 'var(--sky-dark)' }}>
-                        {totalUserSteps.toLocaleString()}
-                      </span>
-                      <span style={{ fontSize: '0.78rem', color: 'var(--sky-dark)', fontWeight: 600 }}> pasos</span>
-                      <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginLeft: '0.5rem', fontWeight: 500 }}>
-                        ({(totalUserSteps / 1312).toFixed(1)} km)
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Detalle Diario Colapsable (P10) */}
-                  <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
-                    <button 
-                      type="button"
-                      className="collapsible-breakdown-btn"
-                      onClick={() => setShowFitBreakdown(!showFitBreakdown)}
-                      title="Haz clic para ver el desglose por día"
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Activity size={18} style={{ color: 'var(--mint-accent)' }} />
-                        <span style={{ fontFamily: 'Outfit', fontSize: '1.02rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                          Desglose Diario de Movilidad
-                        </span>
-                      </div>
-                      {showFitBreakdown ? <ChevronUp size={18} className="chevron-rotate open" /> : <ChevronDown size={18} className="chevron-rotate" />}
-                    </button>
-
-                    <div className={`collapsible-content ${showFitBreakdown ? 'open' : ''}`}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', padding: '0.25rem 0.1rem' }}>
-                        {(currentUser.daily_steps_history || [0, 0, 0, 0, 0, 0, 0]).map((steps, index) => {
-                          const date = new Date();
-                          date.setDate(date.getDate() - (6 - index));
-                          const dateStr = date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
-                          const isToday = index === 6;
-                          const km = (steps / 1312).toFixed(1);
-                          const goalMet = steps >= 10000;
-
-                          return (
-                            <div 
-                              key={index}
-                              className={`daily-breakdown-row ${isToday ? 'is-today' : ''}`}
-                            >
-                              <div className="row-left">
-                                <span className="day-name">
-                                  {weekDays[index]} {isToday && '(Hoy)'}
-                                </span>
-                                <span className="day-date">
-                                  ({dateStr})
-                                </span>
-                              </div>
-                              
-                              <div className="row-right">
-                                <div className="steps-metric">
-                                  <span className="steps-count">{steps.toLocaleString()}</span>
-                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}> pasos</span>
-                                  <span className="steps-km">({km} km)</span>
-                                </div>
-                                
-                                <span className={`status-badge ${goalMet ? 'met' : 'active'}`}>
-                                  {goalMet ? '🎯 Cumplida' : '🚶 Activo'}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </section>
-
-
-
-                <section>
-                  <h3 style={{ fontSize: '1.4rem', marginBottom: '1.25rem' }}>Mis Retos en Progreso</h3>
+                {/* ===== MIS RETOS EN PROGRESO ===== */}
+                <section style={{ marginBottom: '2.5rem' }}>
+                  <h3 style={{ fontSize: '1.4rem', marginBottom: '1.25rem', fontFamily: 'Outfit', fontWeight: 700 }}>Mis Retos en Progreso</h3>
 
                   {userChallenges.filter(uc => uc.status === 'active').length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'white', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-sm)' }}>
@@ -3860,6 +3713,132 @@ function App() {
                         })}
                     </div>
                   )}
+                </section>
+
+                <section className="activity-section">
+
+                  <div className="activity-header">
+                    <div>
+                      <h3 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>Registro de Movilidad Semanal</h3>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>Tus pasos registrados día a día durante la última semana.</p>
+                    </div>
+                  </div>
+
+                  <div className="activity-chart-container">
+                    {(currentUser.daily_steps_history || [0, 0, 0, 0, 0, 0, 0]).map((steps, index) => {
+                      const percent = Math.min((steps / maxWeeklySteps) * 100, 100);
+                      const isToday = index === 6;
+                      return (
+                        <div className="chart-bar-container" key={index}>
+                          <div className="chart-bar-bg">
+                            <div 
+                              className="chart-bar-fill" 
+                              style={{ 
+                                height: `${percent}%`, 
+                                backgroundColor: isToday ? 'var(--mint-accent)' : 'var(--sky-accent)'
+                              }}
+                            />
+                            <span className="chart-value-tooltip" style={{ left: '50%', transform: 'translateX(-50%)' }}>
+                              {steps.toLocaleString()}
+                            </span>
+                          </div>
+                          <span className="chart-day-label" style={isToday ? { color: 'var(--mint-dark)', fontWeight: 800 } : {}}>
+                            {weekDays[index]} {isToday && '(Hoy)'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Total de Pasos Semanal - Pie de Gráfica Estético */}
+                  <div 
+                    style={{ 
+                      marginTop: '1.25rem', 
+                      backgroundColor: 'var(--sky-bg)', 
+                      border: '1px solid rgba(56,189,248,0.12)', 
+                      borderRadius: '12px', 
+                      padding: '0.85rem 1.25rem', 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center',
+                      boxShadow: 'var(--shadow-sm)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Footprints size={18} style={{ color: 'var(--sky-accent)' }} />
+                      <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--sky-dark)' }}>
+                        Total Acumulado Semanal:
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.25rem' }}>
+                      <span style={{ fontSize: '1.1rem', fontWeight: 850, color: 'var(--sky-dark)' }}>
+                        {totalUserSteps.toLocaleString()}
+                      </span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--sky-dark)', fontWeight: 600 }}> pasos</span>
+                      <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginLeft: '0.5rem', fontWeight: 500 }}>
+                        ({(totalUserSteps / 1312).toFixed(1)} km)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Detalle Diario Colapsable (P10) */}
+                  <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
+                    <button 
+                      type="button"
+                      className="collapsible-breakdown-btn"
+                      onClick={() => setShowFitBreakdown(!showFitBreakdown)}
+                      title="Haz clic para ver el desglose por día"
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Activity size={18} style={{ color: 'var(--mint-accent)' }} />
+                        <span style={{ fontFamily: 'Outfit', fontSize: '1.02rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                          Desglose Diario de Movilidad
+                        </span>
+                      </div>
+                      {showFitBreakdown ? <ChevronUp size={18} className="chevron-rotate open" /> : <ChevronDown size={18} className="chevron-rotate" />}
+                    </button>
+
+                    <div className={`collapsible-content ${showFitBreakdown ? 'open' : ''}`}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', padding: '0.25rem 0.1rem' }}>
+                        {(currentUser.daily_steps_history || [0, 0, 0, 0, 0, 0, 0]).map((steps, index) => {
+                          const date = new Date();
+                          date.setDate(date.getDate() - (6 - index));
+                          const dateStr = date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+                          const isToday = index === 6;
+                          const km = (steps / 1312).toFixed(1);
+                          const goalMet = steps >= 10000;
+
+                          return (
+                            <div 
+                              key={index}
+                              className={`daily-breakdown-row ${isToday ? 'is-today' : ''}`}
+                            >
+                              <div className="row-left">
+                                <span className="day-name">
+                                  {weekDays[index]} {isToday && '(Hoy)'}
+                                </span>
+                                <span className="day-date">
+                                  ({dateStr})
+                                </span>
+                              </div>
+                              
+                              <div className="row-right">
+                                <div className="steps-metric">
+                                  <span className="steps-count">{steps.toLocaleString()}</span>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}> pasos</span>
+                                  <span className="steps-km">({km} km)</span>
+                                </div>
+                                
+                                <span className={`status-badge ${goalMet ? 'met' : 'active'}`}>
+                                  {goalMet ? '🎯 Cumplida' : '🚶 Activo'}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 </section>
               </div>
             )}
