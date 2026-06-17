@@ -1889,5 +1889,43 @@ export const dbService = {
       console.error("Error resetting database:", err);
       return { error: err.message };
     }
+  },
+
+  async updateUserPushSubscription(userId, subscription) {
+    try {
+      const userRef = doc(db, 'usuarios', userId);
+      await updateDoc(userRef, {
+        push_subscription: subscription
+      });
+      const local = getLocalUser();
+      if (local && local.id === userId) {
+        local.push_subscription = subscription;
+        setLocalUser(local);
+      }
+      clearCache();
+      return { success: true };
+    } catch (err) {
+      console.error("Error updating push subscription:", err);
+      return { error: err.message };
+    }
+  },
+
+  async removeUserPushSubscription(userId) {
+    try {
+      const userRef = doc(db, 'usuarios', userId);
+      await updateDoc(userRef, {
+        push_subscription: null
+      });
+      const local = getLocalUser();
+      if (local && local.id === userId) {
+        delete local.push_subscription;
+        setLocalUser(local);
+      }
+      clearCache();
+      return { success: true };
+    } catch (err) {
+      console.error("Error removing push subscription:", err);
+      return { error: err.message };
+    }
   }
 };

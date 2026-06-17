@@ -35,7 +35,9 @@ import {
   Trash2,
   Edit2,
   HelpCircle,
-  Menu
+  Menu,
+  Bell,
+  BellOff
 } from 'lucide-react';
 import { dbService } from './services/db';
 
@@ -44,6 +46,19 @@ export const getLocalDateString = (date = new Date()) => {
   const localDate = new Date(date.getTime() - (offset * 60 * 1000));
   return localDate.toISOString().split('T')[0];
 };
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/\-/g, '+')
+    .replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
 
 const AVATAR_OPTIONS = [
   'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f436.svg', // Perro
@@ -353,6 +368,102 @@ function App() {
   const [gFitSyncing, setGFitSyncing] = useState(false);
   const [gFitLastSync, setGFitLastSync] = useState(null);
   const [showGFitHelpModal, setShowGFitHelpModal] = useState(false);
+
+  // === PUSH NOTIFICATIONS STATE ===
+  const [pushStatus, setPushStatus] = useState('unknown'); // 'unknown', 'granted', 'denied', 'default', 'unsupported'
+  const [showPushInvitation, setShowPushInvitation] = useState(false);
+  const [pushSubmitting, setPushSubmitting] = useState(false);
+
+  // Verificar estado de permisos de push notifications al iniciar sesión o cambiar usuario
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'employee') {
+      setPushStatus('unsupported');
+      return;
+    }
+
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      setPushStatus('unsupported');
+      return;
+    }
+
+    navigator.serviceWorker.ready.then(async (reg) => {
+      try {
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          setPushStatus('granted');
+          if (!currentUser.push_subscription) {
+            dbService.updateUserPushSubscription(currentUser.id, sub.toJSON());
+          }
+        } else {
+          setPushStatus(Notification.permission);
+        }
+      } catch (err) {
+        console.error('Error checking push subscription:', err);
+        setPushStatus('unknown');
+      }
+    });
+  }, [currentUser]);
+
+  const handleSubscribePush = async () => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      showToastMessage('⚠️ Tu dispositivo o navegador no soporta notificaciones de fondo.', 'error');
+      return;
+    }
+
+    setPushSubmitting(true);
+    try {
+      const permission = await Notification.requestPermission();
+      setPushStatus(permission);
+      
+      if (permission === 'granted') {
+        const registration = await navigator.serviceWorker.ready;
+        const publicVapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+        if (!publicVapidKey) {
+          showToastMessage('⚠️ Clave pública VAPID no configurada.', 'error');
+          setPushSubmitting(false);
+          return;
+        }
+        
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
+        });
+        
+        if (currentUser) {
+          await dbService.updateUserPushSubscription(currentUser.id, subscription.toJSON());
+          showToastMessage('🔔 ¡Recordatorios activados! Te notificaremos si olvidas sincronizar.');
+        }
+      } else if (permission === 'denied') {
+        showToastMessage('⚠️ Permiso denegado. Habilita las notificaciones en el navegador.', 'warning');
+      }
+    } catch (err) {
+      console.error("Error subscribing to push notifications:", err);
+      showToastMessage('⚠️ Error al activar las notificaciones push.', 'error');
+    } finally {
+      setPushSubmitting(false);
+    }
+  };
+
+  const handleUnsubscribePush = async () => {
+    setPushSubmitting(true);
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) {
+        await subscription.unsubscribe();
+      }
+      if (currentUser) {
+        await dbService.removeUserPushSubscription(currentUser.id);
+      }
+      setPushStatus('default');
+      showToastMessage('🔕 Recordatorios desactivados.');
+    } catch (err) {
+      console.error("Error unsubscribing from push notifications:", err);
+      showToastMessage('⚠️ Error al desactivar las notificaciones.', 'error');
+    } finally {
+      setPushSubmitting(false);
+    }
+  };
 
   const [gFitSyncDays, setGFitSyncDays] = useState(7); // 1, 2, 3, 4, 5, or 7
   const [challengeRankings, setChallengeRankings] = useState({});
@@ -840,6 +951,11 @@ function App() {
         setGFitLinked(true);
         setGFitConnected(true);
         await performGFitSync(currentUser, fitData);
+        if (Notification.permission !== 'granted' && 'PushManager' in window && 'serviceWorker' in navigator) {
+          setTimeout(() => {
+            setShowPushInvitation(true);
+          }, 1500);
+        }
       } catch(err) {
         console.error("Error connecting Google Fit:", err);
         showToastMessage('⚠️ No se pudieron leer los pasos de Google Fit.', 'error');
@@ -2483,6 +2599,45 @@ function App() {
             </div>
           )}
 
+          {/* MODAL: INVITACIÓN DE NOTIFICACIONES PUSH */}
+          {showPushInvitation && (
+            <div className="modal-overlay" onClick={() => setShowPushInvitation(false)}>
+              <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px', padding: '2rem', textAlign: 'center' }}>
+                <button className="modal-close" onClick={() => setShowPushInvitation(false)}>
+                  <X size={20} />
+                </button>
+                <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '64px', height: '64px', borderRadius: '50%', background: 'var(--mint-bg)', color: 'var(--mint-accent)', marginBottom: '1.25rem' }}>
+                  <Bell size={32} />
+                </div>
+                <h3 className="modal-title" style={{ fontSize: '1.25rem', fontWeight: 800, fontFamily: 'Outfit', color: 'var(--text-main)', marginBottom: '0.5rem' }}>
+                  ¡Mantén tu Racha Activa!
+                </h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.6, marginBottom: '1.5rem' }}>
+                  ¿Quieres recibir un aviso si olvidas sincronizar tus pasos? Te enviaremos un recordatorio discreto a las 8:00 PM solo si aún no has sincronizado hoy.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={async () => {
+                      setShowPushInvitation(false);
+                      await handleSubscribePush();
+                    }}
+                    style={{ width: '100%', padding: '0.75rem 1rem' }}
+                  >
+                    Activar Recordatorios
+                  </button>
+                  <button 
+                    className="btn btn-secondary" 
+                    onClick={() => setShowPushInvitation(false)}
+                    style={{ width: '100%', padding: '0.75rem 1rem', border: 'none', background: 'transparent', color: 'var(--text-muted)' }}
+                  >
+                    Quizás más tarde
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* MODAL: TÉRMINOS Y CONDICIONES (P3) */}
           {showTermsModal && (
             <div className="modal-overlay" onClick={() => setShowTermsModal(false)}>
@@ -3257,6 +3412,61 @@ function App() {
                             </button>
                           ))}
                         </div>
+                      </div>
+                    )}
+
+                    {/* Recordatorios Push de Sincronización */}
+                    {gFitLinked && (
+                      <div style={{ minWidth: '240px' }}>
+                        <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>
+                          🔔 Recordatorios de Sincronización:
+                        </label>
+                        {pushStatus === 'unsupported' ? (
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'white', padding: '0.4rem 0.75rem', borderRadius: '10px', border: '1px solid var(--border-color)', width: 'fit-content' }}>
+                            <BellOff size={14} style={{ color: '#94A3B8' }} />
+                            <span>No soportado en este dispositivo/modo.</span>
+                          </div>
+                        ) : pushStatus === 'denied' ? (
+                          <div style={{ fontSize: '0.8rem', color: '#EF4444', display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'white', padding: '0.4rem 0.75rem', borderRadius: '10px', border: '1px solid rgba(239,68,68,0.15)', width: 'fit-content' }}>
+                            <BellOff size={14} />
+                            <span>Permiso bloqueado. Actívalo en ajustes.</span>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={pushStatus === 'granted' ? handleUnsubscribePush : handleSubscribePush}
+                            disabled={pushSubmitting}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              border: pushStatus === 'granted' ? '1px solid rgba(28,188,140,0.25)' : '1px solid var(--border-color)',
+                              backgroundColor: pushStatus === 'granted' ? 'var(--mint-bg)' : 'white',
+                              color: pushStatus === 'granted' ? 'var(--mint-dark)' : 'var(--text-main)',
+                              padding: '0.4rem 0.85rem',
+                              borderRadius: '10px',
+                              fontSize: '0.82rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                              outline: 'none',
+                              boxShadow: pushStatus === 'granted' ? '0 2px 8px rgba(28,188,140,0.08)' : 'none'
+                            }}
+                          >
+                            {pushStatus === 'granted' ? (
+                              <>
+                                <Bell size={14} style={{ color: 'var(--mint-accent)' }} />
+                                <span>Recordatorios Activos</span>
+                              </>
+                            ) : (
+                              <>
+                                <BellOff size={14} style={{ color: 'var(--text-muted)' }} />
+                                <span>Activar Recordatorios</span>
+                              </>
+                            )}
+                            {pushSubmitting && <span className="spin-animation" style={{ fontSize: '0.75rem', marginLeft: '0.2rem' }}>🔄</span>}
+                          </button>
+                        )}
                       </div>
                     )}
 

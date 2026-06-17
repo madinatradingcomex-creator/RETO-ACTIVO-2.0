@@ -1,5 +1,12 @@
 {
+  "crons": [
+    {
+      "path": "/api/send-push",
+      "schedule": "0 23 * * *"
+    }
+  ],
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [

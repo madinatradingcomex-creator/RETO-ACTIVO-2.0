@@ -52,6 +52,7 @@ export default defineConfig({
         ]
       },
       workbox: {
+        importScripts: ['/push-worker.js'],
         // Cache all app shell assets aggressively
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         // Keep the SW registration from breaking hot-reload in dev
