@@ -2755,7 +2755,7 @@ function App() {
           )}
           
           <button 
-            className="btn btn-secondary mobile-logout-btn" 
+            className="btn btn-secondary mobile-logout-btn header-logout-btn" 
             onClick={handleLogout}
             title="Cerrar Sesión"
             style={{ width: '36px', height: '36px', borderRadius: '50%', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
