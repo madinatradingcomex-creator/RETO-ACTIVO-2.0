@@ -3137,36 +3137,62 @@ function App() {
             {/* VIEW: DASHBOARD */}
             {activeTab === 'dashboard' && (
               <div className="view-container">
-                {/* BANNER DE INFORMACIÓN DEL USUARIO */}
-                <div className="profile-hero" style={{ margin: '0 0 2rem 0', width: '100%', padding: '1.5rem 2rem' }}>
-                  <img src={currentUser.avatar} alt={currentUser.name} className="profile-hero-avatar" style={{ width: '70px', height: '70px' }} />
-                  <div className="profile-hero-details" style={{ flexGrow: 1 }}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-                      <div>
-                        <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, fontFamily: 'Outfit' }}>
-                          ¡Hola, {currentUser.name} {currentUser.lastname || ''}! 👋
-                        </h2>
-                        <p className="profile-meta-p" style={{ margin: '0.25rem 0 0.5rem 0' }}>
-                          <span>🏢 {currentUser.department}</span>
-                          <span className="profile-meta-dot">•</span>
-                          <span>🏆 {currentUser.level}</span>
-                        </p>
-                      </div>
-                      <button className="btn btn-primary" style={{ width: 'auto', padding: '0.6rem 1.2rem', fontSize: '0.88rem' }} onClick={() => setActiveTab('challenges')}>
-                        <Plus size={16} /> Explorar Retos
-                      </button>
+                {/* COMPACT & SUBTLE WELCOME HEADER */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '1rem',
+                  marginBottom: '1.75rem',
+                  padding: '0.5rem 0.25rem'
+                }}>
+                  <img 
+                    src={currentUser.avatar} 
+                    alt={currentUser.name} 
+                    style={{ 
+                      width: '56px', 
+                      height: '56px', 
+                      borderRadius: '50%', 
+                      border: '2px solid var(--border-color)',
+                      boxShadow: 'var(--shadow-sm)',
+                      flexShrink: 0
+                    }} 
+                  />
+                  <div style={{ flexGrow: 1 }}>
+                    <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, fontFamily: 'Outfit', color: 'var(--text-main)', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+                      ¡Hola, {currentUser.name}! 👋
+                    </h2>
+                    
+                    {/* User metadata row */}
+                    <div style={{ 
+                      display: 'flex', 
+                      flexWrap: 'wrap', 
+                      alignItems: 'center', 
+                      gap: '0.25rem 0.5rem', 
+                      marginTop: '0.25rem',
+                      fontSize: '0.82rem',
+                      color: 'var(--text-muted)',
+                      fontWeight: 500
+                    }}>
+                      <span>🏢 {currentUser.department}</span>
+                      <span style={{ opacity: 0.35 }}>•</span>
+                      <span>🏆 {currentUser.level}</span>
                     </div>
 
-                    <div className="badge-row" style={{ marginTop: '0.5rem' }}>
-                      <span className="badge-pill" style={{ backgroundColor: 'var(--mint-bg)', color: 'var(--mint-dark)', fontSize: '0.82rem', fontWeight: 700 }}>
-                        🔥 {currentUser.streak} días de racha
-                      </span>
-                      <span className="badge-pill" style={{ backgroundColor: 'var(--sky-bg)', color: 'var(--sky-dark)', fontSize: '0.82rem', fontWeight: 700 }}>
-                        🪙 {currentUser.points} puntos acumulados
-                      </span>
-                      <span className="badge-pill" style={{ backgroundColor: 'var(--lavender-bg)', color: 'var(--lavender-dark)', fontSize: '0.82rem', fontWeight: 700 }}>
-                        🏆 {completedChallengesCount} retos logrados
-                      </span>
+                    {/* Stats summary row */}
+                    <div style={{ 
+                      display: 'flex', 
+                      flexWrap: 'wrap', 
+                      alignItems: 'center', 
+                      gap: '0.25rem 0.6rem', 
+                      marginTop: '0.45rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 700
+                    }}>
+                      <span style={{ color: 'var(--mint-dark)' }}>🔥 {currentUser.streak} días</span>
+                      <span style={{ opacity: 0.35, color: 'var(--text-muted)' }}>•</span>
+                      <span style={{ color: 'var(--sky-dark)' }}>🪙 {currentUser.points} pts</span>
+                      <span style={{ opacity: 0.35, color: 'var(--text-muted)' }}>•</span>
+                      <span style={{ color: 'var(--lavender-dark)' }}>🏆 {completedChallengesCount} retos</span>
                     </div>
                   </div>
                 </div>
@@ -3546,7 +3572,16 @@ function App() {
 
                 {/* ===== MIS RETOS EN PROGRESO ===== */}
                 <section style={{ marginBottom: '2.5rem' }}>
-                  <h3 style={{ fontSize: '1.4rem', marginBottom: '1.25rem', fontFamily: 'Outfit', fontWeight: 700 }}>Mis Retos en Progreso</h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                    <h3 style={{ fontSize: '1.35rem', fontFamily: 'Outfit', fontWeight: 700, margin: 0 }}>Mis Retos en Progreso</h3>
+                    <button 
+                      className="btn btn-primary" 
+                      style={{ width: 'auto', padding: '0.5rem 1.1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }} 
+                      onClick={() => setActiveTab('challenges')}
+                    >
+                      <Plus size={14} /> Explorar Retos
+                    </button>
+                  </div>
 
                   {userChallenges.filter(uc => uc.status === 'active').length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'white', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-sm)' }}>
