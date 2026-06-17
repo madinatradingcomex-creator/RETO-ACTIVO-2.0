@@ -349,6 +349,7 @@ function App() {
 
   // === GOOGLE FIT STATE ===
   const [gFitConnected, setGFitConnected] = useState(false);
+  const [gFitLinked, setGFitLinked] = useState(() => localStorage.getItem('ra_gfit_linked') === 'true');
   const [gFitSyncing, setGFitSyncing] = useState(false);
   const [gFitLastSync, setGFitLastSync] = useState(null);
   const [showGFitHelpModal, setShowGFitHelpModal] = useState(false);
@@ -506,9 +507,11 @@ function App() {
         setLoadingSession(false);
 
         // Verificar Google Fit
+        const linked = localStorage.getItem('ra_gfit_linked') === 'true';
+        setGFitLinked(linked);
         const connected = dbService.isGoogleFitConnected();
         setGFitConnected(connected);
-        if (connected && active.role === 'employee') {
+        if (linked && active.role === 'employee') {
           const lastSync = dbService.getLastSync(active.id);
           setGFitLastSync(lastSync);
         }
@@ -551,7 +554,8 @@ function App() {
           console.error('Error en sincronización silenciosa:', err);
           setGFitSyncing(false);
           if (err.status === 401) {
-            dbService.clearGoogleFitToken();
+            localStorage.removeItem('ra_gfit_token');
+            localStorage.removeItem('ra_gfit_token_expires_at');
             setGFitConnected(false);
             showToastMessage('🔑 La sesión de Google Fit ha expirado. Por favor reconecta.', 'warning');
           }
@@ -833,6 +837,7 @@ function App() {
         const expiresIn = tokenResponse.expires_in || 3600;
         const fitData = await dbService.fetchWeeklyStepsFromGoogleFit(token);
         dbService.saveGoogleFitToken(token, expiresIn);
+        setGFitLinked(true);
         setGFitConnected(true);
         await performGFitSync(currentUser, fitData);
       } catch(err) {
@@ -846,8 +851,8 @@ function App() {
       console.error(error);
       showToastMessage('Error al autorizar con Google.', 'error');
     },
-    scope: 'https://www.googleapis.com/auth/fitness.activity.read',
-    prompt: 'consent',
+    scope: 'https://www.googleapis.com/auth/fitness.activity.read'
+    // Omitimos prompt: 'consent' para permitir re-autorizaciones automáticas silenciosas
   });
 
   // Sincronizar manualmente (ya conectado)
@@ -867,7 +872,8 @@ function App() {
     } catch(err) {
       console.error(err);
       if (err.status === 401 || (err.message && err.message.includes('401'))) {
-        dbService.clearGoogleFitToken();
+        localStorage.removeItem('ra_gfit_token');
+        localStorage.removeItem('ra_gfit_token_expires_at');
         setGFitConnected(false);
         showToastMessage('🔑 La sesión de Google Fit ha expirado. Por favor reconecta.', 'warning');
       } else {
@@ -882,6 +888,7 @@ function App() {
     googleLogout();
     dbService.clearGoogleFitToken();
     setGFitConnected(false);
+    setGFitLinked(false);
     setGFitLastSync(null);
     showToastMessage('Google Fit desconectado.');
   };
@@ -3126,10 +3133,10 @@ function App() {
                 {/* ===== PANEL GOOGLE FIT ===== */}
                 <section style={{ marginBottom: '2rem' }}>
                   <div style={{
-                    background: gFitConnected
+                    background: gFitLinked
                       ? 'linear-gradient(135deg, #F0FBF6, #EAF5FF)'
                       : 'linear-gradient(135deg, #F8F9FF, #F0F7FF)',
-                    border: gFitConnected
+                    border: gFitLinked
                       ? '1px solid rgba(28,188,140,0.2)'
                       : '1px solid var(--border-color)',
                     borderRadius: '20px',
@@ -3147,7 +3154,7 @@ function App() {
                       position: 'absolute', right: '-20px', top: '-20px',
                       width: '160px', height: '160px',
                       borderRadius: '50%',
-                      background: gFitConnected
+                      background: gFitLinked
                         ? 'radial-gradient(circle, rgba(28,188,140,0.07), transparent 70%)'
                         : 'radial-gradient(circle, rgba(82,130,255,0.06), transparent 70%)',
                       pointerEvents: 'none'
@@ -3156,17 +3163,17 @@ function App() {
                     {/* Ícono principal */}
                     <div style={{
                       width: '54px', height: '54px', borderRadius: '16px', flexShrink: 0,
-                      background: gFitConnected
+                      background: gFitLinked
                         ? 'linear-gradient(135deg, #34C97B, #1CBC8C)'
                         : 'linear-gradient(135deg, #4285F4, #34A853)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       color: 'white',
-                      boxShadow: gFitConnected
+                      boxShadow: gFitLinked
                         ? '0 8px 20px rgba(28,188,140,0.25)'
                         : '0 8px 20px rgba(66,133,244,0.25)',
                       fontSize: '1.5rem'
                     }}>
-                      {gFitConnected ? <CheckCircle2 size={26} /> : <Activity size={26} />}
+                      {gFitLinked ? <CheckCircle2 size={26} /> : <Activity size={26} />}
                     </div>
 
                     {/* Texto de estado */}
@@ -3175,24 +3182,37 @@ function App() {
                         <h3 style={{ fontFamily: 'Outfit', fontSize: '1.1rem', fontWeight: 700 }}>
                           Google Fit
                         </h3>
-                        {gFitConnected && (
-                          <span style={{
-                            backgroundColor: 'var(--mint-bg)',
-                            color: 'var(--mint-dark)',
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            padding: '0.2rem 0.6rem',
-                            borderRadius: '20px',
-                            border: '1px solid rgba(28,188,140,0.15)'
-                          }}>● CONECTADO</span>
+                        {gFitLinked && (
+                          gFitConnected ? (
+                            <span style={{
+                              backgroundColor: 'var(--mint-bg)',
+                              color: 'var(--mint-dark)',
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '0.2rem 0.6rem',
+                              borderRadius: '20px',
+                              border: '1px solid rgba(28,188,140,0.15)'
+                            }}>● VINCULADO</span>
+                          ) : (
+                            <span style={{
+                              backgroundColor: '#FFF2E2',
+                              color: '#D97706',
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '0.2rem 0.6rem',
+                              borderRadius: '20px',
+                              border: '1px solid rgba(217,119,6,0.15)'
+                            }}>● REQUIERE SINCRONIZACIÓN</span>
+                          )
                         )}
                       </div>
 
-                      {gFitConnected ? (
+                      {gFitLinked ? (
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                           {gFitLastSync
                             ? `Última sincronización: ${gFitLastSync.steps?.toLocaleString()} pasos · ${new Date(gFitLastSync.syncedAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`
-                            : 'Cuenta conectada · Presiona "Sincronizar" para importar tus pasos de hoy.'}
+                            : 'Cuenta vinculada.'}
+                          {!gFitConnected && ' (La sesión de Google Fit expiró. Presiona "Sincronizar Ahora" para renovar la conexión)'}
                         </p>
                       ) : (
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
@@ -3202,7 +3222,7 @@ function App() {
                     </div>
 
                     {/* Selector de Rango de Días (P7) */}
-                    {gFitConnected && (
+                    {gFitLinked && (
                       <div style={{ minWidth: '220px' }}>
                         <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>
                           📅 Rango de Sincronización:
@@ -3242,7 +3262,7 @@ function App() {
 
                     {/* Botones de acción */}
                     <div style={{ display: 'flex', gap: '0.75rem', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
-                      {gFitConnected ? (
+                      {gFitLinked ? (
                         <>
                           <button
                             className="btn btn-primary"
