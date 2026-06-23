@@ -233,7 +233,7 @@ function App() {
   const [cPoints, setCPoints] = useState('');
   const [cCategory, setCCategory] = useState('mobility');
   const [cTarget, setCTarget] = useState('');
-  const [cUnit, setCUnit] = useState('km');
+  const [cUnit, setCUnit] = useState('pasos');
   const [cDuration, setCDuration] = useState('7 días');
   const [cIcon, setCIcon] = useState('🚴‍♀️');
   const [cStartDate, setCStartDate] = useState('');
@@ -5375,10 +5375,7 @@ function App() {
                             value={cUnit}
                             onChange={(e) => setCUnit(e.target.value)}
                           >
-                            <option value="km">Kilómetros (km)</option>
                             <option value="pasos">Pasos</option>
-                            <option value="sesiones">Sesiones</option>
-                            <option value="litros">Litros</option>
                           </select>
                         </div>
                       </div>
