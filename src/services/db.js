@@ -237,13 +237,20 @@ export const dbService = {
     try {
       const q = query(
         collection(db, 'usuarios'), 
-        where('email', '==', email.toLowerCase()), 
-        where('company_code', '==', companyCode.toUpperCase())
+        where('email', '==', email.toLowerCase())
       );
       const snap = await getDocs(q);
       
       if (!snap.empty) {
         const user = snap.docs[0].data();
+        
+        // Validate company code if user has one registered in database
+        const dbCompanyCode = (user.company_code || '').toUpperCase().trim();
+        const inputCompanyCode = (companyCode || '').toUpperCase().trim();
+        
+        if (dbCompanyCode !== "" && dbCompanyCode !== inputCompanyCode) {
+          return { error: "El código de empresa es incorrecto para este correo electrónico." };
+        }
         
         // If user already has a password set, validate it
         if (user.password_hash) {
@@ -268,7 +275,7 @@ export const dbService = {
         return { success: true, user };
       }
     } catch(err) { console.error(err); return { error: "Error en el servidor de base de datos." }; }
-    return { error: "Credenciales incorrectas. Verifica tu email y el código de empresa." };
+    return { error: "Credenciales incorrectas. Verifica tu correo electrónico." };
   },
 
   async registerUser(name, lastname, email, companyCode, department, password) {

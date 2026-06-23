@@ -685,8 +685,8 @@ function App() {
   
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
-    if (!loginEmail.trim() || !loginCompanyCode.trim() || !loginPassword.trim()) {
-      showToastMessage("Por favor completa el email, el código de empresa y la contraseña.", "error");
+    if (!loginEmail.trim() || !loginPassword.trim()) {
+      showToastMessage("Por favor completa el email y la contraseña.", "error");
       return;
     }
 
@@ -2275,7 +2275,7 @@ function App() {
 
                 <div className="form-group">
                   <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <KeyRound size={14} /> Código de Empresa
+                    <KeyRound size={14} /> Código de Empresa (Opcional)
                   </label>
                   <input 
                     type="text" 
@@ -2284,7 +2284,6 @@ function App() {
                     value={loginCompanyCode}
                     onChange={(e) => { setLoginCompanyCode(e.target.value); if (loginError) setLoginError(null); }}
                     style={{ textTransform: 'uppercase' }}
-                    required 
                   />
                 </div>
 
