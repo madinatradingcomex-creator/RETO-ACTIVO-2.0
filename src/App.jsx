@@ -572,8 +572,9 @@ function App() {
     let pulling = false;
 
     const handleTouchStart = (e) => {
-      // Only pull if container is at scrollTop = 0 and not currently refreshing
-      if (container.scrollTop === 0 && !isRefreshingRef.current) {
+      // Check if either container or window is at the top, and not currently refreshing
+      const isAtTop = container.scrollTop === 0 && (window.scrollY === 0 || document.documentElement.scrollTop === 0);
+      if (isAtTop && !isRefreshingRef.current) {
         startY = e.touches[0].pageY;
         pulling = true;
         setIsPulling(true);
@@ -586,7 +587,8 @@ function App() {
       const currentY = e.touches[0].pageY;
       const diffY = currentY - startY;
 
-      if (diffY > 0 && container.scrollTop === 0) {
+      const isAtTop = container.scrollTop === 0 && (window.scrollY === 0 || document.documentElement.scrollTop === 0);
+      if (diffY > 0 && isAtTop) {
         // Prevent default screen bounce or browser pull-to-refresh
         if (e.cancelable) {
           e.preventDefault();
