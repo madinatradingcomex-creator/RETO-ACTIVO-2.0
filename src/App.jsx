@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useGoogleLogin, googleLogout } from '@react-oauth/google';
 import { 
   LayoutDashboard, 
@@ -539,6 +539,109 @@ function App() {
     localStorage.setItem('ra_pwa_ios_permanent_dismiss', '1');
     showToastMessage('🎉 ¡Perfecto! Ya podés usar Reto Activo desde tu pantalla de inicio.', 'success');
   };
+
+  // Pull-to-Refresh States
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isPulling, setIsPulling] = useState(false);
+
+  // Refs to prevent state capture in touch event closures
+  const pullDistanceRef = useRef(0);
+  const isRefreshingRef = useRef(false);
+  const currentUserRef = useRef(currentUser);
+
+  useEffect(() => {
+    pullDistanceRef.current = pullDistance;
+  }, [pullDistance]);
+
+  useEffect(() => {
+    isRefreshingRef.current = isRefreshing;
+  }, [isRefreshing]);
+
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const container = document.querySelector('.main-content');
+    if (!container) return;
+
+    let startY = 0;
+    let pulling = false;
+
+    const handleTouchStart = (e) => {
+      // Only pull if container is at scrollTop = 0 and not currently refreshing
+      if (container.scrollTop === 0 && !isRefreshingRef.current) {
+        startY = e.touches[0].pageY;
+        pulling = true;
+        setIsPulling(true);
+      }
+    };
+
+    const handleTouchMove = (e) => {
+      if (!pulling || isRefreshingRef.current) return;
+
+      const currentY = e.touches[0].pageY;
+      const diffY = currentY - startY;
+
+      if (diffY > 0 && container.scrollTop === 0) {
+        // Prevent default screen bounce or browser pull-to-refresh
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+        // Apply resistance factor (0.35) and limit pull to 85px
+        const dist = Math.min(diffY * 0.35, 85);
+        setPullDistance(dist);
+      } else {
+        pulling = false;
+        setIsPulling(false);
+        setPullDistance(0);
+      }
+    };
+
+    const handleTouchEnd = async () => {
+      if (!pulling) return;
+      pulling = false;
+      setIsPulling(false);
+
+      const currentDist = pullDistanceRef.current;
+      if (currentDist > 65) {
+        setIsRefreshing(true);
+        setPullDistance(60); // Keep it pulled slightly while loading
+
+        const startTime = Date.now();
+        try {
+          if (currentUserRef.current) {
+            await loadViewData(currentUserRef.current);
+          }
+        } catch (err) {
+          console.error("Error refreshing data via pull-to-refresh:", err);
+        }
+
+        // Minimum 600ms visual duration for a professional feel
+        const elapsed = Date.now() - startTime;
+        const remaining = Math.max(600 - elapsed, 0);
+        setTimeout(() => {
+          setIsRefreshing(false);
+          setPullDistance(0);
+        }, remaining);
+      } else {
+        setPullDistance(0);
+      }
+    };
+
+    container.addEventListener('touchstart', handleTouchStart, { passive: true });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [currentUser]);
 
   const loadViewData = async (userSession) => {
     if (!userSession) return;
@@ -3127,6 +3230,38 @@ function App() {
 
       {/* ÁREA PRINCIPAL */}
       <main className="main-content">
+        
+        {/* INDICADOR PULL TO REFRESH */}
+        {(pullDistance > 0 || isRefreshing) && (
+          <div 
+            className="pull-to-refresh-indicator" 
+            style={{ 
+              height: `${pullDistance}px`,
+              opacity: Math.min(pullDistance / 55, 1),
+              transition: isPulling ? 'none' : 'height 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          >
+            <div className="pull-to-refresh-spinner-box">
+              <RefreshCw 
+                size={16} 
+                className={isRefreshing ? "spin-animation" : ""}
+                style={{ 
+                  transform: isRefreshing ? 'none' : `rotate(${pullDistance * 5}deg)`,
+                  transition: isRefreshing ? 'none' : 'transform 0.1s ease',
+                  color: isRefreshing ? 'var(--mint-accent)' : 'var(--text-muted)'
+                }}
+              />
+              <span style={{ 
+                fontSize: '0.8rem', 
+                fontWeight: 600, 
+                color: isRefreshing ? 'var(--text-main)' : 'var(--text-muted)',
+                fontFamily: 'Outfit'
+              }}>
+                {isRefreshing ? 'Actualizando datos...' : pullDistance > 65 ? 'Soltá para actualizar' : 'Deslizá para actualizar'}
+              </span>
+            </div>
+          </div>
+        )}
         
         {/* =============================================================== */}
         {/* SECCIÓN DEL EMPLEADO (VIEWS)                                    */}

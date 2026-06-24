@@ -1959,3 +1959,25 @@ body {
     display: none !important;
   }
 }
+
+/* Pull to Refresh Indicator Styles */
+.pull-to-refresh-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  width: 100%;
+  background: rgba(235, 243, 250, 0.5);
+  backdrop-filter: blur(8px);
+  border: 1px dashed rgba(59, 130, 246, 0.15);
+  border-radius: var(--radius-lg);
+  margin-bottom: 1.25rem;
+  box-sizing: border-box;
+}
+
+.pull-to-refresh-spinner-box {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem;
+}
